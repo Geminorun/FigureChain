@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,7 +34,7 @@ class Person(ImportedRowMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
 
-class PersonExternalId(Base):
+class PersonExternalId(ImportedRowMixin, Base):
     __tablename__ = "person_external_ids"
     __table_args__ = (
         UniqueConstraint("source_name", "external_id"),
@@ -44,10 +44,7 @@ class PersonExternalId(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     person_id: Mapped[UUID] = mapped_column(ForeignKey("figure_data.persons.id"), nullable=False)
-    source_name: Mapped[str] = mapped_column(String(64), nullable=False)
     external_id: Mapped[str] = mapped_column(Text, nullable=False)
-    source_snapshot: Mapped[str] = mapped_column(String(128), nullable=False)
-    source_row_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
 class PersonAlias(ImportedRowMixin, Base):

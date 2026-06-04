@@ -6,13 +6,12 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from figure_data.db.base import Base
-from figure_data.db.models.mixins import ImportedRowMixin
 
 
-class PersonMergeCandidate(ImportedRowMixin, Base):
+class PersonMergeCandidate(Base):
     __tablename__ = "person_merge_candidates"
     __table_args__ = (
-        UniqueConstraint("source_name", "source_table", "source_pk"),
+        UniqueConstraint("person_a_id", "person_b_id"),
         {"schema": "figure_data"},
     )
 
@@ -24,12 +23,14 @@ class PersonMergeCandidate(ImportedRowMixin, Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reviewed_by: Mapped[str | None] = mapped_column(Text)
     review_note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class PersonIdentityLink(ImportedRowMixin, Base):
+class PersonIdentityLink(Base):
     __tablename__ = "person_identity_links"
     __table_args__ = (
-        UniqueConstraint("source_name", "source_table", "source_pk"),
+        UniqueConstraint("person_id", "external_source_name", "external_id"),
         {"schema": "figure_data"},
     )
 
@@ -37,7 +38,10 @@ class PersonIdentityLink(ImportedRowMixin, Base):
     person_id: Mapped[UUID] = mapped_column(ForeignKey("figure_data.persons.id"), nullable=False)
     external_source_name: Mapped[str] = mapped_column(String(64), nullable=False)
     external_id: Mapped[str] = mapped_column(Text, nullable=False)
+    review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unreviewed")
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     confirmed_by: Mapped[str | None] = mapped_column(Text)
     link_note: Mapped[str | None] = mapped_column(Text)
     supersedes_person_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
