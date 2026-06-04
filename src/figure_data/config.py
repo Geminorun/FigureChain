@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     source_snapshot: str = "cbdb_20260530"
     source_name: str = "cbdb"
 
+    def __init__(self, **data: object) -> None:
+        super().__init__(**data)  # type: ignore[arg-type]
+
 
 @lru_cache(maxsize=1)
 def load_settings() -> Settings:

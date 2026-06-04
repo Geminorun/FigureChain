@@ -1,3 +1,5 @@
+from sqlalchemy import UniqueConstraint
+
 from figure_data.db.base import Base
 from figure_data.db.models import identity, import_batch, office, person, relationship, source
 
@@ -15,7 +17,7 @@ def test_relationship_candidates_have_stable_source_identity_constraint() -> Non
     constraint_columns = {
         tuple(column.name for column in constraint.columns)
         for constraint in table.constraints
-        if constraint.__class__.__name__ == "UniqueConstraint"
+        if isinstance(constraint, UniqueConstraint)
     }
 
     assert ("source_name", "source_table", "source_pk") in constraint_columns

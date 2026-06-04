@@ -13,6 +13,10 @@ dependencies = [
   "typer>=0.15.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project.scripts]
 figure-data = "figure_data.cli:app"
 
@@ -33,6 +37,9 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/figure_data"]
 
 [tool.mypy]
 python_version = "3.12"

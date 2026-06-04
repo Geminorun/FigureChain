@@ -15,5 +15,11 @@ def build_source_pk(row: Mapping[str, Any], key_columns: Sequence[str]) -> str:
 
 
 def hash_source_row(row: Mapping[str, Any]) -> str:
-    payload = json.dumps(row, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    payload = json.dumps(
+        row,
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+        separators=(",", ":"),
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

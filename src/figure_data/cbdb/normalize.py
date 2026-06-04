@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from opencc import OpenCC  # type: ignore[import-untyped]
 
 _OPENCC = OpenCC("t2s")
@@ -25,7 +27,7 @@ def normalize_text(value: object) -> str | None:
 def to_simplified(value: str | None) -> str | None:
     if value is None:
         return None
-    return _OPENCC.convert(value)
+    return cast(str, _OPENCC.convert(value))
 
 
 def build_search_name(value: str | None) -> str | None:
