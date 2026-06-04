@@ -17,6 +17,20 @@ def normalize_int(value: object) -> int | None:
     return int(text)
 
 
+def normalize_bool_int(value: object) -> bool | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text in {"", "-9999", "None", "none", "NULL", "null"}:
+        return None
+    int_value = int(text)
+    if int_value == 0:
+        return False
+    if int_value == 1:
+        return True
+    return bool(int_value)
+
+
 def normalize_text(value: object) -> str | None:
     if value is None:
         return None
