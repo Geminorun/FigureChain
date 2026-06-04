@@ -4,7 +4,9 @@ from typing import Annotated
 import typer
 
 from figure_data.config import load_settings
+from figure_data.db.session import create_session_factory
 from figure_data.importing.orchestrator import import_cbdb
+from figure_data.search.person_search import search_people
 
 app = typer.Typer(
     help="CBDB import and normalization tools for FigureChain.",
@@ -37,3 +39,20 @@ def import_cbdb_command(
     batch = import_cbdb(settings)
     typer.echo(f"import batch {batch.status}")
     typer.echo(f"id={batch.id} rows_read={batch.rows_read}")
+
+
+@app.command("search-person")
+def search_person_command(
+    query: str,
+    limit: Annotated[int, typer.Option(min=1, max=50)] = 10,
+) -> None:
+    """Search imported CBDB people."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        results = search_people(session, query, limit)
+    for result in results:
+        typer.echo(
+            f"{result.person_id}\t{result.primary_name_zh_hant}\t"
+            f"{result.primary_name_zh_hans}\t{result.birth_year}-{result.death_year}"
+        )
