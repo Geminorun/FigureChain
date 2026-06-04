@@ -1,0 +1,40 @@
+[project]
+name = "figure-data"
+version = "0.1.0"
+description = "CBDB import and normalization tools for FigureChain"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.16.0",
+  "opencc-python-reimplemented>=0.1.7",
+  "psycopg[binary]>=3.2.0",
+  "pydantic>=2.11.0",
+  "pydantic-settings>=2.9.0",
+  "sqlalchemy>=2.0.40",
+  "typer>=0.15.0",
+]
+
+[project.scripts]
+figure-data = "figure_data.cli:app"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.15.0",
+  "pytest>=8.3.0",
+  "ruff>=0.11.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
