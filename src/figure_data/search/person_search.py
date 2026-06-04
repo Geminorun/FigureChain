@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -67,4 +68,19 @@ def build_person_search_sql(query: str, limit: int) -> tuple[str, dict[str, Any]
 def search_people(session: Session, query: str, limit: int = 10) -> list[PersonSearchResult]:
     sql, params = build_person_search_sql(query, limit)
     rows = session.execute(text(sql), params).mappings().all()
-    return [PersonSearchResult(**dict(row)) for row in rows]
+    return [person_search_result_from_row(cast(Mapping[str, Any], row)) for row in rows]
+
+
+def person_search_result_from_row(row: Mapping[str, Any]) -> PersonSearchResult:
+    return PersonSearchResult(
+        person_id=str(row["person_id"]),
+        primary_name_zh_hant=row["primary_name_zh_hant"],
+        primary_name_zh_hans=row["primary_name_zh_hans"],
+        primary_name_romanized=row["primary_name_romanized"],
+        birth_year=row["birth_year"],
+        death_year=row["death_year"],
+        index_year=row["index_year"],
+        dynasty_code=row["dynasty_code"],
+        matching_aliases=list(row["matching_aliases"] or []),
+        external_ids=list(row["external_ids"] or []),
+    )
