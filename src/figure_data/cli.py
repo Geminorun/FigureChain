@@ -3,10 +3,14 @@ from typing import Annotated
 
 import typer
 
+from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
 from figure_data.db.session import create_session_factory
 from figure_data.importing.orchestrator import import_cbdb
 from figure_data.search.person_search import search_people
+from figure_data.validation.report import ValidationReport
+from figure_data.validation.row_counts import validate_expected_sqlite_counts
+from figure_data.validation.sample_queries import validate_sample_person_queries
 
 app = typer.Typer(
     help="CBDB import and normalization tools for FigureChain.",
@@ -56,3 +60,21 @@ def search_person_command(
             f"{result.person_id}\t{result.primary_name_zh_hant}\t"
             f"{result.primary_name_zh_hans}\t{result.birth_year}-{result.death_year}"
         )
+
+
+@app.command("validate-cbdb")
+def validate_cbdb_command() -> None:
+    """Validate the configured CBDB import."""
+    settings = load_settings()
+    checks = []
+    with SQLiteReader(settings.cbdb_sqlite_path) as reader:
+        checks.extend(validate_expected_sqlite_counts(reader))
+    factory = create_session_factory(settings)
+    with factory() as session:
+        checks.extend(validate_sample_person_queries(session))
+    report = ValidationReport(checks=checks)
+    for check in report.checks:
+        status = "PASS" if check.passed else "FAIL"
+        typer.echo(f"{status}\t{check.name}\t{check.detail}")
+    if not report.passed:
+        raise typer.Exit(code=1)
