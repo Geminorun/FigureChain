@@ -20,7 +20,10 @@ def transform_alias_row(
     person_id: UUID,
 ) -> dict[str, Any]:
     alias_hant = normalize_text(row.get("c_alt_name_chn"))
-    source_pk = build_source_pk(row, ["c_personid", "c_alt_name_chn", "c_alt_name_type_code"])
+    key_columns = ["c_personid", "c_alt_name_chn", "c_alt_name_type_code"]
+    if "c_sequence" in row:
+        key_columns.append("c_sequence")
+    source_pk = build_source_pk(row, key_columns)
     return {
         "person_id": person_id,
         "alias_zh_hant": alias_hant,
