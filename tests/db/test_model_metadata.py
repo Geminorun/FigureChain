@@ -70,6 +70,19 @@ def test_person_external_ids_keep_source_identity() -> None:
         "updated_at",
     } <= set(table.columns.keys())
 
+    unique_constraints = [
+        constraint
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    ]
+    constraint_columns = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in unique_constraints
+    }
+
+    assert ("source_name", "source_table", "source_pk") in constraint_columns
+    assert len({constraint.name for constraint in unique_constraints}) == len(unique_constraints)
+
 
 def test_initial_migration_uses_explicit_operations() -> None:
     migration_source = MIGRATION_PATH.read_text(encoding="utf-8")

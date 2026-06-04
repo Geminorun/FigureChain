@@ -39,6 +39,12 @@ class PersonExternalId(ImportedRowMixin, Base):
     __table_args__ = (
         UniqueConstraint("source_name", "external_id"),
         UniqueConstraint("person_id", "source_name", "external_id"),
+        UniqueConstraint(
+            "source_name",
+            "source_table",
+            "source_pk",
+            name="uq_person_external_ids_source_identity",
+        ),
         {"schema": "figure_data"},
     )
 

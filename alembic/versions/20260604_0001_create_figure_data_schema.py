@@ -48,7 +48,7 @@ def _source_identity_constraint(table_name: str) -> sa.UniqueConstraint:
         "source_name",
         "source_table",
         "source_pk",
-        name=f"uq_{table_name}_source_name",
+        name=f"uq_{table_name}_source_identity",
     )
 
 
