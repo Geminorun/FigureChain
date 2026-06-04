@@ -24,4 +24,5 @@ def test_transform_person_row_normalizes_names_and_dates() -> None:
     assert record["primary_name_zh_hant"] == "諸葛亮"
     assert record["primary_name_zh_hans"] == "诸葛亮"
     assert record["birth_year"] == 181
+    assert record["is_female"] is False
     assert record["source_pk"] == "c_personid=25403"

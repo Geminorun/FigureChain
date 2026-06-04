@@ -6,6 +6,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from figure_data.cbdb.normalize import (
     build_search_name,
+    normalize_bool_int,
     normalize_int,
     normalize_text,
     to_simplified,
@@ -24,7 +25,6 @@ def local_person_id(context: ImportContext, cbdb_person_id: int | None) -> UUID 
 def transform_person_row(row: Mapping[str, Any], context: ImportContext) -> dict[str, Any]:
     source_pk = build_source_pk(row, ["c_personid"])
     name_hant = normalize_text(row.get("c_name_chn"))
-    female_value = normalize_int(row.get("c_female"))
     return {
         "id": str(uuid5(NAMESPACE_URL, f"{context.source_name}:{source_pk}")),
         "primary_name_zh_hant": name_hant,
@@ -41,7 +41,7 @@ def transform_person_row(row: Mapping[str, Any], context: ImportContext) -> dict
         "floruit_start_year": normalize_int(row.get("c_fl_earliest_year")),
         "floruit_end_year": normalize_int(row.get("c_fl_latest_year")),
         "dynasty_code": normalize_int(row.get("c_dy")),
-        "is_female": bool(female_value) if female_value is not None else None,
+        "is_female": normalize_bool_int(row.get("c_female")),
         "notes": normalize_text(row.get("c_notes")),
         "source_name": context.source_name,
         "source_snapshot": context.source_snapshot,

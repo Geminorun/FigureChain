@@ -10,7 +10,7 @@ from figure_data.cbdb.normalize import (
     normalize_text,
     to_simplified,
 )
-from figure_data.cbdb.source_identity import build_source_pk, hash_source_row
+from figure_data.cbdb.source_identity import build_rowid_source_pk, hash_source_row
 from figure_data.importing.context import ImportContext
 
 
@@ -23,10 +23,8 @@ def transform_alias_row(
     key_columns = ["c_personid", "c_alt_name_chn", "c_alt_name_type_code"]
     if "c_sequence" in row:
         key_columns.append("c_sequence")
-    source_pk = build_source_pk(row, key_columns)
     source_row_hash = hash_source_row(row)
-    if "c_sequence" in row:
-        source_pk = f"{source_pk}|source_row_hash={source_row_hash}"
+    source_pk = build_rowid_source_pk(row, key_columns)
     return {
         "person_id": person_id,
         "alias_zh_hant": alias_hant,

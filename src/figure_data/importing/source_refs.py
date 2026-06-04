@@ -7,11 +7,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from figure_data.cbdb.normalize import normalize_int, normalize_text
-from figure_data.cbdb.source_identity import build_source_pk, hash_source_row
+from figure_data.cbdb.source_identity import build_rowid_source_pk, hash_source_row
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.db.models.source import SourceRef
-from figure_data.importing.context import ImportContext, imported_record_fields
-from figure_data.importing.upsert import DEFAULT_UPSERT_CHUNK_SIZE, execute_upsert_rows
+from figure_data.importing.context import ImportContext, ImportPhaseResult, imported_record_fields
+from figure_data.importing.upsert import DEFAULT_UPSERT_CHUNK_SIZE, UpsertStats, execute_upsert_rows
 
 _SOURCE_REF_KEYS = {
     "ASSOC_DATA": [
@@ -32,21 +32,19 @@ def import_source_refs(
     reader: SQLiteReader,
     context: ImportContext,
     import_batch_id: UUID,
-) -> int:
+) -> ImportPhaseResult:
     imported_at = datetime.now(UTC)
     rows: list[dict[str, Any]] = []
     rows_read = 0
+    upsert_stats = UpsertStats()
     for table_name, key_columns in _SOURCE_REF_KEYS.items():
         for row in reader.iter_rows(table_name):
             source_work_id = normalize_int(row.get("c_source"))
             if source_work_id is None:
                 continue
-            ref_source_pk = build_source_pk(row, key_columns)
+            ref_source_pk = build_rowid_source_pk(row, key_columns)
             source_row_hash = hash_source_row(row)
-            source_pk = (
-                f"ref_source_table={table_name}|ref_source_pk={ref_source_pk}"
-                f"|source_row_hash={source_row_hash}"
-            )
+            source_pk = build_source_ref_source_pk(table_name, row)
             rows.append(
                 {
                     "source_work_id": source_work_id,
@@ -67,7 +65,13 @@ def import_source_refs(
             )
             rows_read += 1
             if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
-                execute_upsert_rows(session, SourceRef.__table__, rows)
+                upsert_stats.add(execute_upsert_rows(session, SourceRef.__table__, rows))
                 rows.clear()
-    execute_upsert_rows(session, SourceRef.__table__, rows)
-    return rows_read
+    upsert_stats.add(execute_upsert_rows(session, SourceRef.__table__, rows))
+    return ImportPhaseResult(rows_read=rows_read, upsert_stats=upsert_stats)
+
+
+def build_source_ref_source_pk(table_name: str, row: dict[str, Any]) -> str:
+    key_columns = _SOURCE_REF_KEYS[table_name]
+    ref_source_pk = build_rowid_source_pk(row, key_columns)
+    return f"ref_source_table={table_name}|ref_source_pk={ref_source_pk}"

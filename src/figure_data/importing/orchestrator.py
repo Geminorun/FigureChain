@@ -18,14 +18,14 @@ from figure_data.db.models.relationship import KinshipCandidate, RelationshipCan
 from figure_data.db.session import create_session_factory
 from figure_data.importing.aliases import transform_alias_row
 from figure_data.importing.batch import fail_import_batch, finish_import_batch, start_import_batch
-from figure_data.importing.context import ImportContext, imported_record_fields
+from figure_data.importing.context import ImportContext, ImportPhaseResult, imported_record_fields
 from figure_data.importing.dictionaries import import_dictionaries
 from figure_data.importing.kinship import transform_kinship_row
 from figure_data.importing.offices import transform_office_posting_row
 from figure_data.importing.persons import local_person_id, transform_person_row
 from figure_data.importing.relationships import transform_relationship_row
 from figure_data.importing.source_refs import import_source_refs
-from figure_data.importing.upsert import DEFAULT_UPSERT_CHUNK_SIZE, execute_upsert_rows
+from figure_data.importing.upsert import DEFAULT_UPSERT_CHUNK_SIZE, UpsertStats, execute_upsert_rows
 
 CBDB_IMPORT_TABLE_ORDER = [
     "DYNASTIES",
@@ -144,14 +144,17 @@ def _run_import_phase(
     session: Session,
     batch: ImportBatch,
     phase_name: str,
-    import_phase: Callable[[], int],
+    import_phase: Callable[[], ImportPhaseResult],
 ) -> int:
-    rows_read = import_phase()
-    batch.rows_read += rows_read
+    result = import_phase()
+    batch.rows_read += result.rows_read
+    batch.rows_inserted += result.upsert_stats.rows_inserted
+    batch.rows_updated += result.upsert_stats.rows_updated
+    batch.rows_skipped += result.upsert_stats.rows_skipped
     batch.error_summary = f"last completed phase: {phase_name}"
     session.add(batch)
     session.commit()
-    return rows_read
+    return result.rows_read
 
 
 def _import_persons(
@@ -159,11 +162,12 @@ def _import_persons(
     reader: SQLiteReader,
     context: ImportContext,
     import_batch_id: UUID,
-) -> int:
+) -> ImportPhaseResult:
     imported_at = datetime.now(UTC)
     person_rows: list[dict[str, Any]] = []
     external_id_rows: list[dict[str, Any]] = []
     rows_read = 0
+    upsert_stats = UpsertStats()
     for row in reader.iter_rows("BIOG_MAIN"):
         record = transform_person_row(row, context)
         _add_import_batch_fields(record, import_batch_id, imported_at)
@@ -187,9 +191,9 @@ def _import_persons(
                 }
             )
         if len(person_rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
-            _flush_person_rows(session, person_rows, external_id_rows)
-    _flush_person_rows(session, person_rows, external_id_rows)
-    return rows_read
+            upsert_stats.add(_flush_person_rows(session, person_rows, external_id_rows))
+    upsert_stats.add(_flush_person_rows(session, person_rows, external_id_rows))
+    return ImportPhaseResult(rows_read=rows_read, upsert_stats=upsert_stats)
 
 
 def _import_aliases(
@@ -198,10 +202,11 @@ def _import_aliases(
     context: ImportContext,
     import_batch_id: UUID,
     person_ids: set[int],
-) -> int:
+) -> ImportPhaseResult:
     imported_at = datetime.now(UTC)
     rows: list[dict[str, Any]] = []
     rows_read = 0
+    upsert_stats = UpsertStats()
     for row in reader.iter_rows("ALTNAME_DATA"):
         cbdb_person_id = normalize_int(row.get("c_personid"))
         if cbdb_person_id not in person_ids:
@@ -214,10 +219,10 @@ def _import_aliases(
         rows.append(record)
         rows_read += 1
         if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
-            execute_upsert_rows(session, PersonAlias.__table__, rows)
+            upsert_stats.add(execute_upsert_rows(session, PersonAlias.__table__, rows))
             rows.clear()
-    execute_upsert_rows(session, PersonAlias.__table__, rows)
-    return rows_read
+    upsert_stats.add(execute_upsert_rows(session, PersonAlias.__table__, rows))
+    return ImportPhaseResult(rows_read=rows_read, upsert_stats=upsert_stats)
 
 
 def _import_relationships(
@@ -226,11 +231,12 @@ def _import_relationships(
     context: ImportContext,
     import_batch_id: UUID,
     person_ids: set[int],
-) -> int:
+) -> ImportPhaseResult:
     imported_at = datetime.now(UTC)
     association_labels = _association_labels(reader)
     rows: list[dict[str, Any]] = []
     rows_read = 0
+    upsert_stats = UpsertStats()
     for row in reader.iter_rows("ASSOC_DATA"):
         record = transform_relationship_row(row, context)
         record["association_label"] = association_labels.get(record["association_code"])
@@ -239,14 +245,9 @@ def _import_relationships(
         rows.append(record)
         rows_read += 1
         if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
-            _flush_relationship_rows(session, rows)
-    execute_upsert_rows(
-        session,
-        RelationshipCandidate.__table__,
-        rows,
-        protected_columns=REVIEW_PROTECTED_COLUMNS,
-    )
-    return rows_read
+            upsert_stats.add(_flush_relationship_rows(session, rows))
+    upsert_stats.add(_flush_relationship_rows(session, rows))
+    return ImportPhaseResult(rows_read=rows_read, upsert_stats=upsert_stats)
 
 
 def _import_kinships(
@@ -255,15 +256,16 @@ def _import_kinships(
     context: ImportContext,
     import_batch_id: UUID,
     person_ids: set[int],
-) -> int:
+) -> ImportPhaseResult:
     imported_at = datetime.now(UTC)
     kinship_codes = _kinship_code_rows(reader)
     rows: list[dict[str, Any]] = []
     rows_read = 0
+    upsert_stats = UpsertStats()
     for row in reader.iter_rows("KIN_DATA"):
         kinship_code = normalize_int(row.get("c_kin_code"))
         code_row = kinship_codes.get(kinship_code) if kinship_code is not None else None
-        source_row = {**row, **code_row} if code_row is not None else row
+        source_row = _merge_kinship_source_row(row, code_row)
         record = transform_kinship_row(source_row, context)
         if normalize_int(row.get("c_personid")) not in person_ids:
             record["person_a_id"] = None
@@ -273,14 +275,9 @@ def _import_kinships(
         rows.append(record)
         rows_read += 1
         if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
-            _flush_kinship_rows(session, rows)
-    execute_upsert_rows(
-        session,
-        KinshipCandidate.__table__,
-        rows,
-        protected_columns=REVIEW_PROTECTED_COLUMNS,
-    )
-    return rows_read
+            upsert_stats.add(_flush_kinship_rows(session, rows))
+    upsert_stats.add(_flush_kinship_rows(session, rows))
+    return ImportPhaseResult(rows_read=rows_read, upsert_stats=upsert_stats)
 
 
 def _import_office_postings(
@@ -289,11 +286,12 @@ def _import_office_postings(
     context: ImportContext,
     import_batch_id: UUID,
     person_ids: set[int],
-) -> int:
+) -> ImportPhaseResult:
     imported_at = datetime.now(UTC)
     office_labels = _office_labels(reader)
     rows: list[dict[str, Any]] = []
     rows_read = 0
+    upsert_stats = UpsertStats()
     for row in reader.iter_rows("POSTED_TO_OFFICE_DATA"):
         record = transform_office_posting_row(row, context)
         record["office_label"] = office_labels.get(record["office_code"])
@@ -302,10 +300,10 @@ def _import_office_postings(
         rows.append(record)
         rows_read += 1
         if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
-            execute_upsert_rows(session, OfficePosting.__table__, rows)
+            upsert_stats.add(execute_upsert_rows(session, OfficePosting.__table__, rows))
             rows.clear()
-    execute_upsert_rows(session, OfficePosting.__table__, rows)
-    return rows_read
+    upsert_stats.add(execute_upsert_rows(session, OfficePosting.__table__, rows))
+    return ImportPhaseResult(rows_read=rows_read, upsert_stats=upsert_stats)
 
 
 def _association_labels(reader: SQLiteReader) -> dict[int, str]:
@@ -325,6 +323,15 @@ def _kinship_code_rows(reader: SQLiteReader) -> dict[int, dict[str, Any]]:
         if code is not None:
             rows[code] = row
     return rows
+
+
+def _merge_kinship_source_row(
+    row: dict[str, Any],
+    code_row: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if code_row is None:
+        return row
+    return {**code_row, **row}
 
 
 def _office_labels(reader: SQLiteReader) -> dict[int, str]:
@@ -353,31 +360,34 @@ def _flush_person_rows(
     session: Session,
     person_rows: list[dict[str, Any]],
     external_id_rows: list[dict[str, Any]],
-) -> None:
-    execute_upsert_rows(session, Person.__table__, person_rows)
-    execute_upsert_rows(session, PersonExternalId.__table__, external_id_rows)
+) -> UpsertStats:
+    upsert_stats = execute_upsert_rows(session, Person.__table__, person_rows)
+    upsert_stats.add(execute_upsert_rows(session, PersonExternalId.__table__, external_id_rows))
     person_rows.clear()
     external_id_rows.clear()
+    return upsert_stats
 
 
-def _flush_relationship_rows(session: Session, rows: list[dict[str, Any]]) -> None:
-    execute_upsert_rows(
+def _flush_relationship_rows(session: Session, rows: list[dict[str, Any]]) -> UpsertStats:
+    upsert_stats = execute_upsert_rows(
         session,
         RelationshipCandidate.__table__,
         rows,
         protected_columns=REVIEW_PROTECTED_COLUMNS,
     )
     rows.clear()
+    return upsert_stats
 
 
-def _flush_kinship_rows(session: Session, rows: list[dict[str, Any]]) -> None:
-    execute_upsert_rows(
+def _flush_kinship_rows(session: Session, rows: list[dict[str, Any]]) -> UpsertStats:
+    upsert_stats = execute_upsert_rows(
         session,
         KinshipCandidate.__table__,
         rows,
         protected_columns=REVIEW_PROTECTED_COLUMNS,
     )
     rows.clear()
+    return upsert_stats
 
 
 def _add_import_batch_fields(

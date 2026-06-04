@@ -3,11 +3,19 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from figure_data.importing.upsert import UpsertStats
+
 
 @dataclass(frozen=True)
 class ImportContext:
     source_name: str
     source_snapshot: str
+
+
+@dataclass(frozen=True)
+class ImportPhaseResult:
+    rows_read: int
+    upsert_stats: UpsertStats
 
 
 def imported_record_fields(

@@ -5,7 +5,7 @@ from typing import Any
 
 from figure_data.cbdb.classification import classify_association_code
 from figure_data.cbdb.normalize import normalize_int, normalize_text
-from figure_data.cbdb.source_identity import build_source_pk, hash_source_row
+from figure_data.cbdb.source_identity import build_rowid_source_pk, hash_source_row
 from figure_data.importing.context import ImportContext
 from figure_data.importing.persons import local_person_id
 
@@ -34,9 +34,7 @@ def transform_relationship_row(row: Mapping[str, Any], context: ImportContext) -
             "c_sequence",
         ]
     source_row_hash = hash_source_row(row)
-    source_pk = build_source_pk(row, key_columns)
-    if "c_assoc_id2" not in row:
-        source_pk = f"{source_pk}|source_row_hash={source_row_hash}"
+    source_pk = build_rowid_source_pk(row, key_columns)
     classification = classify_association_code(association_code)
     return {
         "person_a_id": local_person_id(context, cbdb_person_a_id),

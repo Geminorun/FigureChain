@@ -12,8 +12,8 @@ from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.db.models.office import OfficeCode
 from figure_data.db.models.relationship import AssociationCode, KinshipCode
 from figure_data.db.models.source import Dynasty, SourceWork
-from figure_data.importing.context import ImportContext, imported_record_fields
-from figure_data.importing.upsert import execute_upsert_rows
+from figure_data.importing.context import ImportContext, ImportPhaseResult, imported_record_fields
+from figure_data.importing.upsert import UpsertStats, execute_upsert_rows
 
 
 def import_dictionaries(
@@ -21,15 +21,21 @@ def import_dictionaries(
     reader: SQLiteReader,
     context: ImportContext,
     import_batch_id: UUID,
-) -> int:
+) -> ImportPhaseResult:
     imported_at = datetime.now(UTC)
     rows_read = 0
-    rows_read += _import_dynasties(session, reader, context, import_batch_id, imported_at)
-    rows_read += _import_source_works(session, reader, context, import_batch_id, imported_at)
-    rows_read += _import_association_codes(session, reader, context, import_batch_id, imported_at)
-    rows_read += _import_kinship_codes(session, reader, context, import_batch_id, imported_at)
-    rows_read += _import_office_codes(session, reader, context, import_batch_id, imported_at)
-    return rows_read
+    upsert_stats = UpsertStats()
+    for import_dictionary in [
+        _import_dynasties,
+        _import_source_works,
+        _import_association_codes,
+        _import_kinship_codes,
+        _import_office_codes,
+    ]:
+        result = import_dictionary(session, reader, context, import_batch_id, imported_at)
+        rows_read += result.rows_read
+        upsert_stats.add(result.upsert_stats)
+    return ImportPhaseResult(rows_read=rows_read, upsert_stats=upsert_stats)
 
 
 def _import_dynasties(
@@ -38,7 +44,7 @@ def _import_dynasties(
     context: ImportContext,
     import_batch_id: UUID,
     imported_at: datetime,
-) -> int:
+) -> ImportPhaseResult:
     rows = [
         {
             "dynasty_code": normalize_int(row.get("c_dy")),
@@ -48,7 +54,10 @@ def _import_dynasties(
         }
         for row in reader.iter_rows("DYNASTIES")
     ]
-    return execute_upsert_rows(session, Dynasty.__table__, rows)
+    return ImportPhaseResult(
+        rows_read=len(rows),
+        upsert_stats=execute_upsert_rows(session, Dynasty.__table__, rows),
+    )
 
 
 def _import_source_works(
@@ -57,7 +66,7 @@ def _import_source_works(
     context: ImportContext,
     import_batch_id: UUID,
     imported_at: datetime,
-) -> int:
+) -> ImportPhaseResult:
     rows = [
         {
             "text_code": normalize_int(row.get("c_textid")),
@@ -74,7 +83,10 @@ def _import_source_works(
         }
         for row in reader.iter_rows("TEXT_CODES")
     ]
-    return execute_upsert_rows(session, SourceWork.__table__, rows)
+    return ImportPhaseResult(
+        rows_read=len(rows),
+        upsert_stats=execute_upsert_rows(session, SourceWork.__table__, rows),
+    )
 
 
 def _import_association_codes(
@@ -83,7 +95,7 @@ def _import_association_codes(
     context: ImportContext,
     import_batch_id: UUID,
     imported_at: datetime,
-) -> int:
+) -> ImportPhaseResult:
     rows = []
     for row in reader.iter_rows("ASSOC_CODES"):
         example = normalize_text(row.get("c_example"))
@@ -106,7 +118,10 @@ def _import_association_codes(
                 ),
             }
         )
-    return execute_upsert_rows(session, AssociationCode.__table__, rows)
+    return ImportPhaseResult(
+        rows_read=len(rows),
+        upsert_stats=execute_upsert_rows(session, AssociationCode.__table__, rows),
+    )
 
 
 def _import_kinship_codes(
@@ -115,7 +130,7 @@ def _import_kinship_codes(
     context: ImportContext,
     import_batch_id: UUID,
     imported_at: datetime,
-) -> int:
+) -> ImportPhaseResult:
     rows = [
         {
             "kinship_code": normalize_int(row.get("c_kincode")),
@@ -136,7 +151,10 @@ def _import_kinship_codes(
         }
         for row in reader.iter_rows("KINSHIP_CODES")
     ]
-    return execute_upsert_rows(session, KinshipCode.__table__, rows)
+    return ImportPhaseResult(
+        rows_read=len(rows),
+        upsert_stats=execute_upsert_rows(session, KinshipCode.__table__, rows),
+    )
 
 
 def _import_office_codes(
@@ -145,7 +163,7 @@ def _import_office_codes(
     context: ImportContext,
     import_batch_id: UUID,
     imported_at: datetime,
-) -> int:
+) -> ImportPhaseResult:
     rows = [
         {
             "office_code": normalize_int(row.get("c_office_id")),
@@ -164,7 +182,10 @@ def _import_office_codes(
         }
         for row in reader.iter_rows("OFFICE_CODES")
     ]
-    return execute_upsert_rows(session, OfficeCode.__table__, rows)
+    return ImportPhaseResult(
+        rows_read=len(rows),
+        upsert_stats=execute_upsert_rows(session, OfficeCode.__table__, rows),
+    )
 
 
 def _imported_fields(

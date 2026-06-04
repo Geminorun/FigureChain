@@ -14,6 +14,12 @@ def build_source_pk(row: Mapping[str, Any], key_columns: Sequence[str]) -> str:
     return "|".join(parts)
 
 
+def build_rowid_source_pk(row: Mapping[str, Any], fallback_key_columns: Sequence[str]) -> str:
+    if row.get("_rowid") is not None:
+        return build_source_pk(row, ["_rowid"])
+    return build_source_pk(row, fallback_key_columns)
+
+
 def hash_source_row(row: Mapping[str, Any]) -> str:
     payload = json.dumps(
         row,

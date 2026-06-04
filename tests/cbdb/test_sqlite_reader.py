@@ -11,4 +11,5 @@ def test_sqlite_reader_iterates_rows(tmp_path: Path) -> None:
         rows = list(reader.iter_rows("BIOG_MAIN"))
 
     row_by_id = {row["c_personid"]: row for row in rows}
+    assert isinstance(row_by_id[25403]["_rowid"], int)
     assert row_by_id[25403]["c_name_chn"] == "諸葛亮"

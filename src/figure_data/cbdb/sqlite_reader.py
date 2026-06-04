@@ -30,6 +30,6 @@ class SQLiteReader:
     def iter_rows(self, table_name: str) -> Iterator[dict[str, Any]]:
         if self._conn is None:
             raise RuntimeError("SQLiteReader must be used as a context manager")
-        cursor = self._conn.execute(f"select * from {table_name} order by rowid")
+        cursor = self._conn.execute(f"select rowid as _rowid, * from {table_name} order by rowid")
         for row in cursor:
             yield dict(row)

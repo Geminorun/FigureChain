@@ -1,14 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, cast
 
+from sqlalchemy import literal_column
 from sqlalchemy.dialects.postgresql import Insert, insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.selectable import FromClause
 
 SOURCE_IDENTITY_COLUMNS = ("source_name", "source_table", "source_pk")
 DEFAULT_UPSERT_CHUNK_SIZE = 500
+
+
+@dataclass
+class UpsertStats:
+    rows_inserted: int = 0
+    rows_updated: int = 0
+    rows_skipped: int = 0
+
+    def add(self, other: UpsertStats) -> None:
+        self.rows_inserted += other.rows_inserted
+        self.rows_updated += other.rows_updated
+        self.rows_skipped += other.rows_skipped
 
 
 def build_upsert_statement(
@@ -26,10 +40,13 @@ def build_upsert_statement(
         and column.name not in protected
         and not column.primary_key
     }
-    return statement.on_conflict_do_update(
+    returning_statement: Any = statement.on_conflict_do_update(
         index_elements=list(SOURCE_IDENTITY_COLUMNS),
         set_=update_columns,
+    ).returning(
+        literal_column("xmax = 0").label("inserted"),
     )
+    return cast(Insert, returning_statement)
 
 
 def execute_upsert_rows(
@@ -39,21 +56,25 @@ def execute_upsert_rows(
     *,
     protected_columns: set[str] | None = None,
     chunk_size: int = DEFAULT_UPSERT_CHUNK_SIZE,
-) -> int:
-    total = 0
+) -> UpsertStats:
+    stats = UpsertStats()
     for start in range(0, len(rows), chunk_size):
         chunk = _deduplicate_source_identity(rows[start : start + chunk_size])
         if not chunk:
+            stats.rows_skipped += len(rows[start : start + chunk_size])
             continue
-        session.execute(
+        result = session.execute(
             build_upsert_statement(
                 table,
                 chunk,
                 protected_columns=protected_columns,
             )
         )
-        total += len(chunk)
-    return total
+        inserted_flags = [bool(row.inserted) for row in result]
+        stats.rows_inserted += sum(1 for inserted in inserted_flags if inserted)
+        stats.rows_updated += sum(1 for inserted in inserted_flags if not inserted)
+        stats.rows_skipped += len(rows[start : start + chunk_size]) - len(chunk)
+    return stats
 
 
 def _deduplicate_source_identity(
