@@ -24,6 +24,9 @@ def transform_alias_row(
     if "c_sequence" in row:
         key_columns.append("c_sequence")
     source_pk = build_source_pk(row, key_columns)
+    source_row_hash = hash_source_row(row)
+    if "c_sequence" in row:
+        source_pk = f"{source_pk}|source_row_hash={source_row_hash}"
     return {
         "person_id": person_id,
         "alias_zh_hant": alias_hant,
@@ -37,6 +40,6 @@ def transform_alias_row(
         "source_snapshot": context.source_snapshot,
         "source_table": "ALTNAME_DATA",
         "source_pk": source_pk,
-        "source_row_hash": hash_source_row(row),
+        "source_row_hash": source_row_hash,
         "raw_cbdb": dict(row),
     }

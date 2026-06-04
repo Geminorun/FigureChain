@@ -11,7 +11,7 @@ from figure_data.cbdb.source_identity import build_source_pk, hash_source_row
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.db.models.source import SourceRef
 from figure_data.importing.context import ImportContext, imported_record_fields
-from figure_data.importing.upsert import execute_upsert_rows
+from figure_data.importing.upsert import DEFAULT_UPSERT_CHUNK_SIZE, execute_upsert_rows
 
 _SOURCE_REF_KEYS = {
     "ASSOC_DATA": [
@@ -35,13 +35,18 @@ def import_source_refs(
 ) -> int:
     imported_at = datetime.now(UTC)
     rows: list[dict[str, Any]] = []
+    rows_read = 0
     for table_name, key_columns in _SOURCE_REF_KEYS.items():
         for row in reader.iter_rows(table_name):
             source_work_id = normalize_int(row.get("c_source"))
             if source_work_id is None:
                 continue
             ref_source_pk = build_source_pk(row, key_columns)
-            source_pk = f"ref_source_table={table_name}|ref_source_pk={ref_source_pk}"
+            source_row_hash = hash_source_row(row)
+            source_pk = (
+                f"ref_source_table={table_name}|ref_source_pk={ref_source_pk}"
+                f"|source_row_hash={source_row_hash}"
+            )
             rows.append(
                 {
                     "source_work_id": source_work_id,
@@ -53,11 +58,16 @@ def import_source_refs(
                         context=context,
                         source_table=table_name,
                         source_pk=source_pk,
-                        source_row_hash=hash_source_row(row),
+                        source_row_hash=source_row_hash,
                         raw_cbdb=dict(row),
                         import_batch_id=import_batch_id,
                         imported_at=imported_at,
                     ),
                 }
             )
-    return execute_upsert_rows(session, SourceRef.__table__, rows)
+            rows_read += 1
+            if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
+                execute_upsert_rows(session, SourceRef.__table__, rows)
+                rows.clear()
+    execute_upsert_rows(session, SourceRef.__table__, rows)
+    return rows_read

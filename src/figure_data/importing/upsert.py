@@ -42,7 +42,7 @@ def execute_upsert_rows(
 ) -> int:
     total = 0
     for start in range(0, len(rows), chunk_size):
-        chunk = rows[start : start + chunk_size]
+        chunk = _deduplicate_source_identity(rows[start : start + chunk_size])
         if not chunk:
             continue
         session.execute(
@@ -54,3 +54,17 @@ def execute_upsert_rows(
         )
         total += len(chunk)
     return total
+
+
+def _deduplicate_source_identity(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    deduplicated: dict[tuple[Any | None, Any | None, Any | None], Mapping[str, Any]] = {}
+    for row in rows:
+        key = (
+            row.get(SOURCE_IDENTITY_COLUMNS[0]),
+            row.get(SOURCE_IDENTITY_COLUMNS[1]),
+            row.get(SOURCE_IDENTITY_COLUMNS[2]),
+        )
+        deduplicated[key] = row
+    return list(deduplicated.values())

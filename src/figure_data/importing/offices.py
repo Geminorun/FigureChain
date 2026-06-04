@@ -14,6 +14,10 @@ def transform_office_posting_row(row: Mapping[str, Any], context: ImportContext)
     key_columns = ["c_personid", "c_office_id", "c_firstyear"]
     if "c_posting_id" in row:
         key_columns.append("c_posting_id")
+    source_pk = build_source_pk(row, key_columns)
+    source_row_hash = hash_source_row(row)
+    if "c_posting_id" in row:
+        source_pk = f"{source_pk}|source_row_hash={source_row_hash}"
     return {
         "person_id": person_id,
         "office_code": normalize_int(row.get("c_office_id")),
@@ -25,7 +29,7 @@ def transform_office_posting_row(row: Mapping[str, Any], context: ImportContext)
         "source_name": context.source_name,
         "source_snapshot": context.source_snapshot,
         "source_table": "POSTED_TO_OFFICE_DATA",
-        "source_pk": build_source_pk(row, key_columns),
-        "source_row_hash": hash_source_row(row),
+        "source_pk": source_pk,
+        "source_row_hash": source_row_hash,
         "raw_cbdb": dict(row),
     }

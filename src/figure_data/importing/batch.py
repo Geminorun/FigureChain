@@ -39,12 +39,13 @@ def finish_import_batch(session: Session, batch: ImportBatch, *, rows_read: int)
     batch.finished_at = datetime.now(UTC)
     batch.status = "succeeded"
     batch.rows_read = rows_read
+    batch.error_summary = None
     session.add(batch)
 
 
-def fail_import_batch(session: Session, batch: ImportBatch, error: Exception) -> None:
+def fail_import_batch(session: Session, batch: ImportBatch, error: BaseException) -> None:
     batch.finished_at = datetime.now(UTC)
     batch.status = "failed"
     batch.error_count = 1
-    batch.error_summary = str(error)
+    batch.error_summary = str(error) or error.__class__.__name__
     session.add(batch)

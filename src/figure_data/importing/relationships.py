@@ -33,6 +33,10 @@ def transform_relationship_row(row: Mapping[str, Any], context: ImportContext) -
             "c_assoc_first_year",
             "c_sequence",
         ]
+    source_row_hash = hash_source_row(row)
+    source_pk = build_source_pk(row, key_columns)
+    if "c_assoc_id2" not in row:
+        source_pk = f"{source_pk}|source_row_hash={source_row_hash}"
     classification = classify_association_code(association_code)
     return {
         "person_a_id": local_person_id(context, cbdb_person_a_id),
@@ -52,7 +56,7 @@ def transform_relationship_row(row: Mapping[str, Any], context: ImportContext) -
         "source_name": context.source_name,
         "source_snapshot": context.source_snapshot,
         "source_table": "ASSOC_DATA",
-        "source_pk": build_source_pk(row, key_columns),
-        "source_row_hash": hash_source_row(row),
+        "source_pk": source_pk,
+        "source_row_hash": source_row_hash,
         "raw_cbdb": dict(row),
     }

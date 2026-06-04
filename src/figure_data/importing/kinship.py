@@ -27,6 +27,9 @@ def transform_kinship_row(row: Mapping[str, Any], context: ImportContext) -> dic
     )
     cbdb_person_a_id = normalize_int(row.get("c_personid"))
     cbdb_person_b_id = normalize_int(row.get("c_kin_id"))
+    source_row_hash = hash_source_row(row)
+    source_pk = build_source_pk(row, ["c_personid", "c_kin_id", "c_kin_code", "c_source"])
+    source_pk = f"{source_pk}|source_row_hash={source_row_hash}"
     return {
         "person_a_id": local_person_id(context, cbdb_person_a_id),
         "person_b_id": local_person_id(context, cbdb_person_b_id),
@@ -47,7 +50,7 @@ def transform_kinship_row(row: Mapping[str, Any], context: ImportContext) -> dic
         "source_name": context.source_name,
         "source_snapshot": context.source_snapshot,
         "source_table": "KIN_DATA",
-        "source_pk": build_source_pk(row, ["c_personid", "c_kin_id", "c_kin_code", "c_source"]),
-        "source_row_hash": hash_source_row(row),
+        "source_pk": source_pk,
+        "source_row_hash": source_row_hash,
         "raw_cbdb": dict(row),
     }

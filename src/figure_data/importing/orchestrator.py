@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -24,7 +25,7 @@ from figure_data.importing.offices import transform_office_posting_row
 from figure_data.importing.persons import local_person_id, transform_person_row
 from figure_data.importing.relationships import transform_relationship_row
 from figure_data.importing.source_refs import import_source_refs
-from figure_data.importing.upsert import execute_upsert_rows
+from figure_data.importing.upsert import DEFAULT_UPSERT_CHUNK_SIZE, execute_upsert_rows
 
 CBDB_IMPORT_TABLE_ORDER = [
     "DYNASTIES",
@@ -64,22 +65,67 @@ def import_cbdb(settings: Settings | None = None) -> ImportBatch:
         source_snapshot=resolved_settings.source_snapshot,
     )
     rows_read = 0
+    current_phase = "start"
     try:
         with SQLiteReader(resolved_settings.cbdb_sqlite_path) as reader:
             person_ids = _load_cbdb_person_ids(reader)
-            rows_read += import_dictionaries(session, reader, context, batch.id)
-            rows_read += _import_persons(session, reader, context, batch.id)
-            rows_read += _import_aliases(session, reader, context, batch.id, person_ids)
-            rows_read += _import_relationships(session, reader, context, batch.id, person_ids)
-            rows_read += _import_kinships(session, reader, context, batch.id, person_ids)
-            rows_read += _import_office_postings(session, reader, context, batch.id, person_ids)
-            rows_read += import_source_refs(session, reader, context, batch.id)
+            current_phase = "dictionaries"
+            rows_read += _run_import_phase(
+                session,
+                batch,
+                current_phase,
+                lambda: import_dictionaries(session, reader, context, batch.id),
+            )
+            current_phase = "persons"
+            rows_read += _run_import_phase(
+                session,
+                batch,
+                current_phase,
+                lambda: _import_persons(session, reader, context, batch.id),
+            )
+            current_phase = "aliases"
+            rows_read += _run_import_phase(
+                session,
+                batch,
+                current_phase,
+                lambda: _import_aliases(session, reader, context, batch.id, person_ids),
+            )
+            current_phase = "relationships"
+            rows_read += _run_import_phase(
+                session,
+                batch,
+                current_phase,
+                lambda: _import_relationships(session, reader, context, batch.id, person_ids),
+            )
+            current_phase = "kinships"
+            rows_read += _run_import_phase(
+                session,
+                batch,
+                current_phase,
+                lambda: _import_kinships(session, reader, context, batch.id, person_ids),
+            )
+            current_phase = "office_postings"
+            rows_read += _run_import_phase(
+                session,
+                batch,
+                current_phase,
+                lambda: _import_office_postings(session, reader, context, batch.id, person_ids),
+            )
+            current_phase = "source_refs"
+            rows_read += _run_import_phase(
+                session,
+                batch,
+                current_phase,
+                lambda: import_source_refs(session, reader, context, batch.id),
+            )
         finish_import_batch(session, batch, rows_read=rows_read)
         session.commit()
         return batch
-    except Exception as error:
+    except BaseException as error:
         session.rollback()
         fail_import_batch(session, batch, error)
+        if batch.error_summary is not None:
+            batch.error_summary = f"{current_phase}: {batch.error_summary}"
         session.commit()
         raise
     finally:
@@ -94,6 +140,20 @@ def _load_cbdb_person_ids(reader: SQLiteReader) -> set[int]:
     }
 
 
+def _run_import_phase(
+    session: Session,
+    batch: ImportBatch,
+    phase_name: str,
+    import_phase: Callable[[], int],
+) -> int:
+    rows_read = import_phase()
+    batch.rows_read += rows_read
+    batch.error_summary = f"last completed phase: {phase_name}"
+    session.add(batch)
+    session.commit()
+    return rows_read
+
+
 def _import_persons(
     session: Session,
     reader: SQLiteReader,
@@ -103,31 +163,33 @@ def _import_persons(
     imported_at = datetime.now(UTC)
     person_rows: list[dict[str, Any]] = []
     external_id_rows: list[dict[str, Any]] = []
+    rows_read = 0
     for row in reader.iter_rows("BIOG_MAIN"):
         record = transform_person_row(row, context)
         _add_import_batch_fields(record, import_batch_id, imported_at)
         person_rows.append(record)
+        rows_read += 1
         external_id = normalize_int(row.get("c_personid"))
-        if external_id is None:
-            continue
-        external_id_rows.append(
-            {
-                "person_id": UUID(record["id"]),
-                "external_id": str(external_id),
-                **imported_record_fields(
-                    context=context,
-                    source_table="BIOG_MAIN",
-                    source_pk=record["source_pk"],
-                    source_row_hash=record["source_row_hash"],
-                    raw_cbdb=dict(row),
-                    import_batch_id=import_batch_id,
-                    imported_at=imported_at,
-                ),
-            }
-        )
-    execute_upsert_rows(session, Person.__table__, person_rows)
-    execute_upsert_rows(session, PersonExternalId.__table__, external_id_rows)
-    return len(person_rows)
+        if external_id is not None:
+            external_id_rows.append(
+                {
+                    "person_id": UUID(record["id"]),
+                    "external_id": str(external_id),
+                    **imported_record_fields(
+                        context=context,
+                        source_table="BIOG_MAIN",
+                        source_pk=record["source_pk"],
+                        source_row_hash=record["source_row_hash"],
+                        raw_cbdb=dict(row),
+                        import_batch_id=import_batch_id,
+                        imported_at=imported_at,
+                    ),
+                }
+            )
+        if len(person_rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
+            _flush_person_rows(session, person_rows, external_id_rows)
+    _flush_person_rows(session, person_rows, external_id_rows)
+    return rows_read
 
 
 def _import_aliases(
@@ -139,6 +201,7 @@ def _import_aliases(
 ) -> int:
     imported_at = datetime.now(UTC)
     rows: list[dict[str, Any]] = []
+    rows_read = 0
     for row in reader.iter_rows("ALTNAME_DATA"):
         cbdb_person_id = normalize_int(row.get("c_personid"))
         if cbdb_person_id not in person_ids:
@@ -149,8 +212,12 @@ def _import_aliases(
         record = transform_alias_row(row, context, person_id)
         _add_import_batch_fields(record, import_batch_id, imported_at)
         rows.append(record)
+        rows_read += 1
+        if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
+            execute_upsert_rows(session, PersonAlias.__table__, rows)
+            rows.clear()
     execute_upsert_rows(session, PersonAlias.__table__, rows)
-    return len(rows)
+    return rows_read
 
 
 def _import_relationships(
@@ -163,19 +230,23 @@ def _import_relationships(
     imported_at = datetime.now(UTC)
     association_labels = _association_labels(reader)
     rows: list[dict[str, Any]] = []
+    rows_read = 0
     for row in reader.iter_rows("ASSOC_DATA"):
         record = transform_relationship_row(row, context)
         record["association_label"] = association_labels.get(record["association_code"])
         _null_missing_person_refs(record, person_ids)
         _add_import_batch_fields(record, import_batch_id, imported_at)
         rows.append(record)
+        rows_read += 1
+        if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
+            _flush_relationship_rows(session, rows)
     execute_upsert_rows(
         session,
         RelationshipCandidate.__table__,
         rows,
         protected_columns=REVIEW_PROTECTED_COLUMNS,
     )
-    return len(rows)
+    return rows_read
 
 
 def _import_kinships(
@@ -188,6 +259,7 @@ def _import_kinships(
     imported_at = datetime.now(UTC)
     kinship_codes = _kinship_code_rows(reader)
     rows: list[dict[str, Any]] = []
+    rows_read = 0
     for row in reader.iter_rows("KIN_DATA"):
         kinship_code = normalize_int(row.get("c_kin_code"))
         code_row = kinship_codes.get(kinship_code) if kinship_code is not None else None
@@ -199,13 +271,16 @@ def _import_kinships(
             record["person_b_id"] = None
         _add_import_batch_fields(record, import_batch_id, imported_at)
         rows.append(record)
+        rows_read += 1
+        if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
+            _flush_kinship_rows(session, rows)
     execute_upsert_rows(
         session,
         KinshipCandidate.__table__,
         rows,
         protected_columns=REVIEW_PROTECTED_COLUMNS,
     )
-    return len(rows)
+    return rows_read
 
 
 def _import_office_postings(
@@ -218,14 +293,19 @@ def _import_office_postings(
     imported_at = datetime.now(UTC)
     office_labels = _office_labels(reader)
     rows: list[dict[str, Any]] = []
+    rows_read = 0
     for row in reader.iter_rows("POSTED_TO_OFFICE_DATA"):
         record = transform_office_posting_row(row, context)
         record["office_label"] = office_labels.get(record["office_code"])
         _null_missing_person_refs(record, person_ids)
         _add_import_batch_fields(record, import_batch_id, imported_at)
         rows.append(record)
+        rows_read += 1
+        if len(rows) >= DEFAULT_UPSERT_CHUNK_SIZE:
+            execute_upsert_rows(session, OfficePosting.__table__, rows)
+            rows.clear()
     execute_upsert_rows(session, OfficePosting.__table__, rows)
-    return len(rows)
+    return rows_read
 
 
 def _association_labels(reader: SQLiteReader) -> dict[int, str]:
@@ -267,6 +347,37 @@ def _null_missing_person_refs(record: dict[str, Any], person_ids: set[int]) -> N
         and normalize_int(record["raw_cbdb"].get("c_personid")) not in person_ids
     ):
         record["person_id"] = None
+
+
+def _flush_person_rows(
+    session: Session,
+    person_rows: list[dict[str, Any]],
+    external_id_rows: list[dict[str, Any]],
+) -> None:
+    execute_upsert_rows(session, Person.__table__, person_rows)
+    execute_upsert_rows(session, PersonExternalId.__table__, external_id_rows)
+    person_rows.clear()
+    external_id_rows.clear()
+
+
+def _flush_relationship_rows(session: Session, rows: list[dict[str, Any]]) -> None:
+    execute_upsert_rows(
+        session,
+        RelationshipCandidate.__table__,
+        rows,
+        protected_columns=REVIEW_PROTECTED_COLUMNS,
+    )
+    rows.clear()
+
+
+def _flush_kinship_rows(session: Session, rows: list[dict[str, Any]]) -> None:
+    execute_upsert_rows(
+        session,
+        KinshipCandidate.__table__,
+        rows,
+        protected_columns=REVIEW_PROTECTED_COLUMNS,
+    )
+    rows.clear()
 
 
 def _add_import_batch_fields(
