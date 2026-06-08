@@ -5,9 +5,18 @@ import typer
 
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
-from figure_data.db.session import create_session_factory
+from figure_data.db.session import create_session_factory, session_scope
 from figure_data.encounters.validation import validate_encounters
 from figure_data.importing.orchestrator import import_cbdb
+from figure_data.review.candidate_detail import get_candidate_detail
+from figure_data.review.candidate_listing import CandidateListFilters, list_candidate_summaries
+from figure_data.review.candidate_status import mark_candidate_for_review, reject_candidate
+from figure_data.review.formatting import (
+    format_candidate_detail,
+    format_candidate_summaries,
+    format_status_change,
+)
+from figure_data.review.types import CandidateKind, CandidateReviewError
 from figure_data.search.person_search import search_people
 from figure_data.validation.report import ValidationReport
 from figure_data.validation.row_counts import (
@@ -100,3 +109,99 @@ def validate_encounters_command() -> None:
         typer.echo(f"{status}\t{check.name}\t{check.detail}")
     if not report.passed:
         raise typer.Exit(code=1)
+
+
+@app.command("review-candidates")
+def review_candidates_command(
+    kind: Annotated[CandidateKind | None, typer.Option("--kind")] = None,
+    person: Annotated[str | None, typer.Option("--person")] = None,
+    status: Annotated[str | None, typer.Option("--status")] = None,
+    strength: Annotated[str | None, typer.Option("--strength")] = None,
+    basis: Annotated[str | None, typer.Option("--basis")] = None,
+    limit: Annotated[int, typer.Option(min=1, max=200)] = 20,
+) -> None:
+    """List candidate relationships for manual review."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        rows = list_candidate_summaries(
+            session,
+            CandidateListFilters(
+                kind=kind,
+                person_query=person,
+                review_status=status,
+                strength=strength,
+                basis=basis,
+                limit=limit,
+            ),
+        )
+    for line in format_candidate_summaries(rows):
+        typer.echo(line)
+
+
+@app.command("inspect-candidate")
+def inspect_candidate_command(
+    kind: Annotated[CandidateKind, typer.Option("--kind")],
+    candidate_id: Annotated[int, typer.Option("--id", min=1)],
+) -> None:
+    """Inspect one candidate relationship and its source evidence."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with factory() as session:
+            detail = get_candidate_detail(session, kind, candidate_id)
+    except CandidateReviewError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_candidate_detail(detail):
+        typer.echo(line)
+
+
+@app.command("reject-candidate")
+def reject_candidate_command(
+    kind: Annotated[CandidateKind, typer.Option("--kind")],
+    candidate_id: Annotated[int, typer.Option("--id", min=1)],
+    reviewed_by: Annotated[str, typer.Option("--reviewed-by")],
+    note: Annotated[str, typer.Option("--note")],
+) -> None:
+    """Reject a candidate relationship without creating an encounter."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with session_scope(factory) as session:
+            change = reject_candidate(
+                session,
+                kind,
+                candidate_id,
+                reviewed_by=reviewed_by,
+                note=note,
+            )
+    except CandidateReviewError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(format_status_change(change))
+
+
+@app.command("mark-candidate-review")
+def mark_candidate_review_command(
+    kind: Annotated[CandidateKind, typer.Option("--kind")],
+    candidate_id: Annotated[int, typer.Option("--id", min=1)],
+    reviewed_by: Annotated[str, typer.Option("--reviewed-by")],
+    note: Annotated[str, typer.Option("--note")],
+) -> None:
+    """Mark a candidate relationship as needing later review."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with session_scope(factory) as session:
+            change = mark_candidate_for_review(
+                session,
+                kind,
+                candidate_id,
+                reviewed_by=reviewed_by,
+                note=note,
+            )
+    except CandidateReviewError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(format_status_change(change))
