@@ -23,6 +23,7 @@ uv run alembic upgrade head
 uv run figure-data import-cbdb --sqlite figure-data/cbdb_20260530.sqlite3
 uv run figure-data search-person "诸葛亮"
 uv run figure-data validate-cbdb
+uv run figure-data validate-encounters
 ```
 
 如果本机没有把 `uv` 放进 PATH，也可以使用项目虚拟环境中的命令：
@@ -32,6 +33,7 @@ uv run figure-data validate-cbdb
 .\.venv\Scripts\figure-data.exe import-cbdb --sqlite figure-data\cbdb_20260530.sqlite3
 .\.venv\Scripts\figure-data.exe search-person "诸葛亮"
 .\.venv\Scripts\figure-data.exe validate-cbdb
+.\.venv\Scripts\figure-data.exe validate-encounters
 ```
 
 ## 验证
@@ -41,6 +43,9 @@ uv run ruff check .
 uv run mypy src tests
 uv run pytest
 uv run figure-data validate-cbdb
+uv run figure-data validate-encounters
 ```
 
 `validate-cbdb` 会检查本地 SQLite 快照核心表行数，并对一组样例人物执行搜索命中验证。
+`validate-encounters` 会检查已提升 encounter 的一致性；在尚未提升任何 encounter
+时，所有基础一致性检查应通过。

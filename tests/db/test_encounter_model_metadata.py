@@ -6,15 +6,15 @@ from figure_data.db.models import encounter
 
 
 def test_encounter_enums_define_foundation_values() -> None:
-    assert EncounterKind.DIRECT_INTERACTION == "direct_interaction"
-    assert EncounterKind.CO_PRESENCE == "co_presence"
-    assert EncounterKind.FAMILY_CONTACT == "family_contact"
-    assert EncounterKind.MANUAL_CONTACT == "manual_contact"
-    assert CertaintyLevel.HIGH == "high"
-    assert CertaintyLevel.MEDIUM == "medium"
-    assert CertaintyLevel.LOW == "low"
-    assert EncounterStatus.ACTIVE == "active"
-    assert EncounterStatus.RETRACTED == "retracted"
+    assert EncounterKind.DIRECT_INTERACTION.value == "direct_interaction"
+    assert EncounterKind.CO_PRESENCE.value == "co_presence"
+    assert EncounterKind.FAMILY_CONTACT.value == "family_contact"
+    assert EncounterKind.MANUAL_CONTACT.value == "manual_contact"
+    assert CertaintyLevel.HIGH.value == "high"
+    assert CertaintyLevel.MEDIUM.value == "medium"
+    assert CertaintyLevel.LOW.value == "low"
+    assert EncounterStatus.ACTIVE.value == "active"
+    assert EncounterStatus.RETRACTED.value == "retracted"
 
 
 def test_encounter_models_use_figure_data_schema() -> None:
