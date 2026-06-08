@@ -322,7 +322,7 @@ figure-data inspect-candidate --kind kinship --id 67890
 
 ```powershell
 figure-data promote-encounter --kind relationship --id 12345 --reviewed-by lyl --evidence-summary "CBDB 关系代码显示两人有直接互动"
-figure-data promote-encounter --kind relationship --id 12345 --certainty medium --path-eligible false --reviewed-by lyl --evidence-summary "同场共事，保留为解释边"
+figure-data promote-encounter --kind relationship --id 12345 --certainty medium --no-path-eligible --reviewed-by lyl --evidence-summary "同场共事，保留为解释边"
 ```
 
 行为：
@@ -376,7 +376,7 @@ figure-data mark-candidate-review --kind relationship --id 12345 --reviewed-by l
 
 ```powershell
 figure-data list-encounters --person "诸葛亮"
-figure-data list-encounters --path-eligible true --limit 50
+figure-data list-encounters --path-eligible --limit 50
 ```
 
 输出字段：
@@ -445,7 +445,7 @@ figure-data validate-encounters
 - active encounter 的两个人物都存在。
 - 不存在 self-loop。
 - active encounter 至少有一条 evidence。
-- `path_eligible=true` 的 encounter 必须 `certainty_level=high`，除非有人工备注说明。
+- `path_eligible=true` 的 encounter 必须 `certainty_level=high` 且 `encounter_kind=direct_interaction`。
 - `promoted_to_encounter` 的候选必须能找到对应 encounter。
 - `retracted` encounter 不得 `path_eligible=true`。
 - 同一个候选不得提升到多个 active encounter。

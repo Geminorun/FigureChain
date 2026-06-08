@@ -28,6 +28,10 @@ uv run figure-data review-candidates --strength high --basis direct_interaction_
 uv run figure-data inspect-candidate --kind relationship --id 12345
 uv run figure-data mark-candidate-review --kind relationship --id 12345 --reviewed-by lyl --note "需要查原书页码"
 uv run figure-data reject-candidate --kind relationship --id 12345 --reviewed-by lyl --note "不能证明见面"
+uv run figure-data promote-encounter --kind relationship --id 960655 --reviewed-by lyl --evidence-summary "CBDB 关系代码显示两人有直接互动"
+uv run figure-data list-encounters --status active --path-eligible --limit 20
+uv run figure-data inspect-encounter --id 00000000-0000-0000-0000-000000000001
+uv run figure-data retract-encounter --id 00000000-0000-0000-0000-000000000001 --reviewed-by lyl --note "证据不足，撤回路径边"
 ```
 
 如果本机没有把 `uv` 放进 PATH，也可以使用项目虚拟环境中的命令：
@@ -42,10 +46,16 @@ uv run figure-data reject-candidate --kind relationship --id 12345 --reviewed-by
 .\.venv\Scripts\figure-data.exe inspect-candidate --kind relationship --id 12345
 .\.venv\Scripts\figure-data.exe mark-candidate-review --kind relationship --id 12345 --reviewed-by lyl --note "需要查原书页码"
 .\.venv\Scripts\figure-data.exe reject-candidate --kind relationship --id 12345 --reviewed-by lyl --note "不能证明见面"
+.\.venv\Scripts\figure-data.exe promote-encounter --kind relationship --id 960655 --reviewed-by lyl --evidence-summary "CBDB 关系代码显示两人有直接互动"
+.\.venv\Scripts\figure-data.exe list-encounters --status active --path-eligible --limit 20
+.\.venv\Scripts\figure-data.exe inspect-encounter --id 00000000-0000-0000-0000-000000000001
+.\.venv\Scripts\figure-data.exe retract-encounter --id 00000000-0000-0000-0000-000000000001 --reviewed-by lyl --note "证据不足，撤回路径边"
 ```
 
 候选审核命令只操作 `relationship_candidates` 和 `kinship_candidates` 的人工审核字段；
-`promote-encounter`、encounter 查询和撤回流程留给后续阶段。
+`promote-encounter` 会在单个事务中创建或复用 encounter、写入 evidence，并把来源候选标记为
+`promoted_to_encounter`。`retract-encounter` 会保留候选的 `promoted_encounter_id`
+作为历史追踪，同时把候选 `review_status` 改回 `needs_review`。
 
 ## 验证
 

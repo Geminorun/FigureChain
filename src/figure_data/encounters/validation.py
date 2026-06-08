@@ -49,7 +49,16 @@ def validate_encounters(session: Session) -> list[ValidationCheck]:
                 from figure_data.encounters
                 where path_eligible = true
                   and certainty_level <> 'high'
-                  and nullif(trim(coalesce(review_note, '')), '') is null
+            """,
+        ),
+        _count_check(
+            session,
+            name="encounters:path_eligible_kind",
+            sql="""
+                select count(*)
+                from figure_data.encounters
+                where path_eligible = true
+                  and encounter_kind <> 'direct_interaction'
             """,
         ),
         _count_check(
