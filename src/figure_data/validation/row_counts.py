@@ -15,6 +15,21 @@ EXPECTED_CBDB_TABLES = {
     "POSTED_TO_OFFICE_DATA": 588_501,
 }
 
+EXPECTED_POSTGRES_TABLES = {
+    "persons": 658_670,
+    "person_external_ids": 658_669,
+    "person_aliases": 207_219,
+    "dynasties": 85,
+    "relationship_candidates": 188_649,
+    "association_codes": 498,
+    "kinship_codes": 479,
+    "kinship_candidates": 557_265,
+    "office_codes": 34_052,
+    "office_postings": 588_501,
+    "source_works": 61_146,
+    "source_refs": 1_229_584,
+}
+
 
 def count_sqlite_rows(reader: SQLiteReader, table_name: str) -> int:
     return sum(1 for _ in reader.iter_rows(table_name))
@@ -31,6 +46,20 @@ def validate_expected_sqlite_counts(reader: SQLiteReader) -> list[ValidationChec
         checks.append(
             ValidationCheck(
                 name=f"sqlite:{table_name}",
+                passed=actual == expected,
+                detail=f"expected={expected}, actual={actual}",
+            )
+        )
+    return checks
+
+
+def validate_expected_postgres_counts(session: Session) -> list[ValidationCheck]:
+    checks: list[ValidationCheck] = []
+    for table_name, expected in EXPECTED_POSTGRES_TABLES.items():
+        actual = count_postgres_rows(session, table_name)
+        checks.append(
+            ValidationCheck(
+                name=f"postgres:{table_name}",
                 passed=actual == expected,
                 detail=f"expected={expected}, actual={actual}",
             )

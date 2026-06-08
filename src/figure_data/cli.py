@@ -9,7 +9,10 @@ from figure_data.db.session import create_session_factory
 from figure_data.importing.orchestrator import import_cbdb
 from figure_data.search.person_search import search_people
 from figure_data.validation.report import ValidationReport
-from figure_data.validation.row_counts import validate_expected_sqlite_counts
+from figure_data.validation.row_counts import (
+    validate_expected_postgres_counts,
+    validate_expected_sqlite_counts,
+)
 from figure_data.validation.sample_queries import validate_sample_person_queries
 
 app = typer.Typer(
@@ -71,6 +74,7 @@ def validate_cbdb_command() -> None:
         checks.extend(validate_expected_sqlite_counts(reader))
     factory = create_session_factory(settings)
     with factory() as session:
+        checks.extend(validate_expected_postgres_counts(session))
         checks.extend(validate_sample_person_queries(session))
     report = ValidationReport(checks=checks)
     for check in report.checks:
