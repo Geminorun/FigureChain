@@ -70,7 +70,10 @@ def test_review_candidates_outputs_rows(monkeypatch: MonkeyPatch) -> None:
         ],
     )
 
-    result = CliRunner().invoke(app, ["review-candidates", "--kind", "relationship", "--limit", "5"])
+    result = CliRunner().invoke(
+        app,
+        ["review-candidates", "--kind", "relationship", "--limit", "5"],
+    )
 
     assert result.exit_code == 0
     assert "candidate_kind\tcandidate_id\tperson_a\tperson_b" in result.output

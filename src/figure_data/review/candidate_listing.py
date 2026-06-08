@@ -74,7 +74,9 @@ def _build_where_clauses(
         clauses.append("candidate_basis = :basis")
         params["basis"] = filters.basis
     if person_ids:
-        clauses.append("(person_a_id::text = any(:person_ids) or person_b_id::text = any(:person_ids))")
+        clauses.append(
+            "(person_a_id::text = any(:person_ids) or person_b_id::text = any(:person_ids))"
+        )
         params["person_ids"] = person_ids
     if not clauses:
         return ""
@@ -96,8 +98,16 @@ def _relationship_select() -> str:
         rc.id as candidate_id,
         rc.person_a_id,
         rc.person_b_id,
-        coalesce(pa.primary_name_zh_hant, pa.primary_name_zh_hans, pa.primary_name_romanized) as person_a_name,
-        coalesce(pb.primary_name_zh_hant, pb.primary_name_zh_hans, pb.primary_name_romanized) as person_b_name,
+        coalesce(
+          pa.primary_name_zh_hant,
+          pa.primary_name_zh_hans,
+          pa.primary_name_romanized
+        ) as person_a_name,
+        coalesce(
+          pb.primary_name_zh_hant,
+          pb.primary_name_zh_hans,
+          pb.primary_name_romanized
+        ) as person_b_name,
         rc.cbdb_person_a_id,
         rc.cbdb_person_b_id,
         rc.candidate_strength,
@@ -119,8 +129,16 @@ def _kinship_select() -> str:
         kc.id as candidate_id,
         kc.person_a_id,
         kc.person_b_id,
-        coalesce(pa.primary_name_zh_hant, pa.primary_name_zh_hans, pa.primary_name_romanized) as person_a_name,
-        coalesce(pb.primary_name_zh_hant, pb.primary_name_zh_hans, pb.primary_name_romanized) as person_b_name,
+        coalesce(
+          pa.primary_name_zh_hant,
+          pa.primary_name_zh_hans,
+          pa.primary_name_romanized
+        ) as person_a_name,
+        coalesce(
+          pb.primary_name_zh_hant,
+          pb.primary_name_zh_hans,
+          pb.primary_name_romanized
+        ) as person_b_name,
         null::integer as cbdb_person_a_id,
         null::integer as cbdb_person_b_id,
         kc.candidate_strength,

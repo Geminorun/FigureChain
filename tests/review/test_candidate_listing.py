@@ -56,7 +56,9 @@ def test_list_candidate_summaries_builds_relationship_query() -> None:
     assert results[0].candidate_kind is CandidateKind.RELATIONSHIP
     assert "figure_data.relationship_candidates" in session.statements[0]
     assert "figure_data.kinship_candidates" not in session.statements[0]
-    assert session.params[0]["limit"] == 5
+    params = session.params[0]
+    assert params is not None
+    assert params["limit"] == 5
 
 
 def test_list_candidate_summaries_builds_union_when_kind_is_not_supplied() -> None:
@@ -87,6 +89,8 @@ def test_list_candidate_summaries_adds_filters() -> None:
     assert "candidate_strength = :strength" in statement
     assert "candidate_basis = :basis" in statement
     assert "review_status = :review_status" in statement
-    assert session.params[0]["strength"] == "medium"
-    assert session.params[0]["basis"] == "family_close"
-    assert session.params[0]["review_status"] == "needs_review"
+    params = session.params[0]
+    assert params is not None
+    assert params["strength"] == "medium"
+    assert params["basis"] == "family_close"
+    assert params["review_status"] == "needs_review"

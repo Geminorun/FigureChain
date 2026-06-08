@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from figure_data.review.types import CandidateDetail, CandidateSummary, CandidateStatusChange
+from figure_data.review.types import (
+    CandidateDetail,
+    CandidatePerson,
+    CandidateStatusChange,
+    CandidateSummary,
+)
 
 
 def format_candidate_summaries(rows: list[CandidateSummary]) -> list[str]:
@@ -95,24 +100,17 @@ def format_status_change(change: CandidateStatusChange) -> str:
     )
 
 
-def _format_person(label: str, person: object) -> str:
-    person_id = getattr(person, "person_id")
-    cbdb_id = getattr(person, "cbdb_id")
-    name_hant = getattr(person, "primary_name_zh_hant")
-    name_hans = getattr(person, "primary_name_zh_hans")
-    romanized = getattr(person, "primary_name_romanized")
-    birth_year = getattr(person, "birth_year")
-    death_year = getattr(person, "death_year")
-    external_ids = ",".join(getattr(person, "external_ids"))
+def _format_person(label: str, person: CandidatePerson) -> str:
+    external_ids = ",".join(person.external_ids)
     return "\t".join(
         [
             label,
-            _text(person_id),
-            _text(cbdb_id),
-            _text(name_hant),
-            _text(name_hans),
-            _text(romanized),
-            f"{_text(birth_year)}-{_text(death_year)}",
+            _text(person.person_id),
+            _text(person.cbdb_id),
+            _text(person.primary_name_zh_hant),
+            _text(person.primary_name_zh_hans),
+            _text(person.primary_name_romanized),
+            f"{_text(person.birth_year)}-{_text(person.death_year)}",
             external_ids,
         ]
     )

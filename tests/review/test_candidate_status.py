@@ -44,8 +44,10 @@ def test_reject_candidate_updates_only_review_fields() -> None:
 
     assert change.review_status.value == "rejected"
     assert "promoted_encounter_id =" not in session.statements[-1]
-    assert session.params[-1]["reviewed_by"] == "lyl"
-    assert session.params[-1]["review_note"] == "书信关系不能证明见面"
+    params = session.params[-1]
+    assert params is not None
+    assert params["reviewed_by"] == "lyl"
+    assert params["review_note"] == "书信关系不能证明见面"
 
 
 def test_mark_candidate_for_review_requires_note() -> None:

@@ -23,7 +23,11 @@ class MappingResult:
 
 
 class FakeSession:
-    def __init__(self, candidate_rows: list[dict[str, Any]], source_rows: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        candidate_rows: list[dict[str, Any]],
+        source_rows: list[dict[str, Any]],
+    ) -> None:
         self.candidate_rows = candidate_rows
         self.source_rows = source_rows
         self.statements: list[str] = []

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -96,7 +96,7 @@ def _update_candidate_review_status(
             "candidate_id": candidate_id,
             "review_status": review_status.value,
             "reviewed_by": normalized_reviewed_by,
-            "reviewed_at": datetime.now(timezone.utc),
+            "reviewed_at": datetime.now(UTC),
             "review_note": normalized_note,
         },
     )

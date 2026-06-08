@@ -24,6 +24,10 @@ uv run figure-data import-cbdb --sqlite figure-data/cbdb_20260530.sqlite3
 uv run figure-data search-person "诸葛亮"
 uv run figure-data validate-cbdb
 uv run figure-data validate-encounters
+uv run figure-data review-candidates --strength high --basis direct_interaction_likely --limit 5
+uv run figure-data inspect-candidate --kind relationship --id 12345
+uv run figure-data mark-candidate-review --kind relationship --id 12345 --reviewed-by lyl --note "需要查原书页码"
+uv run figure-data reject-candidate --kind relationship --id 12345 --reviewed-by lyl --note "不能证明见面"
 ```
 
 如果本机没有把 `uv` 放进 PATH，也可以使用项目虚拟环境中的命令：
@@ -34,7 +38,14 @@ uv run figure-data validate-encounters
 .\.venv\Scripts\figure-data.exe search-person "诸葛亮"
 .\.venv\Scripts\figure-data.exe validate-cbdb
 .\.venv\Scripts\figure-data.exe validate-encounters
+.\.venv\Scripts\figure-data.exe review-candidates --strength high --basis direct_interaction_likely --limit 5
+.\.venv\Scripts\figure-data.exe inspect-candidate --kind relationship --id 12345
+.\.venv\Scripts\figure-data.exe mark-candidate-review --kind relationship --id 12345 --reviewed-by lyl --note "需要查原书页码"
+.\.venv\Scripts\figure-data.exe reject-candidate --kind relationship --id 12345 --reviewed-by lyl --note "不能证明见面"
 ```
+
+候选审核命令只操作 `relationship_candidates` 和 `kinship_candidates` 的人工审核字段；
+`promote-encounter`、encounter 查询和撤回流程留给后续阶段。
 
 ## 验证
 

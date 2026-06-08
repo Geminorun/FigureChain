@@ -194,7 +194,9 @@ def _candidate_detail_from_row(
 def _person_from_row(row: Mapping[str, Any], *, prefix: str) -> CandidatePerson:
     person_id = row[f"{prefix}_id"]
     return CandidatePerson(
-        person_id=person_id if isinstance(person_id, UUID) or person_id is None else UUID(str(person_id)),
+        person_id=(
+            person_id if isinstance(person_id, UUID) or person_id is None else UUID(str(person_id))
+        ),
         cbdb_id=row[f"{prefix}_cbdb_id"],
         primary_name_zh_hant=row[f"{prefix}_name_hant"],
         primary_name_zh_hans=row[f"{prefix}_name_hans"],
