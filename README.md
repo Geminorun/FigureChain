@@ -41,7 +41,7 @@ uv run figure-data validate-encounters
 ```bash
 uv run ruff check .
 uv run mypy src tests
-uv run pytest
+uv run --no-sync python -m pytest -q
 uv run figure-data validate-cbdb
 uv run figure-data validate-encounters
 ```

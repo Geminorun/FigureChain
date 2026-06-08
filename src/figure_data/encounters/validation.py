@@ -76,6 +76,24 @@ def validate_encounters(session: Session) -> list[ValidationCheck]:
                   and (kc.promoted_encounter_id is null or e.id is null)
             """,
         ),
+        _count_check(
+            session,
+            name="encounters:candidates_single_active_encounter",
+            sql="""
+                select count(*)
+                from (
+                  select ev.candidate_table, ev.candidate_id
+                  from figure_data.encounter_evidence ev
+                  join figure_data.encounters e
+                    on e.id = ev.encounter_id
+                  where e.status = 'active'
+                    and ev.candidate_table is not null
+                    and ev.candidate_id is not null
+                  group by ev.candidate_table, ev.candidate_id
+                  having count(distinct e.id) > 1
+                ) duplicate_candidates
+            """,
+        ),
     ]
 
 

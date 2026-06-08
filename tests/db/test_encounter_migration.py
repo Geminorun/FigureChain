@@ -25,7 +25,7 @@ def test_encounter_migration_uses_explicit_operations() -> None:
 def test_encounter_migration_declares_core_constraints() -> None:
     migration_source = MIGRATION_PATH.read_text(encoding="utf-8")
 
-    assert "ck_encounters_distinct_people" in migration_source
+    assert 'op.f("ck_encounters_distinct_people")' in migration_source
     assert "uq_encounters_pair_kind_time_source" in migration_source
     assert "uq_encounter_evidence_candidate" in migration_source
     assert "fk_encounters_person_a_id_persons" in migration_source

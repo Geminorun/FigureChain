@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -33,6 +34,10 @@ class Encounter(Base):
             "pages",
             name="uq_encounters_pair_kind_time_source",
         ),
+        Index("ix_figure_data_encounters_person_a_id", "person_a_id"),
+        Index("ix_figure_data_encounters_person_b_id", "person_b_id"),
+        Index("ix_figure_data_encounters_path_eligible", "path_eligible"),
+        Index("ix_figure_data_encounters_status", "status"),
         {"schema": "figure_data"},
     )
 
@@ -65,6 +70,12 @@ class EncounterEvidence(Base):
             "candidate_table",
             "candidate_id",
             name="uq_encounter_evidence_candidate",
+        ),
+        Index("ix_figure_data_encounter_evidence_encounter_id", "encounter_id"),
+        Index(
+            "ix_figure_data_encounter_evidence_candidate",
+            "candidate_table",
+            "candidate_id",
         ),
         {"schema": "figure_data"},
     )

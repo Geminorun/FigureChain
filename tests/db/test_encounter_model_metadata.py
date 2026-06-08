@@ -63,3 +63,22 @@ def test_encounter_evidence_links_encounter_and_candidate_once() -> None:
 
     assert "figure_data.encounters.id" in foreign_keys
     assert ("encounter_id", "candidate_table", "candidate_id") in unique_columns
+
+
+def test_encounter_models_declare_review_indexes() -> None:
+    encounters = Base.metadata.tables["figure_data.encounters"]
+    evidence = Base.metadata.tables["figure_data.encounter_evidence"]
+
+    encounter_indexes = {index.name for index in encounters.indexes}
+    evidence_indexes = {index.name for index in evidence.indexes}
+
+    assert {
+        "ix_figure_data_encounters_person_a_id",
+        "ix_figure_data_encounters_person_b_id",
+        "ix_figure_data_encounters_path_eligible",
+        "ix_figure_data_encounters_status",
+    }.issubset(encounter_indexes)
+    assert {
+        "ix_figure_data_encounter_evidence_encounter_id",
+        "ix_figure_data_encounter_evidence_candidate",
+    }.issubset(evidence_indexes)

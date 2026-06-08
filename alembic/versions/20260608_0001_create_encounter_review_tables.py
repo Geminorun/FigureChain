@@ -45,7 +45,10 @@ def upgrade() -> None:
         sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint("person_a_id <> person_b_id", name="ck_encounters_distinct_people"),
+        sa.CheckConstraint(
+            "person_a_id <> person_b_id",
+            name=op.f("ck_encounters_distinct_people"),
+        ),
         sa.ForeignKeyConstraint(
             ["person_a_id"],
             ["figure_data.persons.id"],
