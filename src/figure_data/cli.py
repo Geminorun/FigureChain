@@ -1,11 +1,27 @@
 from pathlib import Path
 from typing import Annotated
+from uuid import UUID
 
 import typer
 
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
+from figure_data.db.enums import CertaintyLevel, EncounterKind
 from figure_data.db.session import create_session_factory, session_scope
+from figure_data.encounters.formatting import (
+    format_encounter_detail,
+    format_encounter_summaries,
+    format_promotion_result,
+    format_retraction_result,
+)
+from figure_data.encounters.promotion import promote_candidate_to_encounter
+from figure_data.encounters.query import EncounterListFilters, get_encounter_detail, list_encounters
+from figure_data.encounters.retraction import retract_encounter
+from figure_data.encounters.types import (
+    EncounterOperationError,
+    EncounterPromotionOptions,
+    EncounterRetractionOptions,
+)
 from figure_data.encounters.validation import validate_encounters
 from figure_data.importing.orchestrator import import_cbdb
 from figure_data.review.candidate_detail import get_candidate_detail
@@ -205,3 +221,114 @@ def mark_candidate_review_command(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(format_status_change(change))
+
+
+@app.command("promote-encounter")
+def promote_encounter_command(
+    kind: Annotated[CandidateKind, typer.Option("--kind")],
+    candidate_id: Annotated[int, typer.Option("--id", min=1)],
+    reviewed_by: Annotated[str, typer.Option("--reviewed-by")],
+    evidence_summary: Annotated[str, typer.Option("--evidence-summary")],
+    note: Annotated[str | None, typer.Option("--note")] = None,
+    encounter_kind: Annotated[EncounterKind | None, typer.Option("--encounter-kind")] = None,
+    certainty: Annotated[CertaintyLevel | None, typer.Option("--certainty")] = None,
+    path_eligible: Annotated[
+        bool | None,
+        typer.Option("--path-eligible/--no-path-eligible"),
+    ] = None,
+    allow_non_default: Annotated[bool, typer.Option("--allow-non-default")] = False,
+) -> None:
+    """Promote a reviewed candidate relationship into an encounter."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with session_scope(factory) as session:
+            result = promote_candidate_to_encounter(
+                session,
+                EncounterPromotionOptions(
+                    candidate_kind=kind,
+                    candidate_id=candidate_id,
+                    reviewed_by=reviewed_by,
+                    evidence_summary=evidence_summary,
+                    review_note=note,
+                    encounter_kind=encounter_kind,
+                    certainty_level=certainty,
+                    path_eligible=path_eligible,
+                    allow_non_default=allow_non_default,
+                ),
+            )
+    except (CandidateReviewError, EncounterOperationError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(format_promotion_result(result))
+
+
+@app.command("list-encounters")
+def list_encounters_command(
+    person: Annotated[str | None, typer.Option("--person")] = None,
+    status: Annotated[str | None, typer.Option("--status")] = None,
+    path_eligible: Annotated[
+        bool | None,
+        typer.Option("--path-eligible/--no-path-eligible"),
+    ] = None,
+    limit: Annotated[int, typer.Option(min=1, max=200)] = 20,
+) -> None:
+    """List reviewed encounters."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        rows = list_encounters(
+            session,
+            EncounterListFilters(
+                person_query=person,
+                status=status,
+                path_eligible=path_eligible,
+                limit=limit,
+            ),
+        )
+    for line in format_encounter_summaries(rows):
+        typer.echo(line)
+
+
+@app.command("inspect-encounter")
+def inspect_encounter_command(
+    encounter_id: Annotated[UUID, typer.Option("--id")],
+) -> None:
+    """Inspect one reviewed encounter and its evidence."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with factory() as session:
+            detail = get_encounter_detail(session, encounter_id)
+    except EncounterOperationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_encounter_detail(detail):
+        typer.echo(line)
+
+
+@app.command("retract-encounter")
+def retract_encounter_command(
+    encounter_id: Annotated[UUID, typer.Option("--id")],
+    reviewed_by: Annotated[str, typer.Option("--reviewed-by")],
+    note: Annotated[str, typer.Option("--note")],
+    force: Annotated[bool, typer.Option("--force")] = False,
+) -> None:
+    """Retract an encounter and remove it from path eligibility."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with session_scope(factory) as session:
+            result = retract_encounter(
+                session,
+                EncounterRetractionOptions(
+                    encounter_id=encounter_id,
+                    reviewed_by=reviewed_by,
+                    note=note,
+                    force=force,
+                ),
+            )
+    except EncounterOperationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(format_retraction_result(result))
