@@ -25,7 +25,7 @@ def promote_candidate_to_encounter(
     _validate_candidate_can_be_promoted(detail, options)
     encounter_kind = _resolve_encounter_kind(detail, options)
     certainty_level = _resolve_certainty_level(detail, options)
-    path_eligible = _resolve_path_eligible(detail, options, certainty_level)
+    path_eligible = _resolve_path_eligible(detail, options, certainty_level, encounter_kind)
     person_a_id, person_b_id = _ordered_person_ids(detail)
     now = datetime.now(UTC)
     existing_id = _find_existing_encounter(
@@ -135,15 +135,22 @@ def _resolve_path_eligible(
     detail: CandidateDetail,
     options: EncounterPromotionOptions,
     certainty_level: CertaintyLevel,
+    encounter_kind: EncounterKind,
 ) -> bool:
     if options.path_eligible is None:
-        return detail.promotion_readiness.default_path_eligible
-    if options.path_eligible:
+        path_eligible = detail.promotion_readiness.default_path_eligible
+    else:
+        path_eligible = options.path_eligible
+    if path_eligible:
         if not detail.promotion_readiness.default_path_eligible:
             raise EncounterOperationError("non-default candidates cannot be path_eligible")
         if certainty_level is not CertaintyLevel.HIGH:
             raise EncounterOperationError("path_eligible requires high certainty")
-    return options.path_eligible
+        if encounter_kind is not EncounterKind.DIRECT_INTERACTION:
+            raise EncounterOperationError(
+                "path_eligible requires direct_interaction encounter kind"
+            )
+    return path_eligible
 
 
 def _ordered_person_ids(detail: CandidateDetail) -> tuple[UUID, UUID]:

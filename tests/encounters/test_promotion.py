@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pytest import MonkeyPatch, raises
 
+from figure_data.db.enums import CertaintyLevel, EncounterKind
 from figure_data.encounters.promotion import promote_candidate_to_encounter
 from figure_data.encounters.types import EncounterOperationError, EncounterPromotionOptions
 from figure_data.review.types import (
@@ -192,5 +193,53 @@ def test_promote_refuses_candidate_without_people(monkeypatch: MonkeyPatch) -> N
                 candidate_id=123,
                 reviewed_by="lyl",
                 evidence_summary="证据",
+            ),
+        )
+
+
+def test_promote_refuses_default_path_edge_with_medium_certainty(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    import figure_data.encounters.promotion as promotion_module
+
+    monkeypatch.setattr(
+        promotion_module,
+        "get_candidate_detail",
+        lambda session, kind, candidate_id: candidate_detail(),
+    )
+
+    with raises(EncounterOperationError, match="path_eligible requires high certainty"):
+        promote_candidate_to_encounter(
+            FakeSession(),  # type: ignore[arg-type]
+            EncounterPromotionOptions(
+                candidate_kind=CandidateKind.RELATIONSHIP,
+                candidate_id=123,
+                reviewed_by="lyl",
+                evidence_summary="证据",
+                certainty_level=CertaintyLevel.MEDIUM,
+            ),
+        )
+
+
+def test_promote_refuses_path_edge_for_non_direct_encounter_kind(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    import figure_data.encounters.promotion as promotion_module
+
+    monkeypatch.setattr(
+        promotion_module,
+        "get_candidate_detail",
+        lambda session, kind, candidate_id: candidate_detail(),
+    )
+
+    with raises(EncounterOperationError, match="path_eligible requires direct_interaction"):
+        promote_candidate_to_encounter(
+            FakeSession(),  # type: ignore[arg-type]
+            EncounterPromotionOptions(
+                candidate_kind=CandidateKind.RELATIONSHIP,
+                candidate_id=123,
+                reviewed_by="lyl",
+                evidence_summary="证据",
+                encounter_kind=EncounterKind.CO_PRESENCE,
             ),
         )

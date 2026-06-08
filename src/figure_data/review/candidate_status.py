@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from figure_data.db.enums import EncounterStatus
 from figure_data.review.types import (
     CandidateKind,
     CandidateReviewError,
@@ -79,7 +81,7 @@ def _update_candidate_review_status(
     if existing["review_status"] == CandidateReviewStatus.PROMOTED_TO_ENCOUNTER.value:
         raise CandidateReviewError("candidate is already promoted; retract the encounter first")
     if existing["promoted_encounter_id"] is not None:
-        raise CandidateReviewError("candidate is already linked to an encounter")
+        _ensure_linked_encounter_is_not_active(session, existing["promoted_encounter_id"])
 
     session.execute(
         text(
@@ -107,3 +109,20 @@ def _update_candidate_review_status(
         reviewed_by=normalized_reviewed_by,
         review_note=normalized_note,
     )
+
+
+def _ensure_linked_encounter_is_not_active(session: Session, encounter_id: UUID) -> None:
+    row = session.execute(
+        text(
+            """
+            select status
+            from figure_data.encounters
+            where id = :encounter_id
+            """
+        ),
+        {"encounter_id": encounter_id},
+    ).mappings().one_or_none()
+    if row is None:
+        raise CandidateReviewError("candidate is linked to a missing encounter")
+    if row["status"] == EncounterStatus.ACTIVE.value:
+        raise CandidateReviewError("candidate is linked to an active encounter; retract it first")
