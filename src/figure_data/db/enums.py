@@ -29,3 +29,21 @@ class ReviewStatus(StrEnum):
     NEEDS_REVIEW = "needs_review"
     PROMOTED_TO_ENCOUNTER = "promoted_to_encounter"
     REJECTED = "rejected"
+
+
+class EncounterKind(StrEnum):
+    DIRECT_INTERACTION = "direct_interaction"
+    CO_PRESENCE = "co_presence"
+    FAMILY_CONTACT = "family_contact"
+    MANUAL_CONTACT = "manual_contact"
+
+
+class CertaintyLevel(StrEnum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class EncounterStatus(StrEnum):
+    ACTIVE = "active"
+    RETRACTED = "retracted"

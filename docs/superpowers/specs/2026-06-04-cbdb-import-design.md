@@ -114,7 +114,7 @@ DATABASE_URL=<local PostgreSQL connection string>
 unique(source_name, source_table, source_pk)
 ```
 
-如果 CBDB 表有单列主键，`source_pk` 使用该主键，例如 `c_personid=25403`。如果来源表没有单列主键，`source_pk` 使用按字段名排序后的复合键字符串，生成规则必须稳定、可测试。
+如果 CBDB 表有单列主键，`source_pk` 使用该主键，例如 `c_personid=25403`。当前实现中，`ALTNAME_DATA`、`ASSOC_DATA`、`KIN_DATA`、`POSTED_TO_OFFICE_DATA` 以及派生的 `source_refs` 使用 SQLite `rowid` 暴露出的 `_rowid` 构造稳定来源身份，例如 `_rowid=123`。`source_row_hash` 只用于判断来源内容变化，不得拼入 `source_pk`。
 
 ## 数据模型
 
