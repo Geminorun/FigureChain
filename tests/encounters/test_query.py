@@ -62,7 +62,9 @@ def test_list_encounters_builds_filters() -> None:
     assert rows[0].person_a_name == "諸葛亮"
     assert "e.status = :status" in session.statements[0]
     assert "e.path_eligible = :path_eligible" in session.statements[0]
-    assert session.params[0]["limit"] == 5
+    params = session.params[0]
+    assert params is not None
+    assert params["limit"] == 5
 
 
 def test_get_encounter_detail_raises_when_missing() -> None:
