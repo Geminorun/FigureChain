@@ -6,6 +6,7 @@ import typer
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
 from figure_data.db.session import create_session_factory
+from figure_data.encounters.validation import validate_encounters
 from figure_data.importing.orchestrator import import_cbdb
 from figure_data.search.person_search import search_people
 from figure_data.validation.report import ValidationReport
@@ -78,6 +79,21 @@ def validate_cbdb_command() -> None:
     with factory() as session:
         checks.extend(validate_expected_postgres_counts(session))
         checks.extend(validate_sample_person_queries(session))
+    report = ValidationReport(checks=checks)
+    for check in report.checks:
+        status = "PASS" if check.passed else "FAIL"
+        typer.echo(f"{status}\t{check.name}\t{check.detail}")
+    if not report.passed:
+        raise typer.Exit(code=1)
+
+
+@app.command("validate-encounters")
+def validate_encounters_command() -> None:
+    """Validate promoted encounter consistency."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        checks = validate_encounters(session)
     report = ValidationReport(checks=checks)
     for check in report.checks:
         status = "PASS" if check.passed else "FAIL"
