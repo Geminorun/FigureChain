@@ -25,6 +25,7 @@ class PersonSearchResult:
 PERSON_QUERY_ALIASES: dict[str, list[str]] = {
     "汪精卫": ["汪精衛", "汪兆铭", "汪兆銘"],
     "汪精衛": ["汪精卫", "汪兆铭", "汪兆銘"],
+    "Sima Yi": ["司马懿", "司馬懿"],
 }
 
 

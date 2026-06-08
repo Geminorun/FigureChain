@@ -20,7 +20,7 @@ SAMPLE_PERSON_QUERIES = [
     SamplePersonQuery("Zhuge Liang", "25403"),
     SamplePersonQuery("司马懿", "21204"),
     SamplePersonQuery("司馬懿", "21204"),
-    SamplePersonQuery("Sima Yi", "339531", expected_top_n=5),
+    SamplePersonQuery("Sima Yi", "21204"),
     SamplePersonQuery("司马炎", "21207"),
     SamplePersonQuery("司馬炎", "21207"),
     SamplePersonQuery("汪兆铭", "79335"),

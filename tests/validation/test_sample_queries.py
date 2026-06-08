@@ -20,3 +20,12 @@ def test_sample_queries_define_expected_target_identity() -> None:
     )
 
     assert wang_jingwei in SAMPLE_PERSON_QUERIES
+
+
+def test_sample_queries_validate_historical_sima_yi_identity() -> None:
+    sima_yi = SamplePersonQuery(
+        query="Sima Yi",
+        expected_external_id="21204",
+    )
+
+    assert sima_yi in SAMPLE_PERSON_QUERIES

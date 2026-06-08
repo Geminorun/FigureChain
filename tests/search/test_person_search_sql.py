@@ -20,6 +20,10 @@ def test_search_expands_known_person_name_aliases() -> None:
     assert expand_person_search_queries("汪精卫") == ["汪精卫", "汪精衛", "汪兆铭", "汪兆銘"]
 
 
+def test_search_expands_known_romanized_name_aliases() -> None:
+    assert expand_person_search_queries("Sima Yi") == ["Sima Yi", "司马懿", "司馬懿"]
+
+
 def test_search_result_mapping_ignores_sql_rank_column() -> None:
     result = person_search_result_from_row(
         {

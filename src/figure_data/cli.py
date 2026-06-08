@@ -59,9 +59,11 @@ def search_person_command(
     with factory() as session:
         results = search_people(session, query, limit)
     for result in results:
+        external_ids = ",".join(result.external_ids)
         typer.echo(
             f"{result.person_id}\t{result.primary_name_zh_hant}\t"
-            f"{result.primary_name_zh_hans}\t{result.birth_year}-{result.death_year}"
+            f"{result.primary_name_zh_hans}\t{result.birth_year}-{result.death_year}\t"
+            f"{external_ids}"
         )
 
 
