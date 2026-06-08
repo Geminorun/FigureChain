@@ -1,0 +1,28 @@
+services:
+  neo4j:
+    image: neo4j:2026.05.0
+    container_name: figurechain-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD before running docker compose}"
+      FIGURECHAIN_NEO4J_PASSWORD: "${NEO4J_PASSWORD:?Set NEO4J_PASSWORD before running docker compose}"
+    volumes:
+      - figurechain-neo4j-data:/data
+      - figurechain-neo4j-logs:/logs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "cypher-shell -u neo4j -p \"$${FIGURECHAIN_NEO4J_PASSWORD}\" 'RETURN 1' >/dev/null",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  figurechain-neo4j-data:
+  figurechain-neo4j-logs:
