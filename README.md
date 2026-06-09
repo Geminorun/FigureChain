@@ -87,6 +87,41 @@ uv run figure-data find-chain --from "诸葛亮" --to "司马懿" --max-depth 12
 图相关命令只读取已经审核通过的路径 encounter。撤回 encounter 后，需要重新执行
 `sync-graph --rebuild`，Neo4j 中的路径边才会同步移除。
 
+## FastAPI 查链应用层
+
+本地启动 API：
+
+```powershell
+uv run --no-sync uvicorn figure_chain.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+常用 smoke 请求：
+
+```text
+GET /health/live
+GET /health/ready
+GET /api/v1/people/search?q=許幾
+POST /api/v1/chains/shortest
+GET /api/v1/encounters/e4f22ec2-22f7-4cda-bcc1-73aa83d0685f
+```
+
+真实查链样本：
+
+```json
+{
+  "source": {
+    "person_id": "38966b03-8aa7-5143-8021-2d266889b6c5"
+  },
+  "target": {
+    "person_id": "46cfdf66-08c4-5876-964b-4a95d098afe9"
+  },
+  "max_depth": 12
+}
+```
+
+期望 `POST /api/v1/chains/shortest` 返回 `status=found`、`path.length=1`，并包含
+`encounter_id=e4f22ec2-22f7-4cda-bcc1-73aa83d0685f`。
+
 ## 验证
 
 ```bash
