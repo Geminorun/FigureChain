@@ -3,6 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 import typer
+from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
@@ -145,18 +146,19 @@ def sync_graph_command(
     if not rebuild:
         typer.echo("--rebuild is required for the first graph projection version", err=True)
         raise typer.Exit(code=1)
-    settings = load_settings()
-    factory = create_session_factory(settings)
-    driver = create_neo4j_driver(settings)
-    config = get_neo4j_config(settings)
+    driver = None
     try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
         with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
             stats = sync_graph_rebuild(pg_session, neo4j_session)
-    except GraphOperationError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
+    except (GraphOperationError, DriverError, Neo4jError) as exc:
+        _exit_graph_error(exc)
     finally:
-        driver.close()
+        if driver is not None:
+            driver.close()
     for line in format_projection_stats(stats):
         typer.echo(line)
 
@@ -164,18 +166,19 @@ def sync_graph_command(
 @app.command("validate-graph")
 def validate_graph_command() -> None:
     """Validate the Neo4j graph projection against PostgreSQL."""
-    settings = load_settings()
-    factory = create_session_factory(settings)
-    driver = create_neo4j_driver(settings)
-    config = get_neo4j_config(settings)
+    driver = None
     try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
         with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
             checks = validate_graph(pg_session, neo4j_session)
-    except GraphOperationError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
+    except (GraphOperationError, DriverError, Neo4jError) as exc:
+        _exit_graph_error(exc)
     finally:
-        driver.close()
+        if driver is not None:
+            driver.close()
     report = ValidationReport(checks=checks)
     for line in format_validation_checks(report.checks):
         typer.echo(line)
@@ -194,10 +197,6 @@ def find_chain_command(
     max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=30)] = 12,
 ) -> None:
     """Find one shortest chain between two projected people."""
-    settings = load_settings()
-    factory = create_session_factory(settings)
-    driver = create_neo4j_driver(settings)
-    config = get_neo4j_config(settings)
     source = ChainEndpointInput(
         label="from",
         person_id=from_person_id,
@@ -210,16 +209,38 @@ def find_chain_command(
         cbdb_id=to_cbdb_id,
         query=to_query,
     )
+    driver = None
     try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
         with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
             result = find_chain(pg_session, neo4j_session, source, target, max_depth)
-    except GraphOperationError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
+    except (GraphOperationError, DriverError, Neo4jError) as exc:
+        _exit_graph_error(exc)
     finally:
-        driver.close()
+        if driver is not None:
+            driver.close()
     for line in format_chain_result(result):
         typer.echo(line)
+
+
+def _exit_graph_error(exc: GraphOperationError | DriverError | Neo4jError) -> None:
+    if isinstance(exc, GraphOperationError):
+        typer.echo(str(exc), err=True)
+    elif isinstance(exc, ServiceUnavailable):
+        typer.echo(
+            f"Neo4j is unavailable: {type(exc).__name__}; check NEO4J_URI and service status",
+            err=True,
+        )
+    else:
+        typer.echo(
+            f"Neo4j operation failed: {type(exc).__name__}; "
+            "check Neo4j configuration and database status",
+            err=True,
+        )
+    raise typer.Exit(code=1) from exc
 
 
 @app.command("review-candidates")

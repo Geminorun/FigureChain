@@ -1,5 +1,6 @@
 from types import TracebackType
 
+from neo4j.exceptions import ServiceUnavailable
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
@@ -62,3 +63,19 @@ def test_validate_graph_exits_nonzero_on_failure(monkeypatch: MonkeyPatch) -> No
 
     assert result.exit_code == 1
     assert "FAIL\tgraph:encounters_resolve\tmissing=1" in result.output
+
+
+def test_validate_graph_maps_neo4j_connection_error(monkeypatch: MonkeyPatch) -> None:
+    patch_graph_cli(monkeypatch, [])
+    monkeypatch.setattr(
+        "figure_data.cli.validate_graph",
+        lambda pg_session, graph_session: (_ for _ in ()).throw(
+            ServiceUnavailable("could not connect to Neo4j")
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["validate-graph"])
+
+    assert result.exit_code == 1
+    assert "Neo4j is unavailable" in result.output
+    assert "Traceback" not in result.output
