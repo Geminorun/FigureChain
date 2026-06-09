@@ -78,3 +78,45 @@ class ProjectionStats:
     relationships_projected: int
     started_at: datetime
     finished_at: datetime
+
+
+@dataclass(frozen=True)
+class ChainPerson:
+    person_id: str
+    display_name: str
+    birth_year: int | None
+    death_year: int | None
+    cbdb_external_id: str | None
+
+
+@dataclass(frozen=True)
+class ChainEdge:
+    encounter_id: str
+    encounter_kind: str
+    certainty_level: str
+    pages: str | None
+    evidence_summary: str
+
+
+@dataclass(frozen=True)
+class ChainPath:
+    people: tuple[ChainPerson, ...]
+    edges: tuple[ChainEdge, ...]
+
+    @property
+    def length(self) -> int:
+        return len(self.edges)
+
+
+@dataclass(frozen=True)
+class ChainLookupResult:
+    source_person_id: str
+    target_person_id: str
+    max_depth: int
+    path: ChainPath | None
+
+
+@dataclass(frozen=True)
+class ResolvedEndpoint:
+    label: str
+    person_id: str

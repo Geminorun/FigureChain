@@ -23,8 +23,13 @@ from figure_data.encounters.types import (
     EncounterRetractionOptions,
 )
 from figure_data.encounters.validation import validate_encounters
-from figure_data.graph.formatting import format_projection_stats, format_validation_checks
+from figure_data.graph.formatting import (
+    format_chain_result,
+    format_projection_stats,
+    format_validation_checks,
+)
 from figure_data.graph.neo4j_client import create_neo4j_driver, get_neo4j_config, graph_session
+from figure_data.graph.pathfinding import ChainEndpointInput, find_chain
 from figure_data.graph.projection import sync_graph_rebuild
 from figure_data.graph.types import GraphOperationError
 from figure_data.graph.validation import validate_graph
@@ -176,6 +181,45 @@ def validate_graph_command() -> None:
         typer.echo(line)
     if not report.passed:
         raise typer.Exit(code=1)
+
+
+@app.command("find-chain")
+def find_chain_command(
+    from_query: Annotated[str | None, typer.Option("--from")] = None,
+    to_query: Annotated[str | None, typer.Option("--to")] = None,
+    from_person_id: Annotated[UUID | None, typer.Option("--from-person-id")] = None,
+    to_person_id: Annotated[UUID | None, typer.Option("--to-person-id")] = None,
+    from_cbdb_id: Annotated[str | None, typer.Option("--from-cbdb-id")] = None,
+    to_cbdb_id: Annotated[str | None, typer.Option("--to-cbdb-id")] = None,
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=30)] = 12,
+) -> None:
+    """Find one shortest chain between two projected people."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    driver = create_neo4j_driver(settings)
+    config = get_neo4j_config(settings)
+    source = ChainEndpointInput(
+        label="from",
+        person_id=from_person_id,
+        cbdb_id=from_cbdb_id,
+        query=from_query,
+    )
+    target = ChainEndpointInput(
+        label="to",
+        person_id=to_person_id,
+        cbdb_id=to_cbdb_id,
+        query=to_query,
+    )
+    try:
+        with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
+            result = find_chain(pg_session, neo4j_session, source, target, max_depth)
+    except GraphOperationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        driver.close()
+    for line in format_chain_result(result):
+        typer.echo(line)
 
 
 @app.command("review-candidates")
