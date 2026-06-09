@@ -24,6 +24,11 @@ from figure_data.encounters.types import (
     EncounterRetractionOptions,
 )
 from figure_data.encounters.validation import validate_encounters
+from figure_data.expansion.candidate_planning import (
+    ExpansionCandidateFilters,
+    plan_encounter_expansion,
+)
+from figure_data.expansion.formatting import format_expansion_candidates
 from figure_data.graph.formatting import (
     format_chain_result,
     format_projection_stats,
@@ -268,6 +273,23 @@ def review_candidates_command(
             ),
         )
     for line in format_candidate_summaries(rows):
+        typer.echo(line)
+
+
+@app.command("plan-encounter-expansion")
+def plan_encounter_expansion_command(
+    status: Annotated[str | None, typer.Option("--status")] = "unreviewed",
+    limit: Annotated[int, typer.Option(min=1, max=500)] = 50,
+) -> None:
+    """List high-priority relationship candidates for encounter data expansion."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        rows = plan_encounter_expansion(
+            session,
+            ExpansionCandidateFilters(review_status=status, limit=limit),
+        )
+    for line in format_expansion_candidates(rows):
         typer.echo(line)
 
 
