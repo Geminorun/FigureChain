@@ -7,3 +7,7 @@ __pycache__/
 *.py[cod]
 figure-data/*.sqlite3
 figure-data/*.zip
+frontend/.env.local
+frontend/.next/
+frontend/playwright-report/
+frontend/test-results/
