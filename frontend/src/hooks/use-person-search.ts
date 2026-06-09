@@ -8,15 +8,20 @@ import type {
   PersonSearchItem,
 } from "@/lib/figure-chain-types";
 
-type PersonSearchState = {
+type PersonSearchResult = {
   items: PersonSearchItem[];
   isLoading: boolean;
   error: DisplayableError | null;
 };
 
-export function usePersonSearch(query: string, limit = 10): PersonSearchState {
+type PersonSearchState = PersonSearchResult & {
+  query: string;
+};
+
+export function usePersonSearch(query: string, limit = 10): PersonSearchResult {
   const trimmedQuery = query.trim();
   const [state, setState] = useState<PersonSearchState>({
+    query: "",
     items: [],
     isLoading: false,
     error: null,
@@ -29,7 +34,12 @@ export function usePersonSearch(query: string, limit = 10): PersonSearchState {
 
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
-      setState((current) => ({ ...current, isLoading: true, error: null }));
+      setState({
+        query: trimmedQuery,
+        items: [],
+        isLoading: true,
+        error: null,
+      });
 
       const params = new URLSearchParams({
         q: trimmedQuery,
@@ -45,13 +55,19 @@ export function usePersonSearch(query: string, limit = 10): PersonSearchState {
             throw parseErrorResponse(body);
           }
           const data = body as PeopleSearchResponse;
-          setState({ items: data.items, isLoading: false, error: null });
+          setState({
+            query: trimmedQuery,
+            items: data.items,
+            isLoading: false,
+            error: null,
+          });
         })
         .catch((error: unknown) => {
           if (controller.signal.aborted) {
             return;
           }
           setState({
+            query: trimmedQuery,
             items: [],
             isLoading: false,
             error: parseErrorResponse(error),
@@ -67,6 +83,10 @@ export function usePersonSearch(query: string, limit = 10): PersonSearchState {
 
   if (trimmedQuery.length === 0) {
     return { items: [], isLoading: false, error: null };
+  }
+
+  if (state.query !== trimmedQuery) {
+    return { items: [], isLoading: true, error: null };
   }
 
   return state;

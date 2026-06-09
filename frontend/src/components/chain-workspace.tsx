@@ -15,6 +15,17 @@ import type {
 } from "@/lib/figure-chain-types";
 import { canSubmitChain, getChainValidationMessage } from "@/lib/validation";
 
+function isReadyResponse(value: unknown): value is ReadyResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    ((value as { status?: unknown }).status === "ready" ||
+      (value as { status?: unknown }).status === "not_ready") &&
+    typeof (value as { dependencies?: unknown }).dependencies === "object" &&
+    (value as { dependencies?: unknown }).dependencies !== null
+  );
+}
+
 export function ChainWorkspace() {
   const [source, setSource] = useState<PersonSearchItem | null>(null);
   const [target, setTarget] = useState<PersonSearchItem | null>(null);
@@ -30,10 +41,15 @@ export function ChainWorkspace() {
     fetch("/api/figure-chain/health/ready")
       .then(async (response) => {
         const body = (await response.json()) as unknown;
+        if (isReadyResponse(body)) {
+          setReady(body);
+          setHealthError(null);
+          return;
+        }
         if (!response.ok) {
           throw parseErrorResponse(body);
         }
-        setReady(body as ReadyResponse);
+        throw parseErrorResponse(body);
       })
       .catch((error: unknown) => setHealthError(parseErrorResponse(error)));
   }, []);

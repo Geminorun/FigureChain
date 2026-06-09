@@ -39,6 +39,36 @@ describe("PersonSelector", () => {
     expect(onSelect).toHaveBeenCalledWith(xuJi);
   });
 
+  it("hides stale candidates immediately when query changes", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ query: "許幾", limit: 10, items: [xuJi] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    renderUi(
+      <PersonSelector
+        label="起点人物"
+        selectedPerson={null}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByLabelText("起点人物");
+    await user.type(input, "許幾");
+    await waitFor(() => expect(screen.getByText("Xu Ji")).toBeInTheDocument());
+
+    await user.clear(input);
+    await user.type(input, "韓");
+
+    expect(screen.queryByRole("button", { name: /780/ })).not.toBeInTheDocument();
+  });
+
   it("clears selected person", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
