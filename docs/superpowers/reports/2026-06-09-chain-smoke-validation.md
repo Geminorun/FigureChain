@@ -66,4 +66,9 @@
 
 ## 结论
 
-- 当前结论：report-initialized
+- 当前结论：complete
+- 本阶段已完成第一条真实路径 encounter 的审核、提升、Neo4j 投影和正向查链验证。
+- PostgreSQL 中的路径边可以通过 `sync-graph --rebuild` 投影到 Neo4j。
+- `find-chain` 可以返回包含 `person` 与 `edge` 行的人物链。
+- 每条边可以回溯到 `encounter_id` 和证据摘要。
+- 本阶段没有引入 FastAPI、Next.js、AI 自动审核或新的路径算法。
