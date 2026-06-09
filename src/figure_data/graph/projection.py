@@ -119,11 +119,18 @@ def sync_graph_rebuild(pg_session: Session, neo4j_session: GraphWriteSession) ->
 
     started_at = datetime.now(UTC)
     dataset = load_projection_dataset(pg_session)
-    if not dataset.encounters:
-        raise GraphProjectionError("no path encounters to project")
-
     neo4j_session.run(CLEAR_GRAPH_CYPHER)
     neo4j_session.run(CONSTRAINT_CYPHER)
+    if not dataset.encounters:
+        finished_at = datetime.now(UTC)
+        return ProjectionStats(
+            persons_projected=0,
+            encounters_projected=0,
+            relationships_projected=0,
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+
     projection_time = started_at.isoformat()
     neo4j_session.run(
         PERSON_BATCH_CYPHER,

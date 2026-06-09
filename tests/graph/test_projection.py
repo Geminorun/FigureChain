@@ -210,3 +210,22 @@ def test_sync_graph_rebuild_writes_people_and_relationships(
     assert CONSTRAINT_CYPHER in queries
     assert PERSON_BATCH_CYPHER in queries
     assert ENCOUNTER_BATCH_CYPHER in queries
+
+
+def test_sync_graph_rebuild_clears_graph_when_no_path_encounters(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    graph_session = FakeGraphSession()
+    monkeypatch.setattr(
+        "figure_data.graph.projection.load_projection_dataset",
+        lambda session: ProjectionDataset(people=(), encounters=()),
+    )
+    monkeypatch.setattr("figure_data.graph.projection.validate_encounters", lambda session: [])
+
+    stats = sync_graph_rebuild(object(), graph_session)  # type: ignore[arg-type]
+
+    assert stats.persons_projected == 0
+    assert stats.encounters_projected == 0
+    assert stats.relationships_projected == 0
+    queries = [query for query, _params in graph_session.queries]
+    assert queries == [CLEAR_GRAPH_CYPHER, CONSTRAINT_CYPHER]
