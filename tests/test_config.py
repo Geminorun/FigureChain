@@ -25,6 +25,18 @@ def test_settings_preserves_explicit_sqlalchemy_driver_url() -> None:
     assert settings.database_url == "postgresql+psycopg://example.invalid/figure"
 
 
+def test_settings_reads_env_file_with_utf8_bom(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "DATABASE_URL=postgresql://example.invalid/figure\n",
+        encoding="utf-8-sig",
+    )
+
+    settings = Settings(_env_file=env_file)
+
+    assert settings.database_url == "postgresql+psycopg://example.invalid/figure"
+
+
 def test_settings_reads_optional_neo4j_fields() -> None:
     settings = Settings(
         database_url="postgresql://example.invalid/figure",
