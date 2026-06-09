@@ -42,11 +42,27 @@
 
 ## 图同步结果
 
-- 状态：not-synced
+- 状态：synced
+- 命令：`uv run --no-sync figure-data sync-graph --rebuild`
+- `persons_projected`：2
+- `encounters_projected`：1
+- `relationships_projected`：1
+- `validate-graph`：PASS，`postgres=1 neo4j=1 missing=0 unexpected=0`
 
 ## 查链结果
 
-- 状态：not-run
+- 状态：chain-found
+- from_person_id：38966b03-8aa7-5143-8021-2d266889b6c5
+- from_person：許幾
+- to_person_id：46cfdf66-08c4-5876-964b-4a95d098afe9
+- to_person：韓琦
+- max_depth：12
+- chain_length：1
+- edge_encounter_id：e4f22ec2-22f7-4cda-bcc1-73aa83d0685f
+- edge_kind：direct_interaction
+- edge_certainty：high
+- edge_pages：11905
+- edge_summary：CBDB ASSOC_DATA _rowid=15785, source_work_id=7596, pages=11905：许几以诸生谒韩琦于魏，韩琦勉其入太学，证明二人直接互动。
 
 ## 结论
 
