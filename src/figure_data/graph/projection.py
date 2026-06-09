@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
-from typing import Any, cast
+from datetime import UTC, datetime
+from typing import Any, Protocol, cast
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from figure_data.graph.types import GraphEncounter, GraphPerson, ProjectionDataset
+from figure_data.encounters.validation import validate_encounters
+from figure_data.graph.types import (
+    GraphEncounter,
+    GraphPerson,
+    GraphProjectionError,
+    ProjectionDataset,
+    ProjectionStats,
+)
+
+
+class GraphWriteSession(Protocol):
+    def run(self, query: str, parameters: dict[str, object] | None = None) -> object: ...
 
 PATH_ENCOUNTER_WHERE = """e.status = 'active'
 and e.path_eligible = true
@@ -52,6 +63,84 @@ where p.id = any(:person_ids)
 group by p.id
 order by p.id
 """
+
+CLEAR_GRAPH_CYPHER = """
+match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson)
+delete r
+with 1 as ignored
+match (p:FigurePerson)
+where not (p)--()
+delete p
+"""
+
+CONSTRAINT_CYPHER = """
+create constraint figure_person_person_id_unique if not exists
+for (p:FigurePerson)
+require p.person_id is unique
+"""
+
+PERSON_BATCH_CYPHER = """
+unwind $rows as row
+merge (p:FigurePerson {person_id: row.person_id})
+set p.cbdb_external_id = row.cbdb_external_id,
+    p.external_ids = row.external_ids,
+    p.primary_name_hant = row.primary_name_hant,
+    p.primary_name_hans = row.primary_name_hans,
+    p.primary_name_romanized = row.primary_name_romanized,
+    p.birth_year = row.birth_year,
+    p.death_year = row.death_year,
+    p.index_year = row.index_year,
+    p.dynasty_code = row.dynasty_code,
+    p.updated_at = row.updated_at
+"""
+
+ENCOUNTER_BATCH_CYPHER = """
+unwind $rows as row
+match (a:FigurePerson {person_id: row.start_person_id})
+match (b:FigurePerson {person_id: row.end_person_id})
+merge (a)-[r:ENCOUNTERED {encounter_id: row.encounter_id}]->(b)
+set r.encounter_kind = row.encounter_kind,
+    r.certainty_level = row.certainty_level,
+    r.source_work_id = row.source_work_id,
+    r.pages = row.pages,
+    r.evidence_summary = row.evidence_summary,
+    r.reviewed_by = row.reviewed_by,
+    r.reviewed_at = row.reviewed_at,
+    r.created_at = row.created_at,
+    r.updated_at = row.updated_at
+"""
+
+
+def sync_graph_rebuild(pg_session: Session, neo4j_session: GraphWriteSession) -> ProjectionStats:
+    failed_checks = [check for check in validate_encounters(pg_session) if not check.passed]
+    if failed_checks:
+        names = ",".join(check.name for check in failed_checks)
+        raise GraphProjectionError(f"validate-encounters failed before graph projection: {names}")
+
+    started_at = datetime.now(UTC)
+    dataset = load_projection_dataset(pg_session)
+    if not dataset.encounters:
+        raise GraphProjectionError("no path encounters to project")
+
+    neo4j_session.run(CLEAR_GRAPH_CYPHER)
+    neo4j_session.run(CONSTRAINT_CYPHER)
+    projection_time = started_at.isoformat()
+    neo4j_session.run(
+        PERSON_BATCH_CYPHER,
+        {"rows": [_person_to_neo4j_row(person, projection_time) for person in dataset.people]},
+    )
+    neo4j_session.run(
+        ENCOUNTER_BATCH_CYPHER,
+        {"rows": [_encounter_to_neo4j_row(encounter) for encounter in dataset.encounters]},
+    )
+    finished_at = datetime.now(UTC)
+    return ProjectionStats(
+        persons_projected=len(dataset.people),
+        encounters_projected=len(dataset.encounters),
+        relationships_projected=len(dataset.encounters),
+        started_at=started_at,
+        finished_at=finished_at,
+    )
 
 
 def load_projection_dataset(session: Session) -> ProjectionDataset:
@@ -118,3 +207,36 @@ def _optional_text(value: object) -> str | None:
         return None
     text_value = str(value).strip()
     return text_value or None
+
+
+def _person_to_neo4j_row(person: GraphPerson, projection_time: str) -> dict[str, object]:
+    return {
+        "person_id": person.person_id,
+        "cbdb_external_id": person.cbdb_external_id,
+        "external_ids": list(person.external_ids),
+        "primary_name_hant": person.primary_name_hant,
+        "primary_name_hans": person.primary_name_hans,
+        "primary_name_romanized": person.primary_name_romanized,
+        "birth_year": person.birth_year,
+        "death_year": person.death_year,
+        "index_year": person.index_year,
+        "dynasty_code": person.dynasty_code,
+        "updated_at": projection_time,
+    }
+
+
+def _encounter_to_neo4j_row(encounter: GraphEncounter) -> dict[str, object]:
+    return {
+        "encounter_id": encounter.encounter_id,
+        "start_person_id": encounter.start_person_id,
+        "end_person_id": encounter.end_person_id,
+        "encounter_kind": encounter.encounter_kind,
+        "certainty_level": encounter.certainty_level,
+        "source_work_id": encounter.source_work_id,
+        "pages": encounter.pages,
+        "evidence_summary": encounter.evidence_summary,
+        "reviewed_by": encounter.reviewed_by,
+        "reviewed_at": encounter.reviewed_at,
+        "created_at": encounter.created_at,
+        "updated_at": encounter.updated_at,
+    }

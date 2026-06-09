@@ -23,6 +23,10 @@ from figure_data.encounters.types import (
     EncounterRetractionOptions,
 )
 from figure_data.encounters.validation import validate_encounters
+from figure_data.graph.formatting import format_projection_stats
+from figure_data.graph.neo4j_client import create_neo4j_driver, get_neo4j_config, graph_session
+from figure_data.graph.projection import sync_graph_rebuild
+from figure_data.graph.types import GraphOperationError
 from figure_data.importing.orchestrator import import_cbdb
 from figure_data.review.candidate_detail import get_candidate_detail
 from figure_data.review.candidate_listing import CandidateListFilters, list_candidate_summaries
@@ -125,6 +129,30 @@ def validate_encounters_command() -> None:
         typer.echo(f"{status}\t{check.name}\t{check.detail}")
     if not report.passed:
         raise typer.Exit(code=1)
+
+
+@app.command("sync-graph")
+def sync_graph_command(
+    rebuild: Annotated[bool, typer.Option("--rebuild")] = False,
+) -> None:
+    """Rebuild the Neo4j graph projection from PostgreSQL path encounters."""
+    if not rebuild:
+        typer.echo("--rebuild is required for the first graph projection version", err=True)
+        raise typer.Exit(code=1)
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    driver = create_neo4j_driver(settings)
+    config = get_neo4j_config(settings)
+    try:
+        with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
+            stats = sync_graph_rebuild(pg_session, neo4j_session)
+    except GraphOperationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        driver.close()
+    for line in format_projection_stats(stats):
+        typer.echo(line)
 
 
 @app.command("review-candidates")
