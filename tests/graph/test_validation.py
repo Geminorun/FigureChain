@@ -12,11 +12,14 @@ class PgScalarResult:
 
 
 class PgMappingResult:
+    def __init__(self, encounter_id: str = "encounter-1") -> None:
+        self.encounter_id = encounter_id
+
     def mappings(self) -> "PgMappingResult":
         return self
 
     def all(self) -> list[dict[str, str]]:
-        return [{"encounter_id": "encounter-1"}]
+        return [{"encounter_id": self.encounter_id}]
 
 
 class FakePgSession:
@@ -81,3 +84,31 @@ def test_validate_graph_uses_path_encounter_rule() -> None:
     assert "path_eligible = true" in pg_session.statements[0]
     assert "certainty_level = 'high'" in pg_session.statements[0]
     assert "encounter_kind = 'direct_interaction'" in pg_session.statements[0]
+
+
+class StaleEdgePgSession(FakePgSession):
+    def execute(self, statement: Any, params: dict[str, object] | None = None) -> object:
+        self.statements.append(str(statement))
+        if "select e.id::text as encounter_id" in str(statement):
+            return PgMappingResult("current-encounter")
+        return PgScalarResult(self.scalar_values.pop(0))
+
+
+class StaleEdgeNeo4jSession(FakeNeo4jSession):
+    def run(self, query: str, parameters: dict[str, object] | None = None) -> object:
+        self.queries.append(query)
+        if "return r.encounter_id as encounter_id" in query:
+            return iter([{"encounter_id": "stale-encounter"}])
+        return Neo4jScalarResult(self.values.pop(0))
+
+
+def test_validate_graph_rejects_edges_outside_path_encounter_set() -> None:
+    checks = validate_graph(
+        StaleEdgePgSession(),  # type: ignore[arg-type]
+        StaleEdgeNeo4jSession(),
+    )
+
+    resolve_check = next(check for check in checks if check.name == "graph:encounters_resolve")
+
+    assert not resolve_check.passed
+    assert "unexpected=1" in resolve_check.detail

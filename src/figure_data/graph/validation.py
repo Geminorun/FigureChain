@@ -28,18 +28,11 @@ from (
 ) people
 """
 
-POSTGRES_SAMPLE_ENCOUNTER_IDS_SQL = f"""
+POSTGRES_PATH_ENCOUNTER_IDS_SQL = f"""
 select e.id::text as encounter_id
 from figure_data.encounters e
 where {PATH_ENCOUNTER_WHERE}
 order by e.id
-limit :limit
-"""
-
-POSTGRES_RESOLVE_ENCOUNTERS_SQL = """
-select count(*)
-from figure_data.encounters e
-where e.id::text = any(:encounter_ids)
 """
 
 
@@ -144,25 +137,28 @@ def _check_encounter_ids_resolve(
     neo4j_session: GraphReadSession,
     sample_limit: int,
 ) -> ValidationCheck:
+    postgres_ids = _postgres_path_encounter_ids(pg_session)
+    neo4j_ids = _neo4j_encounter_ids(neo4j_session)
+    missing = postgres_ids - neo4j_ids
+    unexpected = neo4j_ids - postgres_ids
+    return ValidationCheck(
+        "graph:encounters_resolve",
+        not missing and not unexpected,
+        f"postgres={len(postgres_ids)} neo4j={len(neo4j_ids)} "
+        f"missing={len(missing)} unexpected={len(unexpected)}",
+    )
+
+
+def _postgres_path_encounter_ids(pg_session: Session) -> set[str]:
+    rows = pg_session.execute(text(POSTGRES_PATH_ENCOUNTER_IDS_SQL)).mappings().all()
+    return {str(row["encounter_id"]) for row in rows}
+
+
+def _neo4j_encounter_ids(neo4j_session: GraphReadSession) -> set[str]:
     rows = neo4j_session.run(
         "match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson) "
         "where r.encounter_id is not null "
         "return r.encounter_id as encounter_id "
-        "order by r.encounter_id "
-        "limit $limit",
-        {"limit": sample_limit},
+        "order by r.encounter_id",
     )
-    encounter_ids = [str(row["encounter_id"]) for row in rows]
-    if not encounter_ids:
-        return ValidationCheck("graph:encounters_resolve", True, "sampled=0 missing=0")
-    resolved = _pg_scalar(
-        pg_session,
-        POSTGRES_RESOLVE_ENCOUNTERS_SQL,
-        {"encounter_ids": encounter_ids},
-    )
-    missing = len(encounter_ids) - resolved
-    return ValidationCheck(
-        "graph:encounters_resolve",
-        missing == 0,
-        f"sampled={len(encounter_ids)} missing={missing}",
-    )
+    return {str(row["encounter_id"]) for row in rows}
