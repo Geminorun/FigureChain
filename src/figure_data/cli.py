@@ -28,7 +28,8 @@ from figure_data.expansion.candidate_planning import (
     ExpansionCandidateFilters,
     plan_encounter_expansion,
 )
-from figure_data.expansion.formatting import format_expansion_candidates
+from figure_data.expansion.formatting import format_chain_samples, format_expansion_candidates
+from figure_data.expansion.sample_chains import ChainSampleFilters, list_chain_samples
 from figure_data.graph.formatting import (
     format_chain_result,
     format_projection_stats,
@@ -290,6 +291,23 @@ def plan_encounter_expansion_command(
             ExpansionCandidateFilters(review_status=status, limit=limit),
         )
     for line in format_expansion_candidates(rows):
+        typer.echo(line)
+
+
+@app.command("list-chain-samples")
+def list_chain_samples_command(
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=3)] = 3,
+    limit: Annotated[int, typer.Option(min=1, max=100)] = 20,
+) -> None:
+    """List one-hop to three-hop reviewed path samples from PostgreSQL."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        rows = list_chain_samples(
+            session,
+            ChainSampleFilters(max_depth=max_depth, limit=limit),
+        )
+    for line in format_chain_samples(rows):
         typer.echo(line)
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from figure_data.expansion.types import ExpansionCandidate
+from figure_data.expansion.types import ChainSample, ExpansionCandidate
 
 
 def format_expansion_candidates(rows: list[ExpansionCandidate]) -> list[str]:
@@ -48,3 +48,13 @@ def _text(value: object | None) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def format_chain_samples(rows: list[ChainSample]) -> list[str]:
+    output = ["length\tpeople\tencounter_ids\tevidence"]
+    for row in rows:
+        people = " -> ".join(person.display_name for person in row.people)
+        encounter_ids = ",".join(edge.encounter_id for edge in row.edges)
+        evidence = " | ".join(edge.evidence_summary for edge in row.edges)
+        output.append("\t".join([str(row.length), people, encounter_ids, evidence]))
+    return output

@@ -21,3 +21,29 @@ class ExpansionCandidate:
     review_status: str
     active_path_neighbors: int
     score: int
+
+
+@dataclass(frozen=True)
+class ChainSamplePerson:
+    person_id: str
+    display_name: str
+    cbdb_external_id: str | None
+
+
+@dataclass(frozen=True)
+class ChainSampleEdge:
+    encounter_id: str
+    person_a_id: str
+    person_b_id: str
+    evidence_summary: str
+    pages: str | None
+
+
+@dataclass(frozen=True)
+class ChainSample:
+    people: tuple[ChainSamplePerson, ...]
+    edges: tuple[ChainSampleEdge, ...]
+
+    @property
+    def length(self) -> int:
+        return len(self.edges)

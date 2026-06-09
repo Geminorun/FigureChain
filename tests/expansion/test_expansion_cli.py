@@ -4,7 +4,12 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from figure_data.cli import app
-from figure_data.expansion.types import ExpansionCandidate
+from figure_data.expansion.types import (
+    ChainSample,
+    ChainSampleEdge,
+    ChainSamplePerson,
+    ExpansionCandidate,
+)
 
 
 class DummySession:
@@ -56,3 +61,33 @@ def test_plan_encounter_expansion_command_outputs_rows(monkeypatch: MonkeyPatch)
     assert result.exit_code == 0
     assert "candidate_id\tperson_a\tperson_b" in result.output
     assert "960664\t許幾\t韓琦" in result.output
+
+
+def test_list_chain_samples_command_outputs_rows(monkeypatch: MonkeyPatch) -> None:
+    patch_session(monkeypatch)
+    monkeypatch.setattr(
+        "figure_data.cli.list_chain_samples",
+        lambda session, filters: [
+            ChainSample(
+                people=(
+                    ChainSamplePerson("person-a", "許幾", "780"),
+                    ChainSamplePerson("person-b", "韓琦", "630"),
+                ),
+                edges=(
+                    ChainSampleEdge(
+                        encounter_id="enc-1",
+                        person_a_id="person-a",
+                        person_b_id="person-b",
+                        evidence_summary="许几谒韩琦于魏",
+                        pages="11905",
+                    ),
+                ),
+            )
+        ],
+    )
+
+    result = CliRunner().invoke(app, ["list-chain-samples", "--max-depth", "2", "--limit", "5"])
+
+    assert result.exit_code == 0
+    assert "length\tpeople\tencounter_ids\tevidence" in result.output
+    assert "1\t許幾 -> 韓琦\tenc-1" in result.output
