@@ -24,3 +24,12 @@ def test_readme_documents_fastapi_commands() -> None:
     assert "GET /health/live" in readme
     assert "POST /api/v1/chains/shortest" in readme
     assert "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f" in readme
+
+
+def test_readme_documents_encounter_expansion_commands() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "figure-data plan-encounter-expansion" in readme
+    assert "figure-data list-chain-samples" in readme
+    assert "figure-data export-encounter-expansion-report" in readme
+    assert "docs/superpowers/reports/" in readme

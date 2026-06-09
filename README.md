@@ -87,6 +87,43 @@ uv run figure-data find-chain --from "诸葛亮" --to "司马懿" --max-depth 12
 图相关命令只读取已经审核通过的路径 encounter。撤回 encounter 后，需要重新执行
 `sync-graph --rebuild`，Neo4j 中的路径边才会同步移除。
 
+## Encounter 真实路径数据扩展
+
+阶段 3 用于把单条真实路径样本扩展为一批可复盘的 path encounters。辅助命令只读扫描候选、列出样本链、导出报告草稿；它们不会自动提升 encounter。
+
+候选优先级：
+
+```powershell
+uv run --no-sync figure-data plan-encounter-expansion --limit 50
+```
+
+样本链清单：
+
+```powershell
+uv run --no-sync figure-data list-chain-samples --max-depth 3 --limit 20
+```
+
+报告草稿：
+
+```powershell
+uv run --no-sync figure-data export-encounter-expansion-report --limit 200
+```
+
+人工审核仍使用：
+
+```powershell
+uv run --no-sync figure-data inspect-candidate --kind relationship --id 960664
+uv run --no-sync figure-data promote-encounter --kind relationship --id 960664 --reviewed-by lyl --evidence-summary "许几谒韩琦于魏"
+```
+
+批次报告保存到：
+
+```text
+docs/superpowers/reports/
+```
+
+阶段 3 不允许 AI 自动提升路径边；`path_eligible=true` 仍必须满足 active、high、direct_interaction 且有 evidence。
+
 ## FastAPI 查链应用层
 
 本地启动 API：
