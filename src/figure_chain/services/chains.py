@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from neo4j.exceptions import AuthError, Neo4jError, ServiceUnavailable
 from sqlalchemy.orm import Session
 
 from figure_chain.errors import ApplicationError, ErrorCode
@@ -14,7 +15,12 @@ from figure_chain.schemas import (
     ShortestChainResponse,
 )
 from figure_data.graph.pathfinding import ChainEndpointInput, find_chain, resolve_endpoint
-from figure_data.graph.types import ChainLookupResult, GraphPathError, ResolvedEndpoint
+from figure_data.graph.types import (
+    ChainLookupResult,
+    GraphPathError,
+    GraphPersonAmbiguousError,
+    ResolvedEndpoint,
+)
 
 FindChainFn = Callable[
     [Session, object, ChainEndpointInput, ChainEndpointInput, int],
@@ -57,6 +63,8 @@ class ChainService:
             )
         except GraphPathError as exc:
             raise self._application_error_from_graph_error(exc) from exc
+        except (ServiceUnavailable, AuthError, Neo4jError) as exc:
+            raise self._application_error_from_neo4j_error(exc) from exc
         return self._to_response(result)
 
     def _to_endpoint(self, label: str, request: ChainEndpointRequest) -> ChainEndpointInput:
@@ -108,6 +116,15 @@ class ChainService:
 
     def _application_error_from_graph_error(self, exc: GraphPathError) -> ApplicationError:
         message = str(exc)
+        if isinstance(exc, GraphPersonAmbiguousError):
+            return ApplicationError(
+                code=ErrorCode.PERSON_AMBIGUOUS,
+                message=message,
+                details={
+                    "endpoint": exc.label,
+                    "candidates": exc.candidates,
+                },
+            )
         if "matched multiple people" in message:
             return ApplicationError(
                 code=ErrorCode.PERSON_AMBIGUOUS,
@@ -125,5 +142,15 @@ class ChainService:
             )
         return ApplicationError(
             code=ErrorCode.INVALID_REQUEST,
+            message=message,
+        )
+
+    def _application_error_from_neo4j_error(self, exc: Exception) -> ApplicationError:
+        if isinstance(exc, AuthError):
+            message = "Neo4j authentication failed; check Neo4j credentials"
+        else:
+            message = "Neo4j is unavailable; check NEO4J_URI and service status"
+        return ApplicationError(
+            code=ErrorCode.DEPENDENCY_UNAVAILABLE,
             message=message,
         )

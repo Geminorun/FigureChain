@@ -20,6 +20,15 @@ class GraphPathError(GraphOperationError):
     """Raised when path lookup input or graph state is invalid."""
 
 
+class GraphPersonAmbiguousError(GraphPathError):
+    """Raised when an endpoint query resolves to multiple people."""
+
+    def __init__(self, *, label: str, candidates: list[str]) -> None:
+        self.label = label
+        self.candidates = candidates
+        super().__init__(f"{label} matched multiple people: {', '.join(candidates)}")
+
+
 @dataclass(frozen=True)
 class Neo4jConnectionConfig:
     uri: str

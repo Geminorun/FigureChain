@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import cast
 
 from fastapi.testclient import TestClient
+from neo4j.exceptions import ServiceUnavailable
 from pytest import raises
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,7 @@ from figure_chain.schemas import (
 )
 from figure_chain.services.chains import ChainService
 from figure_data.graph.pathfinding import ChainEndpointInput
-from figure_data.graph.types import ChainLookupResult, ResolvedEndpoint
+from figure_data.graph.types import ChainLookupResult, GraphPersonAmbiguousError, ResolvedEndpoint
 
 
 class FakeChainService:
@@ -124,6 +125,27 @@ def test_shortest_chain_ambiguous_returns_409() -> None:
     assert response.json()["error"]["code"] == "person_ambiguous"
 
 
+def test_shortest_chain_dependency_unavailable_returns_503() -> None:
+    class UnavailableChainService:
+        def shortest(self, request: ShortestChainRequest) -> ShortestChainResponse:
+            raise ApplicationError(
+                code=ErrorCode.DEPENDENCY_UNAVAILABLE,
+                message="Neo4j is unavailable; check NEO4J_URI and service status",
+            )
+
+    app = create_app(lifespan_enabled=False)
+    app.dependency_overrides[get_chain_service] = lambda: UnavailableChainService()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/chains/shortest",
+            json={"source": {"query": "許幾"}, "target": {"query": "韓琦"}},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "dependency_unavailable"
+
+
 def test_shortest_chain_rejects_too_deep_request() -> None:
     app = create_app(lifespan_enabled=False)
     app.dependency_overrides[get_chain_service] = lambda: FakeChainService()
@@ -169,3 +191,81 @@ def test_chain_service_rejects_same_person_after_resolution() -> None:
         )
 
     assert exc_info.value.code is ErrorCode.SAME_PERSON_ENDPOINT
+
+
+def test_chain_service_maps_neo4j_unavailable_to_dependency_error() -> None:
+    def resolve_endpoint(
+        pg_session: Session,
+        endpoint: ChainEndpointInput,
+    ) -> ResolvedEndpoint:
+        return ResolvedEndpoint(label=endpoint.label, person_id=f"{endpoint.label}-person")
+
+    def find_chain_unavailable(
+        pg_session: Session,
+        neo4j_session: object,
+        source: ChainEndpointInput,
+        target: ChainEndpointInput,
+        max_depth: int,
+    ) -> ChainLookupResult:
+        raise ServiceUnavailable("Neo4j is unavailable")
+
+    service = ChainService(
+        cast(Session, object()),
+        object(),
+        find_chain_fn=find_chain_unavailable,
+        resolve_endpoint_fn=resolve_endpoint,
+    )
+
+    with raises(ApplicationError) as exc_info:
+        service.shortest(
+            ShortestChainRequest(
+                source=ChainEndpointRequest(query="許幾"),
+                target=ChainEndpointRequest(query="韓琦"),
+            )
+        )
+
+    assert exc_info.value.code is ErrorCode.DEPENDENCY_UNAVAILABLE
+    assert "Neo4j is unavailable" in exc_info.value.message
+
+
+def test_chain_service_preserves_ambiguous_candidate_details() -> None:
+    def resolve_endpoint(
+        pg_session: Session,
+        endpoint: ChainEndpointInput,
+    ) -> ResolvedEndpoint:
+        if endpoint.label == "source":
+            raise GraphPersonAmbiguousError(
+                label=endpoint.label,
+                candidates=["person-1", "person-2"],
+            )
+        return ResolvedEndpoint(label=endpoint.label, person_id="target-person")
+
+    def find_chain_should_not_run(
+        pg_session: Session,
+        neo4j_session: object,
+        source: ChainEndpointInput,
+        target: ChainEndpointInput,
+        max_depth: int,
+    ) -> ChainLookupResult:
+        raise AssertionError("find_chain should not run for ambiguous endpoints")
+
+    service = ChainService(
+        cast(Session, object()),
+        object(),
+        find_chain_fn=find_chain_should_not_run,
+        resolve_endpoint_fn=resolve_endpoint,
+    )
+
+    with raises(ApplicationError) as exc_info:
+        service.shortest(
+            ShortestChainRequest(
+                source=ChainEndpointRequest(query="王"),
+                target=ChainEndpointRequest(query="韓琦"),
+            )
+        )
+
+    assert exc_info.value.code is ErrorCode.PERSON_AMBIGUOUS
+    assert exc_info.value.details == {
+        "endpoint": "source",
+        "candidates": ["person-1", "person-2"],
+    }

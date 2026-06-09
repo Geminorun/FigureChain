@@ -14,6 +14,7 @@ from figure_data.graph.types import (
     ChainPath,
     ChainPerson,
     GraphPathError,
+    GraphPersonAmbiguousError,
     ResolvedEndpoint,
 )
 from figure_data.search.person_search import search_people
@@ -71,8 +72,10 @@ def resolve_endpoint(pg_session: Session, endpoint: ChainEndpointInput) -> Resol
         if len(matches) == 0:
             raise GraphPathError(f"{endpoint.label} name did not match a person")
         if len(matches) > 1:
-            ids = ", ".join(match.person_id for match in matches)
-            raise GraphPathError(f"{endpoint.label} matched multiple people: {ids}")
+            raise GraphPersonAmbiguousError(
+                label=endpoint.label,
+                candidates=[match.person_id for match in matches],
+            )
         return ResolvedEndpoint(endpoint.label, matches[0].person_id)
     raise GraphPathError(f"{endpoint.label} person input is required")
 

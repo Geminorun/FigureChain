@@ -26,7 +26,6 @@ figure-data = "figure_data.cli:app"
 [dependency-groups]
 dev = [
   "httpx>=0.28.0",
-  "httpx2>=0.28.0",
   "mypy>=1.15.0",
   "pytest>=8.3.0",
   "ruff>=0.11.0",
