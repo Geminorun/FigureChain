@@ -8,6 +8,7 @@ from neo4j import Driver as Neo4jDriver
 from sqlalchemy.orm import Session, sessionmaker
 
 from figure_chain.errors import ApplicationError, ErrorCode
+from figure_chain.services.encounters import EncounterService
 from figure_chain.services.health import HealthService
 from figure_chain.services.people import PeopleService
 from figure_data.graph.neo4j_client import graph_session
@@ -57,3 +58,9 @@ def get_people_service(
     pg_session: Annotated[Session, Depends(get_pg_session)],
 ) -> PeopleService:
     return PeopleService(pg_session)
+
+
+def get_encounter_service(
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> EncounterService:
+    return EncounterService(pg_session)
