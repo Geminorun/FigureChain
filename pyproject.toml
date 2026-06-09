@@ -5,6 +5,7 @@ description = "CBDB import and normalization tools for FigureChain"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.16.0",
+  "neo4j>=6,<7",
   "opencc-python-reimplemented>=0.1.7",
   "psycopg[binary]>=3.2.0",
   "pydantic>=2.11.0",
