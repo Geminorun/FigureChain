@@ -122,6 +122,49 @@ GET /api/v1/encounters/e4f22ec2-22f7-4cda-bcc1-73aa83d0685f
 期望 `POST /api/v1/chains/shortest` 返回 `status=found`、`path.length=1`，并包含
 `encounter_id=e4f22ec2-22f7-4cda-bcc1-73aa83d0685f`。
 
+## Next.js 查链前端
+
+前端位于 `frontend/`，只通过 Next.js route handlers 访问 FastAPI 产品接口。浏览器端不得直接访问 PostgreSQL、Neo4j 或内部连接串。
+
+本地前端环境变量示例：
+
+```text
+FIGURE_CHAIN_API_BASE_URL=http://127.0.0.1:8000
+```
+
+启动 FastAPI：
+
+```powershell
+uv run --no-sync uvicorn figure_chain.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+启动前端：
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+访问：
+
+```text
+http://127.0.0.1:3000
+```
+
+前端验证：
+
+```powershell
+cd frontend
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm run e2e
+```
+
+真实 smoke 样本仍使用 `許幾` 到 `韓琦` 的一跳人物链，期望页面展示 `encounter_id=e4f22ec2-22f7-4cda-bcc1-73aa83d0685f`。
+
 ## 验证
 
 ```bash

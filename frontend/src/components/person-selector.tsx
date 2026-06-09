@@ -66,30 +66,34 @@ export function PersonSelector({
             description="换一个姓名、繁简体或别名再试。"
           />
         ) : null}
-        {items.map((person) => (
-          <button
-            key={person.person_id}
-            aria-label={`选择 ${person.display_name}`}
-            className="w-full rounded border border-stone-200 bg-white p-3 text-left shadow-sm transition hover:border-amber-300 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            type="button"
-            onClick={() => onSelect(person)}
-          >
-            <span className="block text-base font-semibold text-stone-950">
-              {person.display_name}
-            </span>
-            <span className="mt-1 block text-sm text-stone-600">
-              {formatLifeYears(person.birth_year, person.death_year)}
-            </span>
-            {person.primary_name_romanized ? (
-              <span className="mt-1 block text-sm text-stone-500">
-                {person.primary_name_romanized}
+        {items.map((person) => {
+          const lifeYears = formatLifeYears(person.birth_year, person.death_year);
+          const externalIds = formatExternalIds(person.external_ids);
+          return (
+            <button
+              key={person.person_id}
+              aria-label={`选择 ${person.display_name} ${lifeYears} ${externalIds}`}
+              className="w-full rounded border border-stone-200 bg-white p-3 text-left shadow-sm transition hover:border-amber-300 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              type="button"
+              onClick={() => onSelect(person)}
+            >
+              <span className="block text-base font-semibold text-stone-950">
+                {person.display_name}
               </span>
-            ) : null}
-            <span className="mt-1 block text-xs text-stone-500">
-              {formatExternalIds(person.external_ids)}
-            </span>
-          </button>
-        ))}
+              <span className="mt-1 block text-sm text-stone-600">
+                {lifeYears}
+              </span>
+              {person.primary_name_romanized ? (
+                <span className="mt-1 block text-sm text-stone-500">
+                  {person.primary_name_romanized}
+                </span>
+              ) : null}
+              <span className="mt-1 block text-xs text-stone-500">
+                {externalIds}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

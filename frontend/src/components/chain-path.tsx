@@ -43,7 +43,7 @@ export function ChainPath({ path, onSelectEncounter }: ChainPathProps) {
                       </p>
                     </div>
                     <button
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+                      className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 sm:w-auto"
                       type="button"
                       onClick={() => onSelectEncounter(edge.encounter_id)}
                     >
