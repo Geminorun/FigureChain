@@ -1,9 +1,10 @@
+from io import BytesIO
 from types import TracebackType
 
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
-from figure_data.cli import app
+from figure_data.cli import _echo_cli_line, app
 from figure_data.expansion.types import (
     ChainSample,
     ChainSampleEdge,
@@ -30,6 +31,25 @@ class DummySession:
 def patch_session(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr("figure_data.cli.load_settings", lambda: object())
     monkeypatch.setattr("figure_data.cli.create_session_factory", lambda settings: DummySession)
+
+
+class BytesStdout:
+    def __init__(self) -> None:
+        self.buffer = BytesIO()
+
+
+def test_echo_cli_line_falls_back_to_utf8_buffer(monkeypatch: MonkeyPatch) -> None:
+    stdout = BytesStdout()
+
+    def raise_unicode_error(line: str) -> None:
+        raise UnicodeEncodeError("gbk", line, 0, 1, "illegal multibyte sequence")
+
+    monkeypatch.setattr("figure_data.cli.typer.echo", raise_unicode_error)
+    monkeypatch.setattr("figure_data.cli.sys.stdout", stdout)
+
+    _echo_cli_line("𠽦")
+
+    assert stdout.buffer.getvalue().decode("utf-8") == "𠽦\n"
 
 
 def test_plan_encounter_expansion_command_outputs_rows(monkeypatch: MonkeyPatch) -> None:

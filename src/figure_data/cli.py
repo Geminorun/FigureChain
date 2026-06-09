@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
@@ -70,6 +71,18 @@ app = typer.Typer(
     help="CBDB import and normalization tools for FigureChain.",
     pretty_exceptions_show_locals=False,
 )
+
+
+def _echo_cli_line(line: str) -> None:
+    try:
+        typer.echo(line)
+    except UnicodeEncodeError:
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is None:
+            typer.echo(line.encode("ascii", errors="backslashreplace").decode("ascii"))
+            return
+        buffer.write(f"{line}\n".encode())
+        buffer.flush()
 
 
 @app.callback()
@@ -299,7 +312,7 @@ def plan_encounter_expansion_command(
             ExpansionCandidateFilters(review_status=status, limit=limit),
         )
     for line in format_expansion_candidates(rows):
-        typer.echo(line)
+        _echo_cli_line(line)
 
 
 @app.command("list-chain-samples")
@@ -316,7 +329,7 @@ def list_chain_samples_command(
             ChainSampleFilters(max_depth=max_depth, limit=limit),
         )
     for line in format_chain_samples(rows):
-        typer.echo(line)
+        _echo_cli_line(line)
 
 
 @app.command("export-encounter-expansion-report")
@@ -333,7 +346,7 @@ def export_encounter_expansion_report_command(
             EncounterExpansionReportFilters(reviewed_since=since, limit=limit),
         )
     for line in format_expansion_report_markdown(report):
-        typer.echo(line)
+        _echo_cli_line(line)
 
 
 @app.command("inspect-candidate")
