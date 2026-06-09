@@ -1,0 +1,1 @@
+"""FigureChain product API application."""

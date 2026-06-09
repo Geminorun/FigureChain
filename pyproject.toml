@@ -5,6 +5,7 @@ description = "CBDB import and normalization tools for FigureChain"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.16.0",
+  "fastapi>=0.115.0",
   "neo4j>=6,<7",
   "opencc-python-reimplemented>=0.1.7",
   "psycopg[binary]>=3.2.0",
@@ -12,6 +13,7 @@ dependencies = [
   "pydantic-settings>=2.9.0",
   "sqlalchemy>=2.0.40",
   "typer>=0.15.0",
+  "uvicorn>=0.34.0",
 ]
 
 [build-system]
@@ -23,6 +25,8 @@ figure-data = "figure_data.cli:app"
 
 [dependency-groups]
 dev = [
+  "httpx>=0.28.0",
+  "httpx2>=0.28.0",
   "mypy>=1.15.0",
   "pytest>=8.3.0",
   "ruff>=0.11.0",
@@ -40,7 +44,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/figure_data"]
+packages = ["src/figure_data", "src/figure_chain"]
 
 [tool.mypy]
 python_version = "3.12"
