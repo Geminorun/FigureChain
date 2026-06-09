@@ -47,3 +47,30 @@ class ChainSample:
     @property
     def length(self) -> int:
         return len(self.edges)
+
+
+@dataclass(frozen=True)
+class EncounterExpansionReportRow:
+    encounter_id: str
+    candidate_table: str | None
+    candidate_id: int | None
+    person_a_name: str
+    person_b_name: str
+    person_a_id: str
+    person_b_id: str
+    encounter_kind: str
+    certainty_level: str
+    path_eligible: bool
+    source_work_id: int | None
+    source_ref_id: int | None
+    pages: str | None
+    evidence_summary: str
+    reviewed_by: str
+    reviewed_at: str
+
+
+@dataclass(frozen=True)
+class EncounterExpansionReport:
+    generated_at: str
+    reviewed_since: str | None
+    rows: tuple[EncounterExpansionReportRow, ...]

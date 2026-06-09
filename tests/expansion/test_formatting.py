@@ -3,6 +3,8 @@ from figure_data.expansion.types import (
     ChainSample,
     ChainSampleEdge,
     ChainSamplePerson,
+    EncounterExpansionReport,
+    EncounterExpansionReportRow,
     ExpansionCandidate,
 )
 
@@ -59,3 +61,38 @@ def test_format_chain_samples_outputs_tsv() -> None:
 
     assert output[0] == "length\tpeople\tencounter_ids\tevidence"
     assert output[1] == "1\t許幾 -> 韓琦\tenc-1\t许几谒韩琦于魏"
+
+
+def test_format_expansion_report_markdown_redacts_connection_strings() -> None:
+    from figure_data.expansion.formatting import format_expansion_report_markdown
+
+    report = EncounterExpansionReport(
+        generated_at="2026-06-10T00:00:00+00:00",
+        reviewed_since="2026-06-10T00:00:00+00:00",
+        rows=(
+            EncounterExpansionReportRow(
+                encounter_id="enc-1",
+                candidate_table="relationship_candidates",
+                candidate_id=960664,
+                person_a_name="許幾",
+                person_b_name="韓琦",
+                person_a_id="person-a",
+                person_b_id="person-b",
+                encounter_kind="direct_interaction",
+                certainty_level="high",
+                path_eligible=True,
+                source_work_id=7596,
+                source_ref_id=3853784,
+                pages="11905",
+                evidence_summary="postgresql://user:secret@host/db",
+                reviewed_by="lyl",
+                reviewed_at="2026-06-10T00:00:00+00:00",
+            ),
+        ),
+    )
+
+    output = "\n".join(format_expansion_report_markdown(report))
+
+    assert "postgresql://" not in output
+    assert "[redacted-connection-string]" in output
+    assert "relationship_candidates" in output

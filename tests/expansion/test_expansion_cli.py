@@ -8,6 +8,8 @@ from figure_data.expansion.types import (
     ChainSample,
     ChainSampleEdge,
     ChainSamplePerson,
+    EncounterExpansionReport,
+    EncounterExpansionReportRow,
     ExpansionCandidate,
 )
 
@@ -91,3 +93,45 @@ def test_list_chain_samples_command_outputs_rows(monkeypatch: MonkeyPatch) -> No
     assert result.exit_code == 0
     assert "length\tpeople\tencounter_ids\tevidence" in result.output
     assert "1\t許幾 -> 韓琦\tenc-1" in result.output
+
+
+def test_export_encounter_expansion_report_command_outputs_markdown(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    patch_session(monkeypatch)
+    monkeypatch.setattr(
+        "figure_data.cli.export_encounter_expansion_report",
+        lambda session, filters: EncounterExpansionReport(
+            generated_at="2026-06-10T00:00:00+00:00",
+            reviewed_since=filters.reviewed_since,
+            rows=(
+                EncounterExpansionReportRow(
+                    encounter_id="enc-1",
+                    candidate_table="relationship_candidates",
+                    candidate_id=960664,
+                    person_a_name="許幾",
+                    person_b_name="韓琦",
+                    person_a_id="person-a",
+                    person_b_id="person-b",
+                    encounter_kind="direct_interaction",
+                    certainty_level="high",
+                    path_eligible=True,
+                    source_work_id=7596,
+                    source_ref_id=3853784,
+                    pages="11905",
+                    evidence_summary="许几谒韩琦于魏",
+                    reviewed_by="lyl",
+                    reviewed_at="2026-06-10T00:00:00+00:00",
+                ),
+            ),
+        ),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["export-encounter-expansion-report", "--since", "2026-06-10T00:00:00+00:00"],
+    )
+
+    assert result.exit_code == 0
+    assert "# Encounter 真实路径数据扩展报告" in result.output
+    assert "encounter_id: `enc-1`" in result.output

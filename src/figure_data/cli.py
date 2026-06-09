@@ -28,7 +28,15 @@ from figure_data.expansion.candidate_planning import (
     ExpansionCandidateFilters,
     plan_encounter_expansion,
 )
-from figure_data.expansion.formatting import format_chain_samples, format_expansion_candidates
+from figure_data.expansion.formatting import (
+    format_chain_samples,
+    format_expansion_candidates,
+    format_expansion_report_markdown,
+)
+from figure_data.expansion.reporting import (
+    EncounterExpansionReportFilters,
+    export_encounter_expansion_report,
+)
 from figure_data.expansion.sample_chains import ChainSampleFilters, list_chain_samples
 from figure_data.graph.formatting import (
     format_chain_result,
@@ -308,6 +316,23 @@ def list_chain_samples_command(
             ChainSampleFilters(max_depth=max_depth, limit=limit),
         )
     for line in format_chain_samples(rows):
+        typer.echo(line)
+
+
+@app.command("export-encounter-expansion-report")
+def export_encounter_expansion_report_command(
+    since: Annotated[str | None, typer.Option("--since")] = None,
+    limit: Annotated[int, typer.Option(min=1, max=1000)] = 200,
+) -> None:
+    """Export a Markdown draft for reviewed path encounters."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        report = export_encounter_expansion_report(
+            session,
+            EncounterExpansionReportFilters(reviewed_since=since, limit=limit),
+        )
+    for line in format_expansion_report_markdown(report):
         typer.echo(line)
 
 
