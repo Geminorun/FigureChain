@@ -35,6 +35,54 @@ where {PATH_ENCOUNTER_WHERE}
 order by e.id
 """
 
+NEO4J_RELATIONSHIP_COUNT_CYPHER = """
+match ()-[r]->()
+where type(r) = 'ENCOUNTERED'
+return count(r) as count
+"""
+
+NEO4J_PERSON_COUNT_CYPHER = """
+match (p)
+where 'FigurePerson' in labels(p)
+return count(p) as count
+"""
+
+NEO4J_MISSING_PERSON_ID_CYPHER = """
+match (p)
+where 'FigurePerson' in labels(p)
+and not 'person_id' in keys(p)
+return count(p) as count
+"""
+
+NEO4J_MISSING_ENCOUNTER_ID_CYPHER = """
+match ()-[r]->()
+where type(r) = 'ENCOUNTERED'
+and not 'encounter_id' in keys(r)
+return count(r) as count
+"""
+
+NEO4J_ENCOUNTER_KIND_CYPHER = """
+match ()-[r]->()
+where type(r) = 'ENCOUNTERED'
+and (not 'encounter_kind' in keys(r) or r.encounter_kind <> 'direct_interaction')
+return count(r) as count
+"""
+
+NEO4J_CERTAINTY_LEVEL_CYPHER = """
+match ()-[r]->()
+where type(r) = 'ENCOUNTERED'
+and (not 'certainty_level' in keys(r) or r.certainty_level <> 'high')
+return count(r) as count
+"""
+
+NEO4J_ENCOUNTER_IDS_CYPHER = """
+match ()-[r]->()
+where type(r) = 'ENCOUNTERED'
+and 'encounter_id' in keys(r)
+return r.encounter_id as encounter_id
+order by r.encounter_id
+"""
+
 
 class GraphResult(Protocol):
     def single(self) -> Mapping[str, object]: ...
@@ -56,7 +104,7 @@ def validate_graph(
     postgres_relationship_count = _pg_scalar(pg_session, POSTGRES_RELATIONSHIP_COUNT_SQL)
     neo4j_relationship_count = _neo4j_count(
         graph_session,
-        "match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson) return count(r) as count",
+        NEO4J_RELATIONSHIP_COUNT_CYPHER,
     )
     checks.append(
         ValidationCheck(
@@ -69,7 +117,7 @@ def validate_graph(
     postgres_person_count = _pg_scalar(pg_session, POSTGRES_PERSON_COUNT_SQL)
     neo4j_person_count = _neo4j_count(
         graph_session,
-        "match (p:FigurePerson) return count(p) as count",
+        NEO4J_PERSON_COUNT_CYPHER,
     )
     checks.append(
         ValidationCheck(
@@ -81,33 +129,34 @@ def validate_graph(
 
     checks.extend(
         [
-            _neo4j_zero_check(
+            _neo4j_zero_check_or_skip(
                 graph_session,
                 "graph:missing_person_id",
-                "match (p:FigurePerson) where p.person_id is null return count(p) as count",
+                NEO4J_MISSING_PERSON_ID_CYPHER,
+                should_skip=neo4j_person_count == 0,
             ),
-            _neo4j_zero_check(
+            _neo4j_zero_check_or_skip(
                 graph_session,
                 "graph:missing_encounter_id",
-                "match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson) "
-                "where r.encounter_id is null return count(r) as count",
+                NEO4J_MISSING_ENCOUNTER_ID_CYPHER,
+                should_skip=neo4j_relationship_count == 0,
             ),
-            _neo4j_zero_check(
+            _neo4j_zero_check_or_skip(
                 graph_session,
                 "graph:encounter_kind",
-                "match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson) "
-                "where r.encounter_kind <> 'direct_interaction' return count(r) as count",
+                NEO4J_ENCOUNTER_KIND_CYPHER,
+                should_skip=neo4j_relationship_count == 0,
             ),
-            _neo4j_zero_check(
+            _neo4j_zero_check_or_skip(
                 graph_session,
                 "graph:certainty_level",
-                "match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson) "
-                "where r.certainty_level <> 'high' return count(r) as count",
+                NEO4J_CERTAINTY_LEVEL_CYPHER,
+                should_skip=neo4j_relationship_count == 0,
             ),
         ]
     )
 
-    checks.append(_check_encounter_ids_resolve(pg_session, graph_session, sample_limit))
+    checks.append(_check_encounter_ids_resolve(pg_session, graph_session, neo4j_relationship_count))
     return checks
 
 
@@ -132,13 +181,24 @@ def _neo4j_zero_check(
     return ValidationCheck(name, count == 0, f"violations={count}")
 
 
+def _neo4j_zero_check_or_skip(
+    neo4j_session: GraphReadSession,
+    name: str,
+    query: str,
+    should_skip: bool,
+) -> ValidationCheck:
+    if should_skip:
+        return ValidationCheck(name, True, "violations=0")
+    return _neo4j_zero_check(neo4j_session, name, query)
+
+
 def _check_encounter_ids_resolve(
     pg_session: Session,
     neo4j_session: GraphReadSession,
-    sample_limit: int,
+    neo4j_relationship_count: int,
 ) -> ValidationCheck:
     postgres_ids = _postgres_path_encounter_ids(pg_session)
-    neo4j_ids = _neo4j_encounter_ids(neo4j_session)
+    neo4j_ids = set() if neo4j_relationship_count == 0 else _neo4j_encounter_ids(neo4j_session)
     missing = postgres_ids - neo4j_ids
     unexpected = neo4j_ids - postgres_ids
     return ValidationCheck(
@@ -155,10 +215,5 @@ def _postgres_path_encounter_ids(pg_session: Session) -> set[str]:
 
 
 def _neo4j_encounter_ids(neo4j_session: GraphReadSession) -> set[str]:
-    rows = neo4j_session.run(
-        "match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson) "
-        "where r.encounter_id is not null "
-        "return r.encounter_id as encounter_id "
-        "order by r.encounter_id",
-    )
+    rows = neo4j_session.run(NEO4J_ENCOUNTER_IDS_CYPHER)
     return {str(row["encounter_id"]) for row in rows}

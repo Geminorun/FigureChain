@@ -12,13 +12,15 @@ class PgScalarResult:
 
 
 class PgMappingResult:
-    def __init__(self, encounter_id: str = "encounter-1") -> None:
+    def __init__(self, encounter_id: str | None = "encounter-1") -> None:
         self.encounter_id = encounter_id
 
     def mappings(self) -> "PgMappingResult":
         return self
 
     def all(self) -> list[dict[str, str]]:
+        if self.encounter_id is None:
+            return []
         return [{"encounter_id": self.encounter_id}]
 
 
@@ -112,3 +114,40 @@ def test_validate_graph_rejects_edges_outside_path_encounter_set() -> None:
 
     assert not resolve_check.passed
     assert "unexpected=1" in resolve_check.detail
+
+
+class EmptyPathPgSession(FakePgSession):
+    def __init__(self) -> None:
+        super().__init__()
+        self.scalar_values = [0, 0]
+
+    def execute(self, statement: Any, params: dict[str, object] | None = None) -> object:
+        self.statements.append(str(statement))
+        if "select e.id::text as encounter_id" in str(statement):
+            return PgMappingResult(None)
+        return PgScalarResult(self.scalar_values.pop(0))
+
+
+class EmptyGraphNeo4jSession(FakeNeo4jSession):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = [0, 0]
+
+    def run(self, query: str, parameters: dict[str, object] | None = None) -> object:
+        self.queries.append(query)
+        if "return r.encounter_id as encounter_id" in query:
+            return iter([])
+        return Neo4jScalarResult(self.values.pop(0))
+
+
+def test_validate_graph_skips_property_queries_when_graph_is_empty() -> None:
+    neo4j_session = EmptyGraphNeo4jSession()
+
+    checks = validate_graph(
+        EmptyPathPgSession(),  # type: ignore[arg-type]
+        neo4j_session,
+    )
+
+    assert all(check.passed for check in checks)
+    assert not any(":ENCOUNTERED" in query for query in neo4j_session.queries)
+    assert not any("p.person_id" in query for query in neo4j_session.queries)
