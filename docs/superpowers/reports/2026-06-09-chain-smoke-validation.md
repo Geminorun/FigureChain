@@ -30,7 +30,15 @@
 
 ## 提升结果
 
-- 状态：not-promoted
+- 状态：promoted
+- candidate_kind：relationship
+- candidate_id：960664
+- encounter_id：e4f22ec2-22f7-4cda-bcc1-73aa83d0685f
+- encounter_kind：direct_interaction
+- certainty_level：high
+- path_eligible：true
+- reviewed_by：lyl
+- evidence_summary：CBDB ASSOC_DATA _rowid=15785, source_work_id=7596, pages=11905：许几以诸生谒韩琦于魏，韩琦勉其入太学，证明二人直接互动。
 
 ## 图同步结果
 
