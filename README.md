@@ -53,6 +53,9 @@ uv run figure-data promote-encounter --kind relationship --id 960655 --reviewed-
 uv run figure-data list-encounters --status active --path-eligible --limit 20
 uv run figure-data inspect-encounter --id 00000000-0000-0000-0000-000000000001
 uv run figure-data retract-encounter --id 00000000-0000-0000-0000-000000000001 --reviewed-by lyl --note "证据不足，撤回路径边"
+uv run figure-data sync-graph --rebuild
+uv run figure-data validate-graph
+uv run figure-data find-chain --from "诸葛亮" --to "司马懿" --max-depth 12
 ```
 
 如果本机没有把 `uv` 放进 PATH，也可以使用项目虚拟环境中的命令：
@@ -71,12 +74,18 @@ uv run figure-data retract-encounter --id 00000000-0000-0000-0000-000000000001 -
 .\.venv\Scripts\figure-data.exe list-encounters --status active --path-eligible --limit 20
 .\.venv\Scripts\figure-data.exe inspect-encounter --id 00000000-0000-0000-0000-000000000001
 .\.venv\Scripts\figure-data.exe retract-encounter --id 00000000-0000-0000-0000-000000000001 --reviewed-by lyl --note "证据不足，撤回路径边"
+.\.venv\Scripts\figure-data.exe sync-graph --rebuild
+.\.venv\Scripts\figure-data.exe validate-graph
+.\.venv\Scripts\figure-data.exe find-chain --from "诸葛亮" --to "司马懿" --max-depth 12
 ```
 
 候选审核命令只操作 `relationship_candidates` 和 `kinship_candidates` 的人工审核字段；
 `promote-encounter` 会在单个事务中创建或复用 encounter、写入 evidence，并把来源候选标记为
 `promoted_to_encounter`。`retract-encounter` 会保留候选的 `promoted_encounter_id`
 作为历史追踪，同时把候选 `review_status` 改回 `needs_review`。
+
+图相关命令只读取已经审核通过的路径 encounter。撤回 encounter 后，需要重新执行
+`sync-graph --rebuild`，Neo4j 中的路径边才会同步移除。
 
 ## 验证
 

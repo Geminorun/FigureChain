@@ -3,6 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 import typer
+from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
@@ -23,6 +24,16 @@ from figure_data.encounters.types import (
     EncounterRetractionOptions,
 )
 from figure_data.encounters.validation import validate_encounters
+from figure_data.graph.formatting import (
+    format_chain_result,
+    format_projection_stats,
+    format_validation_checks,
+)
+from figure_data.graph.neo4j_client import create_neo4j_driver, get_neo4j_config, graph_session
+from figure_data.graph.pathfinding import ChainEndpointInput, find_chain
+from figure_data.graph.projection import sync_graph_rebuild
+from figure_data.graph.types import GraphOperationError
+from figure_data.graph.validation import validate_graph
 from figure_data.importing.orchestrator import import_cbdb
 from figure_data.review.candidate_detail import get_candidate_detail
 from figure_data.review.candidate_listing import CandidateListFilters, list_candidate_summaries
@@ -125,6 +136,111 @@ def validate_encounters_command() -> None:
         typer.echo(f"{status}\t{check.name}\t{check.detail}")
     if not report.passed:
         raise typer.Exit(code=1)
+
+
+@app.command("sync-graph")
+def sync_graph_command(
+    rebuild: Annotated[bool, typer.Option("--rebuild")] = False,
+) -> None:
+    """Rebuild the Neo4j graph projection from PostgreSQL path encounters."""
+    if not rebuild:
+        typer.echo("--rebuild is required for the first graph projection version", err=True)
+        raise typer.Exit(code=1)
+    driver = None
+    try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
+        with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
+            stats = sync_graph_rebuild(pg_session, neo4j_session)
+    except (GraphOperationError, DriverError, Neo4jError) as exc:
+        _exit_graph_error(exc)
+    finally:
+        if driver is not None:
+            driver.close()
+    for line in format_projection_stats(stats):
+        typer.echo(line)
+
+
+@app.command("validate-graph")
+def validate_graph_command() -> None:
+    """Validate the Neo4j graph projection against PostgreSQL."""
+    driver = None
+    try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
+        with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
+            checks = validate_graph(pg_session, neo4j_session)
+    except (GraphOperationError, DriverError, Neo4jError) as exc:
+        _exit_graph_error(exc)
+    finally:
+        if driver is not None:
+            driver.close()
+    report = ValidationReport(checks=checks)
+    for line in format_validation_checks(report.checks):
+        typer.echo(line)
+    if not report.passed:
+        raise typer.Exit(code=1)
+
+
+@app.command("find-chain")
+def find_chain_command(
+    from_query: Annotated[str | None, typer.Option("--from")] = None,
+    to_query: Annotated[str | None, typer.Option("--to")] = None,
+    from_person_id: Annotated[UUID | None, typer.Option("--from-person-id")] = None,
+    to_person_id: Annotated[UUID | None, typer.Option("--to-person-id")] = None,
+    from_cbdb_id: Annotated[str | None, typer.Option("--from-cbdb-id")] = None,
+    to_cbdb_id: Annotated[str | None, typer.Option("--to-cbdb-id")] = None,
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=30)] = 12,
+) -> None:
+    """Find one shortest chain between two projected people."""
+    source = ChainEndpointInput(
+        label="from",
+        person_id=from_person_id,
+        cbdb_id=from_cbdb_id,
+        query=from_query,
+    )
+    target = ChainEndpointInput(
+        label="to",
+        person_id=to_person_id,
+        cbdb_id=to_cbdb_id,
+        query=to_query,
+    )
+    driver = None
+    try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
+        with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
+            result = find_chain(pg_session, neo4j_session, source, target, max_depth)
+    except (GraphOperationError, DriverError, Neo4jError) as exc:
+        _exit_graph_error(exc)
+    finally:
+        if driver is not None:
+            driver.close()
+    for line in format_chain_result(result):
+        typer.echo(line)
+
+
+def _exit_graph_error(exc: GraphOperationError | DriverError | Neo4jError) -> None:
+    if isinstance(exc, GraphOperationError):
+        typer.echo(str(exc), err=True)
+    elif isinstance(exc, ServiceUnavailable):
+        typer.echo(
+            f"Neo4j is unavailable: {type(exc).__name__}; check NEO4J_URI and service status",
+            err=True,
+        )
+    else:
+        typer.echo(
+            f"Neo4j operation failed: {type(exc).__name__}; "
+            "check Neo4j configuration and database status",
+            err=True,
+        )
+    raise typer.Exit(code=1) from exc
 
 
 @app.command("review-candidates")
