@@ -67,6 +67,13 @@ def test_plan_encounter_expansion_uses_stage_three_filters() -> None:
     assert "rc.person_a_id is not null" in statement
     assert "rc.person_b_id is not null" in statement
     assert "rc.person_a_id <> rc.person_b_id" in statement
+    assert "from figure_data.source_refs sr" in statement
+    assert "sr.ref_source_table = rc.source_table" in statement
+    assert "sr.ref_source_pk = rc.source_pk" in statement
+    assert "),\n                ranked_candidates as (" in statement
+    assert "null::integer as source_ref_id" not in statement
+    assert "left join figure_data.encounters existing_path" in statement
+    assert "existing_path.id is null" in statement
     assert "figure_data.kinship_candidates" not in statement
     assert "limit :limit" in statement
     params = session.params[0]

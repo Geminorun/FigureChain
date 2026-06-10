@@ -44,56 +44,104 @@ def plan_encounter_expansion(
                     and path_eligible = true
                     and certainty_level = 'high'
                     and encounter_kind = 'direct_interaction'
+                ),
+                ranked_candidates as (
+                  select
+                    rc.id as candidate_id,
+                    rc.person_a_id,
+                    rc.person_b_id,
+                    rc.person_a_id::text as person_a_id_text,
+                    rc.person_b_id::text as person_b_id_text,
+                    coalesce(
+                      pa.primary_name_zh_hant,
+                      pa.primary_name_zh_hans,
+                      pa.primary_name_romanized
+                    ) as person_a_name,
+                    coalesce(
+                      pb.primary_name_zh_hant,
+                      pb.primary_name_zh_hans,
+                      pb.primary_name_romanized
+                    ) as person_b_name,
+                    rc.cbdb_person_a_id,
+                    rc.cbdb_person_b_id,
+                    rc.candidate_strength,
+                    rc.candidate_basis,
+                    rc.association_label as relation_label,
+                    rc.source_table,
+                    rc.source_pk,
+                    rc.source_work_id,
+                    rc.pages,
+                    rc.review_status,
+                    (
+                      case when apa.person_id is null then 0 else 1 end
+                      + case when apb.person_id is null then 0 else 1 end
+                    ) as active_path_neighbors,
+                    (
+                      100
+                      + case when rc.source_work_id is null then 0 else 20 end
+                      + case when rc.pages is null or btrim(rc.pages) = '' then 0 else 10 end
+                      + (
+                        case when apa.person_id is null then 0 else 1 end
+                        + case when apb.person_id is null then 0 else 1 end
+                      ) * 5
+                    ) as score
+                  from figure_data.relationship_candidates rc
+                  left join figure_data.persons pa on pa.id = rc.person_a_id
+                  left join figure_data.persons pb on pb.id = rc.person_b_id
+                  left join active_path_people apa on apa.person_id = rc.person_a_id
+                  left join active_path_people apb on apb.person_id = rc.person_b_id
+                  left join figure_data.encounters existing_path
+                    on existing_path.status = 'active'
+                   and existing_path.path_eligible = true
+                   and existing_path.certainty_level = 'high'
+                   and existing_path.encounter_kind = 'direct_interaction'
+                   and (
+                     (
+                       existing_path.person_a_id = rc.person_a_id
+                       and existing_path.person_b_id = rc.person_b_id
+                     )
+                     or (
+                       existing_path.person_a_id = rc.person_b_id
+                       and existing_path.person_b_id = rc.person_a_id
+                     )
+                   )
+                  where rc.candidate_strength = 'high'
+                    and rc.candidate_basis = 'direct_interaction_likely'
+                    and rc.person_a_id is not null
+                    and rc.person_b_id is not null
+                    and rc.person_a_id <> rc.person_b_id
+                    and existing_path.id is null
+                    {status_filter}
+                  order by score desc, active_path_neighbors desc, rc.id
+                  limit :limit
                 )
                 select
-                  rc.id as candidate_id,
-                  rc.person_a_id::text as person_a_id,
-                  rc.person_b_id::text as person_b_id,
-                  coalesce(
-                    pa.primary_name_zh_hant,
-                    pa.primary_name_zh_hans,
-                    pa.primary_name_romanized
-                  ) as person_a_name,
-                  coalesce(
-                    pb.primary_name_zh_hant,
-                    pb.primary_name_zh_hans,
-                    pb.primary_name_romanized
-                  ) as person_b_name,
+                  rc.candidate_id,
+                  rc.person_a_id_text as person_a_id,
+                  rc.person_b_id_text as person_b_id,
+                  rc.person_a_name,
+                  rc.person_b_name,
                   rc.cbdb_person_a_id,
                   rc.cbdb_person_b_id,
                   rc.candidate_strength,
                   rc.candidate_basis,
-                  rc.association_label as relation_label,
+                  rc.relation_label,
                   rc.source_work_id,
-                  null::integer as source_ref_id,
+                  source_ref.source_ref_id,
                   rc.pages,
                   rc.review_status,
-                  (
-                    case when apa.person_id is null then 0 else 1 end
-                    + case when apb.person_id is null then 0 else 1 end
-                  ) as active_path_neighbors,
-                  (
-                    100
-                    + case when rc.source_work_id is null then 0 else 20 end
-                    + case when rc.pages is null or btrim(rc.pages) = '' then 0 else 10 end
-                    + (
-                      case when apa.person_id is null then 0 else 1 end
-                      + case when apb.person_id is null then 0 else 1 end
-                    ) * 5
-                  ) as score
-                from figure_data.relationship_candidates rc
-                left join figure_data.persons pa on pa.id = rc.person_a_id
-                left join figure_data.persons pb on pb.id = rc.person_b_id
-                left join active_path_people apa on apa.person_id = rc.person_a_id
-                left join active_path_people apb on apb.person_id = rc.person_b_id
-                where rc.candidate_strength = 'high'
-                  and rc.candidate_basis = 'direct_interaction_likely'
-                  and rc.person_a_id is not null
-                  and rc.person_b_id is not null
-                  and rc.person_a_id <> rc.person_b_id
-                  {status_filter}
-                order by score desc, active_path_neighbors desc, rc.id
-                limit :limit
+                  rc.active_path_neighbors,
+                  rc.score
+                from ranked_candidates rc
+                left join lateral (
+                  select sr.id as source_ref_id
+                  from figure_data.source_refs sr
+                  where sr.ref_source_table = rc.source_table
+                    and sr.ref_source_pk = rc.source_pk
+                  order by sr.source_work_id nulls last, sr.id
+                  limit 1
+                ) source_ref on true
+                order by rc.score desc, rc.active_path_neighbors desc, rc.candidate_id
                 """
             ),
             params,
