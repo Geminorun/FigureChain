@@ -395,25 +395,37 @@ def suggest_candidate_review_command(
     """Generate an AI review suggestion for one candidate relationship."""
     settings = load_settings()
     factory = create_session_factory(settings)
+    session = factory()
     try:
-        with session_scope(factory) as session:
-            result = generate_candidate_review_suggestion(
-                session=session,
-                settings=settings,
-                kind=kind,
-                candidate_id=candidate_id,
-                created_by=created_by,
-            )
+        result = generate_candidate_review_suggestion(
+            session=session,
+            settings=settings,
+            kind=kind,
+            candidate_id=candidate_id,
+            created_by=created_by,
+        )
+        session.commit()
     except (
         AIProviderConfigurationError,
         AIProviderError,
         AIOutputValidationError,
         AIOutputPolicyViolation,
+    ) as exc:
+        session.commit()
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except (
         CandidateReviewError,
         ValueError,
     ) as exc:
+        session.rollback()
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
     for line in format_candidate_suggestion_detail(result.suggestion):
         _echo_cli_line(line)
 

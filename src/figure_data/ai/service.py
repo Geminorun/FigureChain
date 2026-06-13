@@ -10,7 +10,12 @@ from uuid import UUID
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from figure_data.ai.errors import AIOutputPolicyViolation, AIOutputValidationError
+from figure_data.ai.errors import (
+    AIOutputPolicyViolation,
+    AIOutputValidationError,
+    AIProviderConfigurationError,
+    AIProviderError,
+)
 from figure_data.ai.provider import AIProvider
 from figure_data.ai.repository import AIRunRepository, PostgresAIRunRepository
 from figure_data.ai.types import AIProviderRequest, NewAIRun, PromptDefinition
@@ -68,11 +73,29 @@ def run_ai_prompt[OutputModel: BaseModel](
         model_name=model_name,
         max_output_tokens=max_output_tokens,
     )
-    response = provider.generate(request)
     try:
+        response = provider.generate(request)
         output = validate_ai_output(response.raw_text, output_schema)
         if output_guard is not None:
             output_guard(output)
+    except AIProviderConfigurationError as exc:
+        resolved_repository.mark_failed(
+            session,  # type: ignore[arg-type]
+            run_id=run_id,
+            error_code=AIErrorCode.CONFIGURATION_MISSING.value,
+            error_message=str(exc),
+            raw_output=None,
+        )
+        raise
+    except AIProviderError as exc:
+        resolved_repository.mark_failed(
+            session,  # type: ignore[arg-type]
+            run_id=run_id,
+            error_code=_provider_error_code(exc),
+            error_message=str(exc),
+            raw_output=None,
+        )
+        raise
     except AIOutputPolicyViolation as exc:
         resolved_repository.mark_failed(
             session,  # type: ignore[arg-type]
@@ -98,6 +121,16 @@ def run_ai_prompt[OutputModel: BaseModel](
         raw_output=response.raw_text,
     )
     return AIRunResult(run_id=run_id, output=output)
+
+
+def _provider_error_code(exc: AIProviderError) -> str:
+    name = type(exc).__name__.lower()
+    message = str(exc).lower()
+    if "timeout" in name or "timeout" in message:
+        return AIErrorCode.PROVIDER_TIMEOUT.value
+    if "ratelimit" in name or "rate_limit" in name or "rate limit" in message:
+        return AIErrorCode.PROVIDER_RATE_LIMITED.value
+    return AIErrorCode.PROVIDER_UNAVAILABLE.value
 
 
 def _stable_hash(payload: dict[str, Any]) -> str:

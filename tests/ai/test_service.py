@@ -4,11 +4,16 @@ from uuid import UUID
 
 from pytest import raises
 
-from figure_data.ai.errors import AIOutputPolicyViolation, AIOutputValidationError
+from figure_data.ai.errors import (
+    AIOutputPolicyViolation,
+    AIOutputValidationError,
+    AIProviderError,
+)
 from figure_data.ai.prompts import get_prompt_definition
 from figure_data.ai.provider import FakeAIProvider
 from figure_data.ai.schemas import AIFoundationDiagnosticOutput
 from figure_data.ai.service import run_ai_prompt
+from figure_data.ai.types import AIProviderRequest, AIProviderResponse
 
 
 @dataclass
@@ -55,6 +60,13 @@ class FakeRunRepository:
                 "raw_output": raw_output,
             }
         )
+
+
+class FailingProvider:
+    provider_name = "failing"
+
+    def generate(self, request: AIProviderRequest) -> AIProviderResponse:
+        raise AIProviderError("provider unavailable")
 
 
 def test_run_ai_prompt_records_success() -> None:
@@ -131,3 +143,26 @@ def test_run_ai_prompt_records_policy_failure() -> None:
     assert repository.succeeded == []
     assert repository.failed[0]["error_code"] == "output_policy_violation"
     assert repository.failed[0]["error_message"] == "policy rejected output"
+
+
+def test_run_ai_prompt_records_provider_failure() -> None:
+    repository = FakeRunRepository()
+
+    with raises(AIProviderError):
+        run_ai_prompt(
+            session=object(),
+            prompt=get_prompt_definition("ai_foundation_diagnostic"),
+            provider=FailingProvider(),
+            output_schema=AIFoundationDiagnosticOutput,
+            input_variables={"echo_id": "abc"},
+            input_snapshot={"echo_id": "abc"},
+            model_name="fake-history-model",
+            max_output_tokens=1200,
+            created_by="tester",
+            repository=repository,
+        )
+
+    assert repository.succeeded == []
+    assert repository.failed[0]["error_code"] == "provider_unavailable"
+    assert repository.failed[0]["error_message"] == "provider unavailable"
+    assert repository.failed[0]["raw_output"] is None

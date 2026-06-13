@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from figure_data.ai.candidate_repository import CandidateSuggestionRecord
 from figure_data.ai.candidate_service import CandidateReviewSuggestionResult
+from figure_data.ai.errors import AIOutputValidationError
 from figure_data.cli import app
 from figure_data.review.types import CandidateKind
 
@@ -13,6 +14,15 @@ runner = CliRunner()
 
 
 class DummySession:
+    def commit(self) -> None:
+        return None
+
+    def rollback(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
     def __enter__(self) -> object:
         return object()
 
@@ -28,6 +38,33 @@ class DummySession:
 class DummyFactory:
     def __call__(self) -> DummySession:
         return DummySession()
+
+
+class TrackingSession:
+    def __init__(self) -> None:
+        self.committed = False
+        self.rolled_back = False
+        self.closed = False
+
+    def __enter__(self) -> "TrackingSession":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def commit(self) -> None:
+        self.committed = True
+
+    def rollback(self) -> None:
+        self.rolled_back = True
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def suggestion_record() -> CandidateSuggestionRecord:
@@ -89,6 +126,44 @@ def test_suggest_candidate_review_command_outputs_created_suggestion(
     assert result.exit_code == 0
     assert "ai_candidate_suggestion" in result.output
     assert "candidate\trelationship\t960698" in result.output
+
+
+def test_suggest_candidate_review_command_commits_failed_ai_run(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    session = TrackingSession()
+    monkeypatch.setattr("figure_data.cli.load_settings", lambda: object())
+    monkeypatch.setattr(
+        "figure_data.cli.create_session_factory",
+        lambda settings: lambda: session,
+    )
+
+    def raise_validation_error(**kwargs: object) -> object:
+        raise AIOutputValidationError("model output failed schema validation")
+
+    monkeypatch.setattr(
+        "figure_data.cli.generate_candidate_review_suggestion",
+        raise_validation_error,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "suggest-candidate-review",
+            "--kind",
+            "relationship",
+            "--id",
+            "960698",
+            "--created-by",
+            "tester",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "model output failed schema validation" in result.stderr
+    assert session.committed is True
+    assert session.rolled_back is False
+    assert session.closed is True
 
 
 def test_list_ai_candidate_suggestions_command_outputs_rows(
