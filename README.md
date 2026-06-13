@@ -181,6 +181,36 @@ uv run --no-sync figure-data reject-candidate --kind relationship --id 960698 --
 默认测试使用 fake provider，不访问真实模型。真实模型 smoke 必须手动开启，并在执行后继续运行
 `validate-encounters` 和 `validate-graph`，确认 AI 结果没有污染事实源。
 
+### AI 人物链解释
+
+AI 人物链解释只解释已经审核并进入路径的 encounter。AI 人物链解释不会修改 encounter 或 Neo4j，
+不会替代 evidence，也不会让 `/api/v1/chains/shortest` 阻塞等待模型。
+
+生成一条已审核路径的解释：
+
+```powershell
+$env:FIGURE_AI_ENABLED="true"
+$env:FIGURE_AI_PROVIDER="fake"
+$env:FIGURE_AI_MODEL="fake-history-model"
+uv run --no-sync figure-data generate-chain-explanation --from "许几" --to "韩琦" --max-depth 12 --created-by lyl
+```
+
+查看解释和 AI run：
+
+```powershell
+uv run --no-sync figure-data inspect-chain-explanation --hash <chain_hash>
+uv run --no-sync figure-data inspect-ai-run --id <run_id>
+```
+
+FastAPI 只读已生成结果：
+
+```text
+GET /api/v1/ai/chains/explanations/{chain_hash}
+GET /api/v1/ai/runs/{run_id}
+```
+
+前端查链成功后会使用返回的 `chain_hash` 读取已生成解释。解释不存在时，路径和证据详情仍正常显示。
+
 ## FastAPI 查链应用层
 
 本地启动 API：

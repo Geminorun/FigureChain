@@ -52,3 +52,12 @@ def test_readme_documents_ai_candidate_review_suggestion_commands() -> None:
     assert "figure-data list-ai-candidate-suggestions" in readme
     assert "figure-data inspect-ai-candidate-suggestion" in readme
     assert "AI 候选审核建议不会修改候选审核状态" in readme
+
+
+def test_readme_documents_ai_chain_explanation_commands() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "figure-data generate-chain-explanation" in readme
+    assert "figure-data inspect-chain-explanation" in readme
+    assert "/api/v1/ai/chains/explanations/{chain_hash}" in readme
+    assert "AI 人物链解释不会修改 encounter 或 Neo4j" in readme
