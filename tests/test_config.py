@@ -50,3 +50,52 @@ def test_settings_reads_optional_neo4j_fields() -> None:
     assert settings.neo4j_user == "neo4j"
     assert settings.neo4j_password == "secret"
     assert settings.neo4j_database == "neo4j"
+
+
+def test_settings_ai_defaults_are_disabled() -> None:
+    settings = Settings(database_url="postgresql://example.invalid/figure")
+
+    assert settings.ai_enabled is False
+    assert settings.ai_provider is None
+    assert settings.ai_model is None
+    assert settings.ai_api_key is None
+    assert settings.ai_base_url is None
+    assert settings.ai_timeout_seconds == 30.0
+    assert settings.ai_max_output_tokens == 1200
+
+
+def test_settings_reads_ai_environment(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://example.invalid/figure")
+    monkeypatch.setenv("FIGURE_AI_ENABLED", "true")
+    monkeypatch.setenv("FIGURE_AI_PROVIDER", "fake")
+    monkeypatch.setenv("FIGURE_AI_MODEL", "fake-history-model")
+    monkeypatch.setenv("FIGURE_AI_API_KEY", "local-test-key")
+    monkeypatch.setenv("FIGURE_AI_BASE_URL", "https://ai.example.test/v1")
+    monkeypatch.setenv("FIGURE_AI_TIMEOUT_SECONDS", "12.5")
+    monkeypatch.setenv("FIGURE_AI_MAX_OUTPUT_TOKENS", "256")
+    load_settings.cache_clear()
+
+    settings = load_settings()
+
+    assert settings.ai_enabled is True
+    assert settings.ai_provider == "fake"
+    assert settings.ai_model == "fake-history-model"
+    assert settings.ai_api_key == "local-test-key"
+    assert settings.ai_base_url == "https://ai.example.test/v1"
+    assert settings.ai_timeout_seconds == 12.5
+    assert settings.ai_max_output_tokens == 256
+
+
+def test_settings_normalizes_blank_ai_strings_to_none() -> None:
+    settings = Settings(
+        database_url="postgresql://example.invalid/figure",
+        FIGURE_AI_PROVIDER="  ",
+        FIGURE_AI_MODEL="",
+        FIGURE_AI_API_KEY="   ",
+        FIGURE_AI_BASE_URL="",
+    )
+
+    assert settings.ai_provider is None
+    assert settings.ai_model is None
+    assert settings.ai_api_key is None
+    assert settings.ai_base_url is None

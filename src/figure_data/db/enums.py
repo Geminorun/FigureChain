@@ -47,3 +47,24 @@ class CertaintyLevel(StrEnum):
 class EncounterStatus(StrEnum):
     ACTIVE = "active"
     RETRACTED = "retracted"
+
+
+class AIPromptStatus(StrEnum):
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
+class AIRunStatus(StrEnum):
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class AIErrorCode(StrEnum):
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    PROVIDER_TIMEOUT = "provider_timeout"
+    PROVIDER_RATE_LIMITED = "provider_rate_limited"
+    SCHEMA_INVALID = "schema_invalid"
+    INPUT_INVALID = "input_invalid"
+    OUTPUT_POLICY_VIOLATION = "output_policy_violation"
+    CONFIGURATION_MISSING = "configuration_missing"

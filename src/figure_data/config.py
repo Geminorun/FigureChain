@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     neo4j_user: str | None = Field(default=None, alias="NEO4J_USER")
     neo4j_password: str | None = Field(default=None, alias="NEO4J_PASSWORD")
     neo4j_database: str = Field(default="neo4j", alias="NEO4J_DATABASE")
+    ai_enabled: bool = Field(default=False, alias="FIGURE_AI_ENABLED")
+    ai_provider: str | None = Field(default=None, alias="FIGURE_AI_PROVIDER")
+    ai_model: str | None = Field(default=None, alias="FIGURE_AI_MODEL")
+    ai_api_key: str | None = Field(default=None, alias="FIGURE_AI_API_KEY")
+    ai_base_url: str | None = Field(default=None, alias="FIGURE_AI_BASE_URL")
+    ai_timeout_seconds: float = Field(default=30.0, alias="FIGURE_AI_TIMEOUT_SECONDS")
+    ai_max_output_tokens: int = Field(default=1200, alias="FIGURE_AI_MAX_OUTPUT_TOKENS")
 
     def __init__(self, **data: object) -> None:
         super().__init__(**data)  # type: ignore[arg-type]
@@ -31,6 +38,14 @@ class Settings(BaseSettings):
     def normalize_database_url(cls, value: object) -> object:
         if isinstance(value, str) and value.startswith("postgresql://"):
             return value.replace("postgresql://", "postgresql+psycopg://", 1)
+        return value
+
+    @field_validator("ai_provider", "ai_model", "ai_api_key", "ai_base_url", mode="before")
+    @classmethod
+    def normalize_optional_ai_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
         return value
 
 
