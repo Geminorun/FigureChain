@@ -14,6 +14,8 @@ from figure_chain.schemas import (
     ShortestChainRequest,
     ShortestChainResponse,
 )
+from figure_data.ai.chain_hash import compute_chain_hash
+from figure_data.ai.prompts import get_prompt_definition
 from figure_data.graph.pathfinding import ChainEndpointInput, find_chain, resolve_endpoint
 from figure_data.graph.types import (
     ChainLookupResult,
@@ -82,13 +84,27 @@ class ChainService:
                 source_person_id=result.source_person_id,
                 target_person_id=result.target_person_id,
                 max_depth=result.max_depth,
+                chain_hash=None,
                 path=None,
             )
+        prompt = get_prompt_definition("chain_explanation")
+        encounter_ids = [edge.encounter_id for edge in result.path.edges]
+        chain_hash = compute_chain_hash(
+            source_person_id=result.source_person_id,
+            target_person_id=result.target_person_id,
+            max_depth=result.max_depth,
+            encounter_ids=encounter_ids,
+            prompt_key=prompt.prompt_key,
+            prompt_version=prompt.prompt_version,
+            output_schema_version=prompt.output_schema_version,
+            language="zh-Hans",
+        )
         return ShortestChainResponse(
             status="found",
             source_person_id=result.source_person_id,
             target_person_id=result.target_person_id,
             max_depth=result.max_depth,
+            chain_hash=chain_hash,
             path=ChainPathResponse(
                 length=result.path.length,
                 people=[

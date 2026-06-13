@@ -17,6 +17,7 @@ class ErrorCode(StrEnum):
     GRAPH_NOT_SYNCED = "graph_not_synced"
     DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
     CONFIGURATION_ERROR = "configuration_error"
+    AI_RESULT_NOT_FOUND = "ai_result_not_found"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -29,6 +30,7 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.GRAPH_NOT_SYNCED: status.HTTP_409_CONFLICT,
     ErrorCode.DEPENDENCY_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
     ErrorCode.CONFIGURATION_ERROR: status.HTTP_503_SERVICE_UNAVAILABLE,
+    ErrorCode.AI_RESULT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.INTERNAL_ERROR: status.HTTP_500_INTERNAL_SERVER_ERROR,
 }
 

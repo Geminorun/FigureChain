@@ -20,7 +20,16 @@ from figure_chain.schemas import (
 )
 from figure_chain.services.chains import ChainService
 from figure_data.graph.pathfinding import ChainEndpointInput
-from figure_data.graph.types import ChainLookupResult, GraphPersonAmbiguousError, ResolvedEndpoint
+from figure_data.graph.types import (
+    ChainEdge,
+    ChainLookupResult,
+    ChainPath,
+    ChainPerson,
+    GraphPersonAmbiguousError,
+    ResolvedEndpoint,
+)
+
+KNOWN_CHAIN_HASH = "a" * 64
 
 
 class FakeChainService:
@@ -37,6 +46,7 @@ class FakeChainService:
                 source_person_id="person-a",
                 target_person_id="person-b",
                 max_depth=request.max_depth,
+                chain_hash=None,
                 path=None,
             )
         return ShortestChainResponse(
@@ -44,6 +54,7 @@ class FakeChainService:
             source_person_id="38966b03-8aa7-5143-8021-2d266889b6c5",
             target_person_id="46cfdf66-08c4-5876-964b-4a95d098afe9",
             max_depth=request.max_depth,
+            chain_hash=KNOWN_CHAIN_HASH,
             path=ChainPathResponse(
                 length=1,
                 people=[
@@ -92,6 +103,7 @@ def test_shortest_chain_found() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "found"
+    assert body["chain_hash"] == KNOWN_CHAIN_HASH
     assert body["path"]["length"] == 1
     assert body["path"]["edges"][0]["encounter_id"] == "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f"
 
@@ -108,7 +120,73 @@ def test_shortest_chain_no_path_returns_200() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "no_path"
+    assert response.json()["chain_hash"] is None
     assert response.json()["path"] is None
+
+
+def test_chain_service_found_response_includes_computed_chain_hash() -> None:
+    def resolve_endpoint(
+        pg_session: Session,
+        endpoint: ChainEndpointInput,
+    ) -> ResolvedEndpoint:
+        return ResolvedEndpoint(label=endpoint.label, person_id=f"{endpoint.label}-person")
+
+    def find_chain_found(
+        pg_session: Session,
+        neo4j_session: object,
+        source: ChainEndpointInput,
+        target: ChainEndpointInput,
+        max_depth: int,
+    ) -> ChainLookupResult:
+        return ChainLookupResult(
+            source_person_id="source-person",
+            target_person_id="target-person",
+            max_depth=max_depth,
+            path=ChainPath(
+                people=(
+                    ChainPerson(
+                        person_id="source-person",
+                        display_name="许几",
+                        birth_year=None,
+                        death_year=None,
+                        cbdb_external_id="780",
+                    ),
+                    ChainPerson(
+                        person_id="target-person",
+                        display_name="韩琦",
+                        birth_year=None,
+                        death_year=None,
+                        cbdb_external_id="630",
+                    ),
+                ),
+                edges=(
+                    ChainEdge(
+                        encounter_id="e4f22ec2-22f7-4cda-bcc1-73aa83d0685f",
+                        encounter_kind="direct_interaction",
+                        certainty_level="high",
+                        pages="11905",
+                        evidence_summary="许几谒见韩琦于魏",
+                    ),
+                ),
+            ),
+        )
+
+    service = ChainService(
+        cast(Session, object()),
+        object(),
+        find_chain_fn=find_chain_found,
+        resolve_endpoint_fn=resolve_endpoint,
+    )
+
+    response = service.shortest(
+        ShortestChainRequest(
+            source=ChainEndpointRequest(query="许几"),
+            target=ChainEndpointRequest(query="韩琦"),
+        )
+    )
+
+    assert isinstance(response.chain_hash, str)
+    assert len(response.chain_hash) == 64
 
 
 def test_shortest_chain_ambiguous_returns_409() -> None:

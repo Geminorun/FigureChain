@@ -100,7 +100,40 @@ class ShortestChainResponse(BaseModel):
     source_person_id: str
     target_person_id: str
     max_depth: int
+    chain_hash: str | None = None
     path: ChainPathResponse | None
+
+
+class AIChainExplanationResponse(BaseModel):
+    id: UUID
+    ai_run_id: UUID
+    chain_hash: str
+    source_person_id: UUID
+    target_person_id: UUID
+    max_depth: int
+    encounter_ids: list[str]
+    language: str
+    summary: str
+    edge_explanations: list[dict[str, object]]
+    source_ref_ids: list[int]
+    status: str
+    created_at: datetime
+
+
+class AIRunResponse(BaseModel):
+    run_id: UUID
+    purpose: str
+    provider: str
+    model_name: str
+    prompt_key: str | None
+    prompt_version: str | None
+    status: str
+    schema_valid: bool
+    error_code: str | None
+    error_message: str | None
+    started_at: datetime
+    finished_at: datetime | None
+    created_by: str
 
 
 class EncounterPersonResponse(BaseModel):
