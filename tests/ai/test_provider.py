@@ -50,6 +50,25 @@ def test_fake_ai_provider_returns_configured_json() -> None:
     assert response.raw_text == '{"message":"ready","echo_id":"abc","warnings":[]}'
 
 
+def test_fake_ai_provider_generates_candidate_suggestion_from_prompt_input() -> None:
+    provider = FakeAIProvider()
+    response = provider.generate(
+        AIProviderRequest(
+            system_prompt="system",
+            user_prompt=(
+                '请为以下候选关系生成一个审核建议。输入 JSON：\n'
+                '{"source_refs":[{"source_ref_id":501}]}\n'
+                "输出字段必须为 suggested_action, priority_score。"
+            ),
+            model_name="fake-model",
+            max_output_tokens=128,
+        )
+    )
+
+    assert '"suggested_action": "needs_human_review"' in response.raw_text
+    assert '"supporting_source_ref_ids": [501]' in response.raw_text
+
+
 def test_create_ai_provider_returns_disabled_when_ai_is_disabled() -> None:
     settings = Settings(database_url="postgresql://example.invalid/figure")
 

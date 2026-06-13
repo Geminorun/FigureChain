@@ -151,6 +151,33 @@ FIGURE_AI_MAX_OUTPUT_TOKENS=1200
 uv run --no-sync figure-data inspect-ai-run --id 00000000-0000-0000-0000-000000000001
 ```
 
+### AI 候选审核建议
+
+AI 候选审核建议只帮助审核员理解候选关系、整理证据摘要草稿、识别风险点和安排人工审核优先级。AI 候选审核建议不会修改候选审核状态，不会创建 encounter，不会设置 `path_eligible=true`，也不会写入 Neo4j。
+
+生成单个候选建议：
+
+```powershell
+uv run --no-sync figure-data suggest-candidate-review --kind relationship --id 960698 --created-by lyl
+```
+
+查看已生成建议：
+
+```powershell
+uv run --no-sync figure-data list-ai-candidate-suggestions --status generated --limit 20
+uv run --no-sync figure-data inspect-ai-candidate-suggestion --id 00000000-0000-0000-0000-000000000001
+uv run --no-sync figure-data inspect-ai-run --id 00000000-0000-0000-0000-000000000002
+```
+
+人工审核仍使用原有命令：
+
+```powershell
+uv run --no-sync figure-data inspect-candidate --kind relationship --id 960698
+uv run --no-sync figure-data promote-encounter --kind relationship --id 960698 --reviewed-by lyl --evidence-summary "人工核对后的证据摘要"
+uv run --no-sync figure-data mark-candidate-review --kind relationship --id 960698 --reviewed-by lyl --note "需要继续查原书"
+uv run --no-sync figure-data reject-candidate --kind relationship --id 960698 --reviewed-by lyl --note "不能证明见面"
+```
+
 默认测试使用 fake provider，不访问真实模型。真实模型 smoke 必须手动开启，并在执行后继续运行
 `validate-encounters` 和 `validate-graph`，确认 AI 结果没有污染事实源。
 

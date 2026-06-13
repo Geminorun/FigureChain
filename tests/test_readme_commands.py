@@ -43,3 +43,12 @@ def test_readme_documents_ai_foundation_configuration() -> None:
     assert "FIGURE_AI_API_KEY=<local AI provider key>" in readme
     assert "figure-data inspect-ai-run" in readme
     assert "AI 输出不能直接创建 encounter" in readme
+
+
+def test_readme_documents_ai_candidate_review_suggestion_commands() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "figure-data suggest-candidate-review" in readme
+    assert "figure-data list-ai-candidate-suggestions" in readme
+    assert "figure-data inspect-ai-candidate-suggestion" in readme
+    assert "AI 候选审核建议不会修改候选审核状态" in readme
