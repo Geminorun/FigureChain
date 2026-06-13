@@ -18,5 +18,9 @@ class AIOutputValidationError(AIError):
     """Raised when model output cannot satisfy the expected schema."""
 
 
+class AIOutputPolicyViolation(AIOutputValidationError):
+    """Raised when valid model output violates FigureChain business boundaries."""
+
+
 class AIRunNotFoundError(AIError):
     """Raised when an AI run id does not exist."""

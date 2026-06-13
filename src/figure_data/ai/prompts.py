@@ -16,7 +16,33 @@ AI_FOUNDATION_DIAGNOSTIC_PROMPT = PromptDefinition(
     output_schema_version="1",
 )
 
-PROMPT_DEFINITIONS = (AI_FOUNDATION_DIAGNOSTIC_PROMPT,)
+CANDIDATE_REVIEW_SUGGESTION_PROMPT = PromptDefinition(
+    prompt_key="candidate_review_suggestion",
+    prompt_version="2026-06-13.1",
+    purpose="candidate_review_suggestion",
+    system_prompt=(
+        "你是 FigureChain 的候选关系审核助手。"
+        "你只能基于输入 JSON 中的候选关系、人物、source_ref 和审核状态作答。"
+        "不得编造史料、页码、人物关系或见面场景。"
+        "不得自动提升 encounter，不得要求系统绕过人工审核。"
+        "priority_score 只表示人工审核优先级，不表示历史事实置信度。"
+        "当缺少原文时，必须说明来源为结构化资料或页码线索。"
+        "只返回 JSON object。"
+    ),
+    user_prompt_template=(
+        "请为以下候选关系生成一个审核建议。"
+        "输入 JSON：\n{candidate_json}\n"
+        "输出字段必须为 suggested_action, priority_score, evidence_summary_draft, "
+        "risk_flags, supporting_source_ref_ids, review_questions, explanation。"
+    ),
+    output_schema_name="candidate_review_suggestion_output",
+    output_schema_version="1",
+)
+
+PROMPT_DEFINITIONS = (
+    AI_FOUNDATION_DIAGNOSTIC_PROMPT,
+    CANDIDATE_REVIEW_SUGGESTION_PROMPT,
+)
 
 
 def get_prompt_definition(

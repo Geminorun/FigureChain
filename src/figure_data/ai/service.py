@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -9,7 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from figure_data.ai.errors import AIOutputValidationError
+from figure_data.ai.errors import AIOutputPolicyViolation, AIOutputValidationError
 from figure_data.ai.provider import AIProvider
 from figure_data.ai.repository import AIRunRepository, PostgresAIRunRepository
 from figure_data.ai.types import AIProviderRequest, NewAIRun, PromptDefinition
@@ -21,6 +22,9 @@ from figure_data.db.enums import AIErrorCode
 class AIRunResult[OutputModel: BaseModel]:
     run_id: UUID
     output: OutputModel
+
+
+type OutputGuard[OutputModel: BaseModel] = Callable[[OutputModel], None]
 
 
 def run_ai_prompt[OutputModel: BaseModel](
@@ -35,6 +39,7 @@ def run_ai_prompt[OutputModel: BaseModel](
     max_output_tokens: int,
     created_by: str,
     repository: AIRunRepository | None = None,
+    output_guard: OutputGuard[OutputModel] | None = None,
 ) -> AIRunResult[OutputModel]:
     resolved_repository = repository or PostgresAIRunRepository()
     prompt_version_id = resolved_repository.ensure_prompt_version(session, prompt)  # type: ignore[arg-type]
@@ -66,6 +71,17 @@ def run_ai_prompt[OutputModel: BaseModel](
     response = provider.generate(request)
     try:
         output = validate_ai_output(response.raw_text, output_schema)
+        if output_guard is not None:
+            output_guard(output)
+    except AIOutputPolicyViolation as exc:
+        resolved_repository.mark_failed(
+            session,  # type: ignore[arg-type]
+            run_id=run_id,
+            error_code=AIErrorCode.OUTPUT_POLICY_VIOLATION.value,
+            error_message=str(exc),
+            raw_output=response.raw_text,
+        )
+        raise
     except AIOutputValidationError as exc:
         resolved_repository.mark_failed(
             session,  # type: ignore[arg-type]
