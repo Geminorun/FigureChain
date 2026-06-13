@@ -68,3 +68,16 @@ class AIErrorCode(StrEnum):
     INPUT_INVALID = "input_invalid"
     OUTPUT_POLICY_VIOLATION = "output_policy_violation"
     CONFIGURATION_MISSING = "configuration_missing"
+
+
+class AICandidateReviewSuggestedAction(StrEnum):
+    PROMOTE_CANDIDATE = "promote_candidate"
+    NEEDS_HUMAN_REVIEW = "needs_human_review"
+    REJECT_DUPLICATE = "reject_duplicate"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+    NOT_PATH_CANDIDATE = "not_path_candidate"
+
+
+class AICandidateSuggestionStatus(StrEnum):
+    GENERATED = "generated"
+    ARCHIVED = "archived"
