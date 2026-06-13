@@ -123,6 +123,49 @@ def run_ai_prompt[OutputModel: BaseModel](
     return AIRunResult(run_id=run_id, output=output)
 
 
+def record_failed_ai_prompt(
+    *,
+    session: Session | object,
+    prompt: PromptDefinition,
+    provider_name: str,
+    model_name: str,
+    input_snapshot: dict[str, Any],
+    created_by: str,
+    error_code: str,
+    error_message: str,
+    repository: AIRunRepository | None = None,
+) -> UUID:
+    resolved_repository = repository or PostgresAIRunRepository()
+    prompt_version_id = resolved_repository.ensure_prompt_version(session, prompt)  # type: ignore[arg-type]
+    input_hash = _stable_hash(
+        {
+            "prompt_key": prompt.prompt_key,
+            "prompt_version": prompt.prompt_version,
+            "input": input_snapshot,
+        }
+    )
+    run_id = resolved_repository.create_run(
+        session,  # type: ignore[arg-type]
+        NewAIRun(
+            purpose=prompt.purpose,
+            provider=provider_name,
+            model_name=model_name,
+            prompt_version_id=prompt_version_id,
+            input_hash=input_hash,
+            input_snapshot=input_snapshot,
+            created_by=created_by,
+        ),
+    )
+    resolved_repository.mark_failed(
+        session,  # type: ignore[arg-type]
+        run_id=run_id,
+        error_code=error_code,
+        error_message=error_message,
+        raw_output=None,
+    )
+    return run_id
+
+
 def _provider_error_code(exc: AIProviderError) -> str:
     name = type(exc).__name__.lower()
     message = str(exc).lower()

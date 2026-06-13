@@ -17,6 +17,13 @@ from figure_data.ai.candidate_repository import (
     list_candidate_review_suggestions,
 )
 from figure_data.ai.candidate_service import generate_candidate_review_suggestion
+from figure_data.ai.chain_context import InvalidChainContextError
+from figure_data.ai.chain_formatting import format_chain_explanation_detail
+from figure_data.ai.chain_repository import (
+    AIChainExplanationNotFoundError,
+    get_chain_explanation_by_hash,
+)
+from figure_data.ai.chain_service import generate_chain_explanation_for_shortest_path
 from figure_data.ai.errors import (
     AIOutputPolicyViolation,
     AIOutputValidationError,
@@ -427,6 +434,97 @@ def suggest_candidate_review_command(
     finally:
         session.close()
     for line in format_candidate_suggestion_detail(result.suggestion):
+        _echo_cli_line(line)
+
+
+@app.command("generate-chain-explanation")
+def generate_chain_explanation_command(
+    from_query: Annotated[str | None, typer.Option("--from")] = None,
+    to_query: Annotated[str | None, typer.Option("--to")] = None,
+    from_person_id: Annotated[UUID | None, typer.Option("--from-person-id")] = None,
+    to_person_id: Annotated[UUID | None, typer.Option("--to-person-id")] = None,
+    from_cbdb_id: Annotated[str | None, typer.Option("--from-cbdb-id")] = None,
+    to_cbdb_id: Annotated[str | None, typer.Option("--to-cbdb-id")] = None,
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=30)] = 12,
+    language: Annotated[str, typer.Option("--language")] = "zh-Hans",
+    created_by: Annotated[str, typer.Option("--created-by")] = "local",
+) -> None:
+    """Generate and store an AI explanation for one reviewed shortest chain."""
+    source = ChainEndpointInput(
+        label="from",
+        person_id=from_person_id,
+        cbdb_id=from_cbdb_id,
+        query=from_query,
+    )
+    target = ChainEndpointInput(
+        label="to",
+        person_id=to_person_id,
+        cbdb_id=to_cbdb_id,
+        query=to_query,
+    )
+    driver = None
+    session = None
+    try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
+        session = factory()
+        with graph_session(driver, config.database) as neo4j_session:
+            result = generate_chain_explanation_for_shortest_path(
+                session=session,
+                neo4j_session=neo4j_session,
+                settings=settings,
+                source=source,
+                target=target,
+                max_depth=max_depth,
+                created_by=created_by,
+                language=language,
+            )
+        session.commit()
+    except (
+        AIProviderConfigurationError,
+        AIProviderError,
+        AIOutputValidationError,
+        AIOutputPolicyViolation,
+        InvalidChainContextError,
+    ) as exc:
+        if session is not None:
+            session.commit()
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except (GraphOperationError, DriverError, Neo4jError, ValueError) as exc:
+        if session is not None:
+            session.rollback()
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception:
+        if session is not None:
+            session.rollback()
+        raise
+    finally:
+        if session is not None:
+            session.close()
+        if driver is not None:
+            driver.close()
+    for line in format_chain_explanation_detail(result.explanation):
+        _echo_cli_line(line)
+
+
+@app.command("inspect-chain-explanation")
+def inspect_chain_explanation_command(
+    chain_hash: Annotated[str, typer.Option("--hash")],
+) -> None:
+    """Inspect one stored AI chain explanation."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with factory() as session:
+            record = get_chain_explanation_by_hash(session, chain_hash)
+    except AIChainExplanationNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_chain_explanation_detail(record):
         _echo_cli_line(line)
 
 
