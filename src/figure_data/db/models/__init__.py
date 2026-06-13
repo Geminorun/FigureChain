@@ -1,6 +1,7 @@
 from figure_data.db.models import (
     ai,
     ai_candidate,
+    ai_chain,
     encounter,
     identity,
     import_batch,
@@ -13,6 +14,7 @@ from figure_data.db.models import (
 __all__ = [
     "ai",
     "ai_candidate",
+    "ai_chain",
     "encounter",
     "identity",
     "import_batch",

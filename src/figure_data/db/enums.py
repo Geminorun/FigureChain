@@ -68,6 +68,7 @@ class AIErrorCode(StrEnum):
     INPUT_INVALID = "input_invalid"
     OUTPUT_POLICY_VIOLATION = "output_policy_violation"
     CONFIGURATION_MISSING = "configuration_missing"
+    INVALID_CHAIN_CONTEXT = "invalid_chain_context"
 
 
 class AICandidateReviewSuggestedAction(StrEnum):
@@ -79,5 +80,10 @@ class AICandidateReviewSuggestedAction(StrEnum):
 
 
 class AICandidateSuggestionStatus(StrEnum):
+    GENERATED = "generated"
+    ARCHIVED = "archived"
+
+
+class AIChainExplanationStatus(StrEnum):
     GENERATED = "generated"
     ARCHIVED = "archived"
