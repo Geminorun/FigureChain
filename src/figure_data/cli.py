@@ -6,6 +6,9 @@ from uuid import UUID
 import typer
 from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 
+from figure_data.ai.errors import AIRunNotFoundError
+from figure_data.ai.formatting import format_ai_run_detail
+from figure_data.ai.repository import get_ai_run
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
 from figure_data.db.enums import CertaintyLevel, EncounterKind
@@ -346,6 +349,23 @@ def export_encounter_expansion_report_command(
             EncounterExpansionReportFilters(reviewed_since=since, limit=limit),
         )
     for line in format_expansion_report_markdown(report):
+        _echo_cli_line(line)
+
+
+@app.command("inspect-ai-run")
+def inspect_ai_run_command(
+    run_id: Annotated[UUID, typer.Option("--id")],
+) -> None:
+    """Inspect one recorded AI run."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with factory() as session:
+            record = get_ai_run(session, run_id)
+    except AIRunNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_ai_run_detail(record, ai_api_key=getattr(settings, "ai_api_key", None)):
         _echo_cli_line(line)
 
 
