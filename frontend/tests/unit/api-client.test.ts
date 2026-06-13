@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
+import { GET as aiChainExplanationRoute } from "../../app/api/figure-chain/ai/chains/explanations/[chainHash]/route";
+import { GET as aiRunRoute } from "../../app/api/figure-chain/ai/runs/[runId]/route";
 import { POST as shortestChainRoute } from "../../app/api/figure-chain/chains/shortest/route";
 import { GET as encounterRoute } from "../../app/api/figure-chain/encounters/[encounterId]/route";
 import { GET as healthReadyRoute } from "../../app/api/figure-chain/health/ready/route";
@@ -167,6 +169,50 @@ describe("api-client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8000/api/v1/encounters/id%20with%20spaces",
+      expect.any(Object),
+    );
+  });
+
+  it("AI chain explanation route encodes hashes before forwarding", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ chain_hash: "hash with spaces" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await aiChainExplanationRoute(
+      new Request("http://localhost/api/figure-chain/ai/chains/explanations/hash") as NextRequest,
+      {
+        params: Promise.resolve({ chainHash: "hash with spaces" }),
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/api/v1/ai/chains/explanations/hash%20with%20spaces",
+      expect.any(Object),
+    );
+  });
+
+  it("AI run route encodes ids before forwarding", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ run_id: "run id" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await aiRunRoute(
+      new Request("http://localhost/api/figure-chain/ai/runs/id") as NextRequest,
+      {
+        params: Promise.resolve({ runId: "run id" }),
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/api/v1/ai/runs/run%20id",
       expect.any(Object),
     );
   });

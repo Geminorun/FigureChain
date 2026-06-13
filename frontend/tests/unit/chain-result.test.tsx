@@ -1,13 +1,32 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChainResult } from "@/components/chain-result";
 import { shortestChainFound, shortestChainNoPath } from "@/test/fixtures";
 import { renderUi } from "@/test/render";
 
 describe("ChainResult", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders found path and evidence action", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "ai_result_not_found",
+              message: "missing",
+              details: {},
+            },
+          }),
+          { status: 404, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
     const user = userEvent.setup();
     const onSelectEncounter = vi.fn();
 
@@ -23,6 +42,9 @@ describe("ChainResult", () => {
     expect(screen.getByText("路径长度：1")).toBeInTheDocument();
     expect(screen.getByText("許幾")).toBeInTheDocument();
     expect(screen.getByText("韓琦")).toBeInTheDocument();
+    expect(
+      await screen.findByText("这条路径暂时还没有生成 AI 解释。"),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看证据/ }));
     expect(onSelectEncounter).toHaveBeenCalledWith(

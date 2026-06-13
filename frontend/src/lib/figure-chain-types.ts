@@ -62,11 +62,51 @@ export type ChainPath = {
   edges: ChainEdge[];
 };
 
+export type AIChainEdgeExplanation = {
+  encounter_id: string;
+  explanation: string;
+  evidence_basis: string;
+  source_ref_ids: number[];
+};
+
+export type AIChainExplanation = {
+  id: string;
+  ai_run_id: string;
+  chain_hash: string;
+  source_person_id: string;
+  target_person_id: string;
+  max_depth: number;
+  encounter_ids: string[];
+  language: string;
+  summary: string;
+  edge_explanations: AIChainEdgeExplanation[];
+  source_ref_ids: number[];
+  status: string;
+  created_at: string;
+};
+
+export type AIRun = {
+  run_id: string;
+  purpose: string;
+  provider: string;
+  model_name: string;
+  prompt_key: string | null;
+  prompt_version: string | null;
+  status: string;
+  schema_valid: boolean;
+  error_code: string | null;
+  error_message: string | null;
+  started_at: string;
+  finished_at: string | null;
+  created_by: string;
+};
+
 export type ShortestChainResponse = {
   status: "found" | "no_path";
   source_person_id: string;
   target_person_id: string;
   max_depth: number;
+  chain_hash: string | null;
   path: ChainPath | null;
 };
 

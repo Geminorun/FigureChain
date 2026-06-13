@@ -1,8 +1,10 @@
 "use client";
 
+import { ChainExplanationPanel } from "@/components/chain-explanation-panel";
 import { ChainPath } from "@/components/chain-path";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorCallout } from "@/components/error-callout";
+import { useChainExplanation } from "@/hooks/use-chain-explanation";
 import type { DisplayableError } from "@/lib/api-errors";
 import type { ShortestChainResponse } from "@/lib/figure-chain-types";
 import { validateChainPathShape } from "@/lib/validation";
@@ -20,6 +22,9 @@ export function ChainResult({
   error,
   onSelectEncounter,
 }: ChainResultProps) {
+  const chainHash = result?.status === "found" ? result.chain_hash : null;
+  const explanation = useChainExplanation(chainHash);
+
   if (isLoading) {
     return (
       <div className="rounded border border-stone-200 bg-white p-4 text-sm text-stone-600">
@@ -63,6 +68,13 @@ export function ChainResult({
     );
   }
 
+  const unavailableMessage =
+    explanation.error?.code === "ai_result_not_found"
+      ? "这条路径暂时还没有生成 AI 解释。"
+      : explanation.error
+        ? "AI 解释暂不可用，路径和证据仍可正常查看。"
+        : null;
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-1">
@@ -72,6 +84,11 @@ export function ChainResult({
         </h2>
       </div>
       <ChainPath path={result.path} onSelectEncounter={onSelectEncounter} />
+      <ChainExplanationPanel
+        explanation={explanation.explanation}
+        isLoading={explanation.isLoading}
+        unavailableMessage={unavailableMessage}
+      />
     </section>
   );
 }

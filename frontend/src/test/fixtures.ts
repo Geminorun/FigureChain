@@ -75,6 +75,7 @@ export const shortestChainFound: ShortestChainResponse = {
   source_person_id: xuJi.person_id,
   target_person_id: hanQi.person_id,
   max_depth: 12,
+  chain_hash: "known-chain-hash",
   path: oneHopPath,
 };
 
@@ -83,6 +84,7 @@ export const shortestChainNoPath: ShortestChainResponse = {
   source_person_id: xuJi.person_id,
   target_person_id: hanQi.person_id,
   max_depth: 12,
+  chain_hash: null,
   path: null,
 };
 
