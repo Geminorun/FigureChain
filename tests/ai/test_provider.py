@@ -1,3 +1,13 @@
+from pytest import raises
+
+from figure_data.ai.errors import AIProviderConfigurationError, AIProviderError
+from figure_data.ai.provider import (
+    DisabledAIProvider,
+    FakeAIProvider,
+    create_ai_provider,
+)
+from figure_data.ai.types import AIProviderRequest
+from figure_data.config import Settings
 from figure_data.db.enums import AIErrorCode, AIPromptStatus, AIRunStatus
 
 
@@ -9,3 +19,70 @@ def test_ai_enums_define_foundation_values() -> None:
     assert AIRunStatus.FAILED.value == "failed"
     assert AIErrorCode.CONFIGURATION_MISSING.value == "configuration_missing"
     assert AIErrorCode.SCHEMA_INVALID.value == "schema_invalid"
+
+
+def test_disabled_ai_provider_raises_configuration_error() -> None:
+    provider = DisabledAIProvider()
+    request = AIProviderRequest(
+        system_prompt="system",
+        user_prompt="user",
+        model_name="fake-model",
+        max_output_tokens=128,
+    )
+
+    with raises(AIProviderError, match="AI provider is disabled"):
+        provider.generate(request)
+
+
+def test_fake_ai_provider_returns_configured_json() -> None:
+    provider = FakeAIProvider(raw_text='{"message":"ready","echo_id":"abc","warnings":[]}')
+    response = provider.generate(
+        AIProviderRequest(
+            system_prompt="system",
+            user_prompt="user",
+            model_name="fake-model",
+            max_output_tokens=128,
+        )
+    )
+
+    assert response.provider == "fake"
+    assert response.model_name == "fake-model"
+    assert response.raw_text == '{"message":"ready","echo_id":"abc","warnings":[]}'
+
+
+def test_create_ai_provider_returns_disabled_when_ai_is_disabled() -> None:
+    settings = Settings(database_url="postgresql://example.invalid/figure")
+
+    provider = create_ai_provider(settings)
+
+    assert isinstance(provider, DisabledAIProvider)
+
+
+def test_create_ai_provider_supports_fake_provider() -> None:
+    settings = Settings(
+        database_url="postgresql://example.invalid/figure",
+        FIGURE_AI_ENABLED=True,
+        FIGURE_AI_PROVIDER="fake",
+        FIGURE_AI_MODEL="fake-model",
+    )
+
+    provider = create_ai_provider(settings)
+
+    assert isinstance(provider, FakeAIProvider)
+
+
+def test_create_ai_provider_rejects_unknown_provider_without_leaking_key() -> None:
+    settings = Settings(
+        database_url="postgresql://example.invalid/figure",
+        FIGURE_AI_ENABLED=True,
+        FIGURE_AI_PROVIDER="unknown",
+        FIGURE_AI_MODEL="fake-model",
+        FIGURE_AI_API_KEY="secret-value",
+    )
+
+    with raises(AIProviderConfigurationError) as exc_info:
+        create_ai_provider(settings)
+
+    message = str(exc_info.value)
+    assert "unsupported AI provider" in message
+    assert "secret-value" not in message
