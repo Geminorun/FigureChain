@@ -39,9 +39,33 @@ CANDIDATE_REVIEW_SUGGESTION_PROMPT = PromptDefinition(
     output_schema_version="1",
 )
 
+CHAIN_EXPLANATION_PROMPT = PromptDefinition(
+    prompt_key="chain_explanation",
+    prompt_version="2026-06-13.1",
+    purpose="chain_explanation",
+    system_prompt=(
+        "你是 FigureChain 的人物链解释助手。"
+        "你只能解释输入 JSON 中已经审核通过的 path encounters。"
+        "不得编造史料、页码、人物关系或见面场景。"
+        "不得把 AI 解释称为新证据。"
+        "每条 edge_explanation 必须引用输入中的 encounter_id。"
+        "source_ref_ids 只能来自输入 JSON。"
+        "如果缺少原文，只能说明来源为结构化候选关系或审核摘要。"
+        "只返回 JSON object。"
+    ),
+    user_prompt_template=(
+        "请解释以下已审核人物链。"
+        "输入 JSON：\n{chain_json}\n"
+        "输出字段必须为 summary, edge_explanations, source_notes, limitations, display_language。"
+    ),
+    output_schema_name="chain_explanation_output",
+    output_schema_version="1",
+)
+
 PROMPT_DEFINITIONS = (
     AI_FOUNDATION_DIAGNOSTIC_PROMPT,
     CANDIDATE_REVIEW_SUGGESTION_PROMPT,
+    CHAIN_EXPLANATION_PROMPT,
 )
 
 

@@ -69,6 +69,27 @@ def test_fake_ai_provider_generates_candidate_suggestion_from_prompt_input() -> 
     assert '"supporting_source_ref_ids": [501]' in response.raw_text
 
 
+def test_fake_ai_provider_generates_chain_explanation_from_prompt_input() -> None:
+    provider = FakeAIProvider()
+    response = provider.generate(
+        AIProviderRequest(
+            system_prompt="system",
+            user_prompt=(
+                "请解释以下已审核人物链。输入 JSON：\n"
+                '{"encounters":[{"encounter_id":"e1","source_refs":[{"source_ref_id":501}]}]}\n'
+                "输出字段必须为 summary, edge_explanations, source_notes, "
+                "limitations, display_language。"
+            ),
+            model_name="fake-model",
+            max_output_tokens=128,
+        )
+    )
+
+    assert '"edge_explanations":' in response.raw_text
+    assert '"encounter_id": "e1"' in response.raw_text
+    assert '"source_ref_ids": [501]' in response.raw_text
+
+
 def test_create_ai_provider_returns_disabled_when_ai_is_disabled() -> None:
     settings = Settings(database_url="postgresql://example.invalid/figure")
 

@@ -23,3 +23,18 @@ class CandidateReviewSuggestionOutput(BaseModel):
     supporting_source_ref_ids: list[int] = Field(default_factory=list, max_length=50)
     review_questions: list[str] = Field(default_factory=list, max_length=20)
     explanation: str = Field(min_length=1, max_length=2000)
+
+
+class ChainEdgeExplanationOutput(BaseModel):
+    encounter_id: str = Field(min_length=1)
+    explanation: str = Field(min_length=1, max_length=2000)
+    evidence_basis: Literal["encounter_evidence", "source_ref", "structured_candidate"]
+    source_ref_ids: list[int] = Field(default_factory=list, max_length=50)
+
+
+class ChainExplanationOutput(BaseModel):
+    summary: str = Field(min_length=1, max_length=3000)
+    edge_explanations: list[ChainEdgeExplanationOutput] = Field(min_length=1, max_length=30)
+    source_notes: list[str] = Field(default_factory=list, max_length=50)
+    limitations: list[str] = Field(default_factory=list, max_length=20)
+    display_language: Literal["zh-Hans", "zh-Hant", "en"] = "zh-Hans"
