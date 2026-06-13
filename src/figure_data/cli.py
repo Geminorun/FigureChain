@@ -6,7 +6,24 @@ from uuid import UUID
 import typer
 from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 
-from figure_data.ai.errors import AIRunNotFoundError
+from figure_data.ai.candidate_formatting import (
+    format_candidate_suggestion_detail,
+    format_candidate_suggestion_summaries,
+)
+from figure_data.ai.candidate_repository import (
+    AICandidateSuggestionNotFoundError,
+    CandidateSuggestionListFilters,
+    get_candidate_review_suggestion,
+    list_candidate_review_suggestions,
+)
+from figure_data.ai.candidate_service import generate_candidate_review_suggestion
+from figure_data.ai.errors import (
+    AIOutputPolicyViolation,
+    AIOutputValidationError,
+    AIProviderConfigurationError,
+    AIProviderError,
+    AIRunNotFoundError,
+)
 from figure_data.ai.formatting import format_ai_run_detail
 from figure_data.ai.repository import get_ai_run
 from figure_data.cbdb.sqlite_reader import SQLiteReader
@@ -366,6 +383,79 @@ def inspect_ai_run_command(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     for line in format_ai_run_detail(record, ai_api_key=getattr(settings, "ai_api_key", None)):
+        _echo_cli_line(line)
+
+
+@app.command("suggest-candidate-review")
+def suggest_candidate_review_command(
+    kind: Annotated[CandidateKind, typer.Option("--kind")],
+    candidate_id: Annotated[int, typer.Option("--id", min=1)],
+    created_by: Annotated[str, typer.Option("--created-by")],
+) -> None:
+    """Generate an AI review suggestion for one candidate relationship."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with session_scope(factory) as session:
+            result = generate_candidate_review_suggestion(
+                session=session,
+                settings=settings,
+                kind=kind,
+                candidate_id=candidate_id,
+                created_by=created_by,
+            )
+    except (
+        AIProviderConfigurationError,
+        AIProviderError,
+        AIOutputValidationError,
+        AIOutputPolicyViolation,
+        CandidateReviewError,
+        ValueError,
+    ) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_candidate_suggestion_detail(result.suggestion):
+        _echo_cli_line(line)
+
+
+@app.command("list-ai-candidate-suggestions")
+def list_ai_candidate_suggestions_command(
+    status: Annotated[str | None, typer.Option("--status")] = "generated",
+    kind: Annotated[CandidateKind | None, typer.Option("--kind")] = None,
+    candidate_id: Annotated[int | None, typer.Option("--candidate-id", min=1)] = None,
+    limit: Annotated[int, typer.Option(min=1, max=200)] = 20,
+) -> None:
+    """List stored AI candidate review suggestions."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with factory() as session:
+        rows = list_candidate_review_suggestions(
+            session,
+            CandidateSuggestionListFilters(
+                status=status,
+                candidate_kind=kind,
+                candidate_id=candidate_id,
+                limit=limit,
+            ),
+        )
+    for line in format_candidate_suggestion_summaries(rows):
+        _echo_cli_line(line)
+
+
+@app.command("inspect-ai-candidate-suggestion")
+def inspect_ai_candidate_suggestion_command(
+    suggestion_id: Annotated[UUID, typer.Option("--id")],
+) -> None:
+    """Inspect one stored AI candidate review suggestion."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with factory() as session:
+            record = get_candidate_review_suggestion(session, suggestion_id)
+    except AICandidateSuggestionNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_candidate_suggestion_detail(record):
         _echo_cli_line(line)
 
 
