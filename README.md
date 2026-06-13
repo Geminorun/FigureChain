@@ -124,6 +124,36 @@ docs/superpowers/reports/
 
 阶段 3 不允许 AI 自动提升路径边；`path_eligible=true` 仍必须满足 active、high、direct_interaction 且有 evidence。
 
+## AI 基础设施与留痕
+
+阶段 4 的 AI 能力默认关闭。AI 输出不能直接创建 encounter、修改候选审核状态、设置
+`path_eligible=true` 或写入 Neo4j。所有模型输出只能作为待审核建议、解释材料或排序辅助，
+并且必须记录 prompt version、model name、input snapshot、output snapshot 和 schema validation
+status。
+
+本地 `.env` 可增加：
+
+```text
+FIGURE_AI_ENABLED=false
+FIGURE_AI_PROVIDER=fake
+FIGURE_AI_MODEL=fake-history-model
+FIGURE_AI_API_KEY=<local AI provider key>
+FIGURE_AI_BASE_URL=<optional local provider base url>
+FIGURE_AI_TIMEOUT_SECONDS=30
+FIGURE_AI_MAX_OUTPUT_TOKENS=1200
+```
+
+`FIGURE_AI_API_KEY` 只能保存在本地 `.env` 或环境变量中，不得提交。
+
+查看 AI run 留痕：
+
+```powershell
+uv run --no-sync figure-data inspect-ai-run --id 00000000-0000-0000-0000-000000000001
+```
+
+默认测试使用 fake provider，不访问真实模型。真实模型 smoke 必须手动开启，并在执行后继续运行
+`validate-encounters` 和 `validate-graph`，确认 AI 结果没有污染事实源。
+
 ## FastAPI 查链应用层
 
 本地启动 API：

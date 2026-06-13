@@ -33,3 +33,13 @@ def test_readme_documents_encounter_expansion_commands() -> None:
     assert "figure-data list-chain-samples" in readme
     assert "figure-data export-encounter-expansion-report" in readme
     assert "docs/superpowers/reports/" in readme
+
+
+def test_readme_documents_ai_foundation_configuration() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "FIGURE_AI_ENABLED=false" in readme
+    assert "FIGURE_AI_PROVIDER=fake" in readme
+    assert "FIGURE_AI_API_KEY=<local AI provider key>" in readme
+    assert "figure-data inspect-ai-run" in readme
+    assert "AI 输出不能直接创建 encounter" in readme
