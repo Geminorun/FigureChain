@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from figure_data.ai.retrieval_context import AIRetrievalContextItem
 from figure_data.db.enums import CertaintyLevel, EncounterKind, EncounterStatus
 from figure_data.review.types import CandidateDetail, CandidatePerson, CandidateSourceRef
 
@@ -59,6 +62,8 @@ class CandidateReviewPromptInput(BaseModel):
     person_a: CandidateReviewPersonInput
     person_b: CandidateReviewPersonInput
     source_refs: list[CandidateReviewSourceRefInput]
+    retrieval_context: list[AIRetrievalContextItem] = Field(default_factory=list)
+    retrieval_context_status: Literal["available", "missing"] = "missing"
 
 
 def build_candidate_review_prompt_input(
@@ -78,6 +83,8 @@ def candidate_review_prompt_input_from_detail(
     detail: CandidateDetail,
     *,
     has_active_path_encounter_for_pair: bool,
+    retrieval_context: list[AIRetrievalContextItem] | None = None,
+    retrieval_context_status: Literal["available", "missing"] = "missing",
 ) -> CandidateReviewPromptInput:
     return CandidateReviewPromptInput(
         candidate=CandidateReviewCandidateInput(
@@ -110,6 +117,8 @@ def candidate_review_prompt_input_from_detail(
         person_a=_person_input(detail.person_a),
         person_b=_person_input(detail.person_b),
         source_refs=[_source_ref_input(source_ref) for source_ref in detail.source_refs],
+        retrieval_context=retrieval_context or [],
+        retrieval_context_status=retrieval_context_status,
     )
 
 

@@ -5,6 +5,36 @@ from figure_data.ai.prompts import get_prompt_definition
 from figure_data.ai.schemas import CandidateReviewSuggestionOutput
 
 
+def test_candidate_review_suggestion_output_accepts_retrieval_trace_fields() -> None:
+    output = CandidateReviewSuggestionOutput.model_validate(
+        {
+            "suggested_action": "needs_human_review",
+            "priority_score": 50,
+            "evidence_summary_draft": "Structured evidence suggests possible interaction.",
+            "risk_flags": ["retrieval_context_missing"],
+            "supporting_source_ref_ids": [3853784],
+            "review_questions": ["Is original text available?"],
+            "explanation": "RAG context is only auxiliary context.",
+            "retrieval_source_ref_ids": [3853784],
+            "retrieval_document_ids": ["00000000-0000-0000-0000-000000000501"],
+            "retrieval_limitations": ["RAG context is not reviewed evidence."],
+        }
+    )
+
+    assert output.retrieval_source_ref_ids == [3853784]
+    assert output.retrieval_document_ids == [
+        "00000000-0000-0000-0000-000000000501"
+    ]
+    assert output.retrieval_limitations == ["RAG context is not reviewed evidence."]
+
+
+def test_candidate_review_prompt_mentions_retrieval_context_boundary() -> None:
+    prompt = get_prompt_definition("candidate_review_suggestion")
+
+    assert "retrieval_context" in prompt.user_prompt_template
+    assert "RAG" in prompt.system_prompt
+
+
 def test_candidate_review_prompt_is_registered() -> None:
     prompt = get_prompt_definition("candidate_review_suggestion")
 

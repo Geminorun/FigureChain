@@ -23,6 +23,9 @@ class CandidateReviewSuggestionOutput(BaseModel):
     supporting_source_ref_ids: list[int] = Field(default_factory=list, max_length=50)
     review_questions: list[str] = Field(default_factory=list, max_length=20)
     explanation: str = Field(min_length=1, max_length=2000)
+    retrieval_source_ref_ids: list[int] = Field(default_factory=list, max_length=50)
+    retrieval_document_ids: list[str] = Field(default_factory=list, max_length=50)
+    retrieval_limitations: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ChainEdgeExplanationOutput(BaseModel):
