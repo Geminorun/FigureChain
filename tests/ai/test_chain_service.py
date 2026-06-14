@@ -176,7 +176,7 @@ def chain_result(*, path: ChainPath | None | object = _DEFAULT_PATH) -> ChainLoo
     )
 
 
-def encounter_detail() -> EncounterDetail:
+def encounter_detail(*, status: str = "active") -> EncounterDetail:
     now = datetime(2026, 6, 13, tzinfo=UTC)
     return EncounterDetail(
         encounter_id=UUID(ENCOUNTER_ID),
@@ -207,7 +207,7 @@ def encounter_detail() -> EncounterDetail:
         pages="卷一",
         evidence_summary="许几曾谒见韩琦。",
         review_note="人工审核通过。",
-        status="active",
+        status=status,
         reviewed_by="tester",
         reviewed_at=now,
         created_at=now,
@@ -314,6 +314,27 @@ def test_generate_chain_explanation_for_result_records_invalid_context_failure()
             session=object(),
             result=chain_result(path=None),
             encounter_details={},
+            settings=settings(),
+            provider=FakeProvider(),
+            created_by="tester",
+            language="zh-Hans",
+            repository=repository,
+            run_repository=run_repository,
+        )
+
+    assert repository.created == []
+    assert run_repository.failed[0]["error_code"] == "invalid_chain_context"
+
+
+def test_generate_chain_explanation_for_result_records_non_path_encounter_failure() -> None:
+    repository = FakeChainRepository()
+    run_repository = FakeRunRepository()
+
+    with raises(InvalidChainContextError, match="not an active path encounter"):
+        generate_chain_explanation_for_result(
+            session=object(),
+            result=chain_result(),
+            encounter_details={ENCOUNTER_ID: encounter_detail(status="retracted")},
             settings=settings(),
             provider=FakeProvider(),
             created_by="tester",

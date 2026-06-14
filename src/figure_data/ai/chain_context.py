@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from figure_data.db.enums import CertaintyLevel, EncounterKind, EncounterStatus
 from figure_data.encounters.types import EncounterDetail
 from figure_data.graph.types import ChainLookupResult
 
@@ -83,6 +84,7 @@ def build_chain_explanation_prompt_input(
         detail = encounter_details.get(edge.encounter_id)
         if detail is None:
             raise InvalidChainContextError(f"missing encounter detail: {edge.encounter_id}")
+        _require_active_path_encounter(detail)
         if not detail.evidence:
             raise InvalidChainContextError(f"missing encounter evidence: {edge.encounter_id}")
         encounters.append(_encounter_input(detail))
@@ -94,6 +96,18 @@ def build_chain_explanation_prompt_input(
         people=people,
         encounters=encounters,
     )
+
+
+def _require_active_path_encounter(detail: EncounterDetail) -> None:
+    if (
+        detail.status != EncounterStatus.ACTIVE.value
+        or not detail.path_eligible
+        or detail.certainty_level != CertaintyLevel.HIGH.value
+        or detail.encounter_kind != EncounterKind.DIRECT_INTERACTION.value
+    ):
+        raise InvalidChainContextError(
+            f"not an active path encounter: {detail.encounter_id}"
+        )
 
 
 def _encounter_input(detail: EncounterDetail) -> ChainExplanationEncounterInput:

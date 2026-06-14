@@ -1,7 +1,8 @@
+from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import UUID
 
-from pytest import raises
+from pytest import mark, raises
 
 from figure_data.ai.chain_context import (
     InvalidChainContextError,
@@ -57,7 +58,14 @@ def chain_result(*, path: ChainPath | None | object = _DEFAULT_PATH) -> ChainLoo
     )
 
 
-def encounter_detail(*, evidence: list[EncounterEvidenceDetail] | None = None) -> EncounterDetail:
+def encounter_detail(
+    *,
+    evidence: list[EncounterEvidenceDetail] | None = None,
+    encounter_kind: str = "direct_interaction",
+    certainty_level: str = "high",
+    path_eligible: bool = True,
+    status: str = "active",
+) -> EncounterDetail:
     now = datetime(2026, 6, 13, tzinfo=UTC)
     return EncounterDetail(
         encounter_id=UUID(ENCOUNTER_ID),
@@ -81,14 +89,14 @@ def encounter_detail(*, evidence: list[EncounterEvidenceDetail] | None = None) -
             death_year=1075,
             external_ids=["630"],
         ),
-        encounter_kind="direct_interaction",
-        certainty_level="high",
-        path_eligible=True,
+        encounter_kind=encounter_kind,
+        certainty_level=certainty_level,
+        path_eligible=path_eligible,
         source_work_id=7596,
         pages="11905",
         evidence_summary="许几谒韩琦于魏",
         review_note=None,
-        status="active",
+        status=status,
         reviewed_by="lyl",
         reviewed_at=now,
         created_at=now,
@@ -150,5 +158,26 @@ def test_build_chain_explanation_prompt_input_rejects_missing_evidence() -> None
         build_chain_explanation_prompt_input(
             result=chain_result(),
             encounter_details={ENCOUNTER_ID: encounter_detail(evidence=[])},
+            language="zh-Hans",
+        )
+
+
+@mark.parametrize(
+    ("detail_factory", "expected_message"),
+    [
+        (lambda: encounter_detail(status="retracted"), "not an active path encounter"),
+        (lambda: encounter_detail(path_eligible=False), "not an active path encounter"),
+        (lambda: encounter_detail(certainty_level="medium"), "not an active path encounter"),
+        (lambda: encounter_detail(encounter_kind="same_office"), "not an active path encounter"),
+    ],
+)
+def test_build_chain_explanation_prompt_input_rejects_non_path_encounters(
+    detail_factory: Callable[[], EncounterDetail],
+    expected_message: str,
+) -> None:
+    with raises(InvalidChainContextError, match=expected_message):
+        build_chain_explanation_prompt_input(
+            result=chain_result(),
+            encounter_details={ENCOUNTER_ID: detail_factory()},
             language="zh-Hans",
         )
