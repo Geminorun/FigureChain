@@ -1,0 +1,39 @@
+{
+  "evidence_version": "2026-06-14.1",
+  "run_date": "2026-06-14",
+  "git_branch": "codex/ai-no-path-exploration-cli",
+  "commit_sha": "",
+  "commands": [
+    {
+      "command": "uv run --no-sync python -m pytest -q",
+      "status": "not_run",
+      "summary": "未在示例 evidence 中运行。",
+      "output_excerpt": ""
+    },
+    {
+      "command": "uv run --no-sync ruff check .",
+      "status": "not_run",
+      "summary": "未在示例 evidence 中运行。",
+      "output_excerpt": ""
+    },
+    {
+      "command": "uv run --no-sync mypy src tests",
+      "status": "not_run",
+      "summary": "未在示例 evidence 中运行。",
+      "output_excerpt": ""
+    },
+    {
+      "command": "uv run --no-sync figure-data validate-encounters",
+      "status": "not_run",
+      "summary": "未在示例 evidence 中运行。",
+      "output_excerpt": ""
+    },
+    {
+      "command": "uv run --no-sync figure-data validate-graph",
+      "status": "not_run",
+      "summary": "未在示例 evidence 中运行。",
+      "output_excerpt": ""
+    }
+  ],
+  "reviewer_notes": "复制本文件并填入真实命令结果后，再生成最终验收报告。"
+}

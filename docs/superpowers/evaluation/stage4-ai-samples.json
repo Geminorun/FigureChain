@@ -1,0 +1,177 @@
+{
+  "fixture_version": "2026-06-14.1",
+  "generated_at": "2026-06-14T00:00:00+00:00",
+  "samples": [
+    {
+      "sample_id": "candidate-review-basic",
+      "capability": "candidate_review_suggestion",
+      "title": "候选审核建议必须只引用输入 source_ref",
+      "input_snapshot": {
+        "candidate_kind": "relationship",
+        "candidate_id": 960698,
+        "source_refs": [
+          {
+            "source_ref_id": 3853784
+          }
+        ]
+      },
+      "output_snapshot": {
+        "suggested_action": "needs_human_review",
+        "supporting_source_ref_ids": [
+          3853784
+        ],
+        "risk_flags": [],
+        "explanation": "该建议基于输入候选和 source_ref，需要人工复核。"
+      },
+      "expected_trace_ids": {
+        "source_ref_ids": [
+          3853784
+        ],
+        "encounter_ids": [],
+        "retrieval_document_ids": [],
+        "candidate_keys": [
+          "relationship:960698"
+        ]
+      },
+      "forbidden_phrases": [
+        "自动提升",
+        "直接写入 encounter",
+        "写入 Neo4j"
+      ],
+      "manual_scores": {},
+      "notes": "静态样本用于验证候选建议边界。"
+    },
+    {
+      "sample_id": "chain-explanation-basic",
+      "capability": "chain_explanation",
+      "title": "人物链解释必须覆盖输入 encounter",
+      "input_snapshot": {
+        "encounters": [
+          {
+            "encounter_id": "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f",
+            "source_refs": [
+              {
+                "source_ref_id": 3853784
+              }
+            ]
+          }
+        ]
+      },
+      "output_snapshot": {
+        "summary": "该链条由已审核 encounter 连接。",
+        "edge_explanations": [
+          {
+            "encounter_id": "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f",
+            "source_ref_ids": [
+              3853784
+            ],
+            "explanation": "AI 只解释输入中已有的 encounter。"
+          }
+        ],
+        "limitations": [
+          "AI 解释不是新的历史证据。"
+        ]
+      },
+      "expected_trace_ids": {
+        "source_ref_ids": [
+          3853784
+        ],
+        "encounter_ids": [
+          "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f"
+        ],
+        "retrieval_document_ids": [],
+        "candidate_keys": []
+      },
+      "forbidden_phrases": [
+        "新增关系",
+        "新证据",
+        "自动创建"
+      ],
+      "manual_scores": {},
+      "notes": "静态样本用于验证链解释可回溯。"
+    },
+    {
+      "sample_id": "rag-search-basic",
+      "capability": "rag_search",
+      "title": "RAG 搜索结果必须可回溯到 retrieval document",
+      "input_snapshot": {
+        "query": "许几 韩琦"
+      },
+      "output_snapshot": {
+        "results": [
+          {
+            "document_id": "00000000-0000-0000-0000-000000000501",
+            "source_kind": "source_ref",
+            "source_ref_id": 3853784,
+            "score": 0.88,
+            "snippet": "许几 谒见 韩琦"
+          }
+        ]
+      },
+      "expected_trace_ids": {
+        "source_ref_ids": [
+          3853784
+        ],
+        "encounter_ids": [],
+        "retrieval_document_ids": [
+          "00000000-0000-0000-0000-000000000501"
+        ],
+        "candidate_keys": []
+      },
+      "forbidden_phrases": [
+        "已审核证据",
+        "证明二人见过"
+      ],
+      "manual_scores": {},
+      "notes": "RAG 结果只能称为召回上下文。"
+    },
+    {
+      "sample_id": "no-path-basic",
+      "capability": "no_path_exploration",
+      "title": "无路径建议不能声称历史上无关系",
+      "input_snapshot": {
+        "path_status": "no_path",
+        "source_person_id": "38966b03-8aa7-5143-8021-2d266889b6c5",
+        "target_person_id": "46cfdf66-08c4-5876-964b-4a95d098afe9",
+        "candidate_summaries": [
+          {
+            "candidate_kind": "relationship",
+            "candidate_id": 960698
+          }
+        ]
+      },
+      "output_snapshot": {
+        "summary": "当前图投影在给定深度内没有返回连接路径。",
+        "likely_reasons": [
+          "端点附近可用 path encounter 边可能不足。"
+        ],
+        "suggested_review_targets": [
+          {
+            "target_type": "candidate",
+            "candidate_kind": "relationship",
+            "candidate_id": 960698
+          }
+        ],
+        "limitations": [
+          "这不是历史上不存在关系的证明。"
+        ]
+      },
+      "expected_trace_ids": {
+        "source_ref_ids": [],
+        "encounter_ids": [],
+        "retrieval_document_ids": [],
+        "candidate_keys": [
+          "relationship:960698"
+        ]
+      },
+      "forbidden_phrases": [
+        "两人没有关系",
+        "两人没有见过面",
+        "系统证明不存在路径",
+        "直接提升"
+      ],
+      "manual_scores": {},
+      "notes": "无路径样本用于验证禁用文案。"
+    }
+  ]
+}
