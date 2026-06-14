@@ -99,3 +99,26 @@ def test_settings_normalizes_blank_ai_strings_to_none() -> None:
     assert settings.ai_model is None
     assert settings.ai_api_key is None
     assert settings.ai_base_url is None
+
+
+def test_settings_embedding_defaults_are_fake_pilot() -> None:
+    settings = Settings(database_url="postgresql://example.invalid/figure")
+
+    assert settings.embedding_provider == "fake"
+    assert settings.embedding_model == "fake-hash-embedding"
+    assert settings.embedding_dimensions == 8
+    assert settings.embedding_batch_size == 16
+
+
+def test_settings_reads_embedding_environment(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("FIGURE_EMBEDDING_PROVIDER", "fake")
+    monkeypatch.setenv("FIGURE_EMBEDDING_MODEL", "fake-hash-embedding-v2")
+    monkeypatch.setenv("FIGURE_EMBEDDING_DIMENSIONS", "8")
+    monkeypatch.setenv("FIGURE_EMBEDDING_BATCH_SIZE", "4")
+
+    settings = Settings(database_url="postgresql://example.invalid/figure")
+
+    assert settings.embedding_provider == "fake"
+    assert settings.embedding_model == "fake-hash-embedding-v2"
+    assert settings.embedding_dimensions == 8
+    assert settings.embedding_batch_size == 4

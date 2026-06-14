@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     ai_base_url: str | None = Field(default=None, alias="FIGURE_AI_BASE_URL")
     ai_timeout_seconds: float = Field(default=30.0, alias="FIGURE_AI_TIMEOUT_SECONDS")
     ai_max_output_tokens: int = Field(default=1200, alias="FIGURE_AI_MAX_OUTPUT_TOKENS")
+    embedding_provider: str = Field(default="fake", alias="FIGURE_EMBEDDING_PROVIDER")
+    embedding_model: str = Field(
+        default="fake-hash-embedding",
+        alias="FIGURE_EMBEDDING_MODEL",
+    )
+    embedding_dimensions: int = Field(default=8, alias="FIGURE_EMBEDDING_DIMENSIONS")
+    embedding_batch_size: int = Field(default=16, alias="FIGURE_EMBEDDING_BATCH_SIZE")
 
     def __init__(self, **data: object) -> None:
         super().__init__(**data)  # type: ignore[arg-type]
@@ -46,6 +53,15 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             stripped = value.strip()
             return stripped or None
+        return value
+
+    @field_validator("embedding_provider", "embedding_model", mode="before")
+    @classmethod
+    def normalize_required_embedding_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                return stripped
         return value
 
 
