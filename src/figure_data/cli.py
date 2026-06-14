@@ -33,6 +33,9 @@ from figure_data.ai.errors import (
     AIRunNotFoundError,
 )
 from figure_data.ai.formatting import format_ai_run_detail
+from figure_data.ai.no_path_context import InvalidNoPathContextError
+from figure_data.ai.no_path_formatting import format_no_path_exploration_result
+from figure_data.ai.no_path_service import generate_no_path_exploration
 from figure_data.ai.repository import get_ai_run
 from figure_data.ai.retrieval_formatting import (
     format_build_rag_index_result,
@@ -576,6 +579,85 @@ def generate_chain_explanation_command(
         if driver is not None:
             driver.close()
     for line in format_chain_explanation_detail(result.explanation):
+        _echo_cli_line(line)
+
+
+@app.command("suggest-no-path-exploration")
+def suggest_no_path_exploration_command(
+    from_query: Annotated[str | None, typer.Option("--from")] = None,
+    to_query: Annotated[str | None, typer.Option("--to")] = None,
+    from_person_id: Annotated[UUID | None, typer.Option("--from-person-id")] = None,
+    to_person_id: Annotated[UUID | None, typer.Option("--to-person-id")] = None,
+    from_cbdb_id: Annotated[str | None, typer.Option("--from-cbdb-id")] = None,
+    to_cbdb_id: Annotated[str | None, typer.Option("--to-cbdb-id")] = None,
+    max_depth: Annotated[int, typer.Option("--max-depth", min=1, max=30)] = 12,
+    candidate_limit: Annotated[int, typer.Option("--candidate-limit", min=0, max=50)] = 10,
+    rag_limit: Annotated[int, typer.Option("--rag-limit", min=0, max=10)] = 5,
+    language: Annotated[str, typer.Option("--language")] = "zh-Hans",
+    created_by: Annotated[str, typer.Option("--created-by")] = "local",
+) -> None:
+    """Generate an AI suggestion for a shortest-path query that currently has no path."""
+    source = ChainEndpointInput(
+        label="from",
+        person_id=from_person_id,
+        cbdb_id=from_cbdb_id,
+        query=from_query,
+    )
+    target = ChainEndpointInput(
+        label="to",
+        person_id=to_person_id,
+        cbdb_id=to_cbdb_id,
+        query=to_query,
+    )
+    driver = None
+    session = None
+    try:
+        settings = load_settings()
+        factory = create_session_factory(settings)
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
+        session = factory()
+        with graph_session(driver, config.database) as neo4j_session:
+            result = generate_no_path_exploration(
+                session=session,
+                neo4j_session=neo4j_session,
+                settings=settings,
+                source=source,
+                target=target,
+                max_depth=max_depth,
+                created_by=created_by,
+                language=language,
+                candidate_limit=candidate_limit,
+                rag_limit=rag_limit,
+            )
+        session.commit()
+    except (
+        AIProviderConfigurationError,
+        AIProviderError,
+        AIOutputValidationError,
+        AIOutputPolicyViolation,
+        InvalidNoPathContextError,
+        EmbeddingProviderConfigurationError,
+    ) as exc:
+        if session is not None:
+            session.commit()
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except (GraphOperationError, DriverError, Neo4jError, ValueError) as exc:
+        if session is not None:
+            session.rollback()
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception:
+        if session is not None:
+            session.rollback()
+        raise
+    finally:
+        if session is not None:
+            session.close()
+        if driver is not None:
+            driver.close()
+    for line in format_no_path_exploration_result(result):
         _echo_cli_line(line)
 
 
