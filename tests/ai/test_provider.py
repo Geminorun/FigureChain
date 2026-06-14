@@ -155,6 +155,41 @@ def test_fake_ai_provider_preserves_chain_retrieval_trace_fields() -> None:
     assert payload["retrieval_notes"] == ["RAG context is auxiliary only."]
 
 
+def test_fake_ai_provider_generates_no_path_exploration_from_prompt_input() -> None:
+    provider = FakeAIProvider()
+    response = provider.generate(
+        AIProviderRequest(
+            system_prompt="system",
+            user_prompt=(
+                'Input JSON:\n{"candidate_summaries":[{'
+                '"candidate_kind":"relationship",'
+                '"candidate_id":960698,'
+                '"source_ref_id":3853784'
+                "}],"
+                '"retrieval_context":[{'
+                '"document_id":"00000000-0000-0000-0000-000000000501",'
+                '"source_kind":"source_ref",'
+                '"source_ref_id":3853784,'
+                '"score":0.88'
+                "}]}\n"
+                "Output fields must be summary, likely_reasons, "
+                "suggested_review_targets, retrieval_context, limitations, "
+                "display_language."
+            ),
+            model_name="fake-model",
+            max_output_tokens=128,
+        )
+    )
+
+    assert '"suggested_review_targets":' in response.raw_text
+    assert '"target_type": "candidate"' in response.raw_text
+    assert '"candidate_id": 960698' in response.raw_text
+    assert (
+        '"retrieval_document_id": "00000000-0000-0000-0000-000000000501"'
+        in response.raw_text
+    )
+
+
 def test_create_ai_provider_returns_disabled_when_ai_is_disabled() -> None:
     settings = Settings(database_url="postgresql://example.invalid/figure")
 

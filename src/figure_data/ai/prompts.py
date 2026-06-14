@@ -71,10 +71,39 @@ CHAIN_EXPLANATION_PROMPT = PromptDefinition(
     output_schema_version="1",
 )
 
+NO_PATH_EXPLORATION_PROMPT = PromptDefinition(
+    prompt_key="no_path_exploration",
+    prompt_version="2026-06-14.1",
+    purpose="no_path_exploration",
+    system_prompt=(
+        "You are a FigureChain no_path exploration assistant. "
+        "Only use the provided JSON: endpoint people, current no_path graph result, "
+        "nearby graph statistics, candidate summaries, and RAG retrieval snippets. "
+        "Limit conclusions to the current graph projection and requested max_depth. "
+        "Do not claim the two people had no historical relationship, never met, or that "
+        "the system proved no path exists historically. "
+        "Do not invent relationships, meeting scenes, source refs, pages, or evidence. "
+        "Do not suggest directly promoting a candidate to an encounter or writing to Neo4j. "
+        "suggested_review_targets may only reference input candidates, source refs, "
+        "retrieval documents, or endpoint person ids. "
+        "RAG snippets are retrieval context, not reviewed evidence. "
+        "Return JSON object only."
+    ),
+    user_prompt_template=(
+        "Generate exploration advice for this no-path query. "
+        "Input JSON:\n{no_path_json}\n"
+        "Output fields must be summary, likely_reasons, suggested_review_targets, "
+        "retrieval_context, limitations, display_language."
+    ),
+    output_schema_name="no_path_exploration_output",
+    output_schema_version="1",
+)
+
 PROMPT_DEFINITIONS = (
     AI_FOUNDATION_DIAGNOSTIC_PROMPT,
     CANDIDATE_REVIEW_SUGGESTION_PROMPT,
     CHAIN_EXPLANATION_PROMPT,
+    NO_PATH_EXPLORATION_PROMPT,
 )
 
 
