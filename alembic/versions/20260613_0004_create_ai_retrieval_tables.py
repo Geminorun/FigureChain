@@ -54,12 +54,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["source_ref_id"],
             ["figure_data.source_refs.id"],
-            name="fk_ai_retrieval_documents_source_ref_id_source_refs",
+            name="fk_ai_retrieval_documents_source_ref",
         ),
         sa.ForeignKeyConstraint(
             ["encounter_evidence_id"],
             ["figure_data.encounter_evidence.id"],
-            name="fk_ai_retrieval_documents_encounter_evidence_id_encounter_evidence",
+            name="fk_ai_retrieval_documents_evidence",
         ),
         sa.PrimaryKeyConstraint("id", name="pk_ai_retrieval_documents"),
         sa.UniqueConstraint(
@@ -107,7 +107,7 @@ def upgrade() -> None:
             text_hash text not null,
             created_at timestamp with time zone not null,
             constraint pk_ai_retrieval_embeddings primary key (id),
-            constraint fk_ai_retrieval_embeddings_document_id_ai_retrieval_documents
+            constraint fk_ai_retrieval_embeddings_document
                 foreign key(document_id)
                 references figure_data.ai_retrieval_documents (id),
             constraint uq_ai_retrieval_embeddings_document_provider_model

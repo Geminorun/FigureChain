@@ -50,9 +50,14 @@ class AIRetrievalDocument(Base):
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     source_kind: Mapped[str] = mapped_column(Text, nullable=False)
     source_pk: Mapped[str] = mapped_column(Text, nullable=False)
-    source_ref_id: Mapped[int | None] = mapped_column(ForeignKey("figure_data.source_refs.id"))
+    source_ref_id: Mapped[int | None] = mapped_column(
+        ForeignKey("figure_data.source_refs.id", name="fk_ai_retrieval_documents_source_ref")
+    )
     encounter_evidence_id: Mapped[int | None] = mapped_column(
-        ForeignKey("figure_data.encounter_evidence.id"),
+        ForeignKey(
+            "figure_data.encounter_evidence.id",
+            name="fk_ai_retrieval_documents_evidence",
+        ),
     )
     source_work_id: Mapped[int | None] = mapped_column(Integer)
     title_zh: Mapped[str | None] = mapped_column(Text)
@@ -83,7 +88,10 @@ class AIRetrievalEmbedding(Base):
 
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     document_id: Mapped[UUID] = mapped_column(
-        ForeignKey("figure_data.ai_retrieval_documents.id"),
+        ForeignKey(
+            "figure_data.ai_retrieval_documents.id",
+            name="fk_ai_retrieval_embeddings_document",
+        ),
         nullable=False,
     )
     provider: Mapped[str] = mapped_column(Text, nullable=False)
