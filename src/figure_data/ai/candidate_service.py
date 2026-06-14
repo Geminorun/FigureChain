@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from figure_data.ai.candidate_context import build_candidate_review_prompt_input
+from figure_data.ai.candidate_context import (
+    CandidateReviewPromptInput,
+    build_candidate_review_prompt_input,
+)
 from figure_data.ai.candidate_policy import validate_candidate_review_suggestion_policy
 from figure_data.ai.candidate_repository import (
     CandidateSuggestionRecord,
@@ -17,6 +21,17 @@ from figure_data.ai.candidate_repository import (
 )
 from figure_data.ai.prompts import get_prompt_definition
 from figure_data.ai.provider import AIProvider, create_ai_provider
+from figure_data.ai.retrieval_context import (
+    build_candidate_retrieval_query,
+    retrieval_context_items_from_search_results,
+    retrieval_document_ids,
+    retrieval_source_ref_ids,
+)
+from figure_data.ai.retrieval_service import (
+    SearchRagEvidenceOptions,
+    SearchRagEvidenceResult,
+    search_rag_evidence,
+)
 from figure_data.ai.schemas import CandidateReviewSuggestionOutput
 from figure_data.ai.service import run_ai_prompt
 from figure_data.config import Settings
@@ -55,9 +70,32 @@ def generate_candidate_review_suggestion(
     created_by: str,
     provider: AIProvider | None = None,
     repository: CandidateSuggestionRepository | None = None,
+    retrieval_limit: int = 5,
+    retrieval_search: Callable[..., SearchRagEvidenceResult] = search_rag_evidence,
 ) -> CandidateReviewSuggestionResult:
     detail = get_candidate_detail(session, kind, candidate_id)
-    prompt_input = build_candidate_review_prompt_input(session, detail)
+    base_prompt_input = build_candidate_review_prompt_input(session, detail)
+    retrieval_result = retrieval_search(
+        session=session,
+        settings=settings,
+        options=SearchRagEvidenceOptions(
+            query=_candidate_retrieval_query(base_prompt_input),
+            source_ref_id=None,
+            limit=retrieval_limit,
+        ),
+    )
+    retrieval_context = retrieval_context_items_from_search_results(
+        retrieval_result.results,
+        provider=retrieval_result.provider,
+        model_name=retrieval_result.model_name,
+        embedding_dimensions=settings.embedding_dimensions,
+    )
+    prompt_input = base_prompt_input.model_copy(
+        update={
+            "retrieval_context": retrieval_context,
+            "retrieval_context_status": "available" if retrieval_context else "missing",
+        }
+    )
     prompt_snapshot = prompt_input.model_dump(mode="json")
     candidate_json = json.dumps(prompt_snapshot, ensure_ascii=False, sort_keys=True)
     allowed_source_ref_ids = {source_ref.source_ref_id for source_ref in detail.source_refs}
@@ -78,6 +116,8 @@ def generate_candidate_review_suggestion(
         output_guard=lambda output: validate_candidate_review_suggestion_policy(
             output,
             allowed_source_ref_ids=allowed_source_ref_ids,
+            allowed_retrieval_source_ref_ids=retrieval_source_ref_ids(retrieval_context),
+            allowed_retrieval_document_ids=retrieval_document_ids(retrieval_context),
         ),
     )
     suggestion = save_candidate_review_suggestion_output(
@@ -120,6 +160,27 @@ def save_candidate_review_suggestion_output(
         ),
     )
     return resolved_repository.get(session, suggestion_id)
+
+
+def _candidate_retrieval_query(prompt_input: CandidateReviewPromptInput) -> str:
+    candidate_input = prompt_input.candidate
+    source_refs = prompt_input.source_refs
+    return build_candidate_retrieval_query(
+        person_a_names=[
+            prompt_input.person_a.primary_name_zh_hant,
+            prompt_input.person_a.primary_name_zh_hans,
+            prompt_input.person_a.primary_name_romanized,
+        ],
+        person_b_names=[
+            prompt_input.person_b.primary_name_zh_hant,
+            prompt_input.person_b.primary_name_zh_hans,
+            prompt_input.person_b.primary_name_romanized,
+        ],
+        relation_label=candidate_input.relation_label,
+        candidate_basis=candidate_input.candidate_basis,
+        source_titles=[source_ref.title_zh or source_ref.title_en for source_ref in source_refs],
+        notes=[candidate_input.notes, *[source_ref.notes for source_ref in source_refs]],
+    )
 
 
 def _require_ai_model(settings: Settings) -> str:

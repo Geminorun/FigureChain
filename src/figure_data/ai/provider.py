@@ -64,6 +64,19 @@ def _fake_candidate_suggestion_response(request: AIProviderRequest) -> str:
         for source_ref in source_refs
         if isinstance(source_ref, dict) and isinstance(source_ref.get("source_ref_id"), int)
     ]
+    retrieval_context = payload.get("retrieval_context", [])
+    if not isinstance(retrieval_context, list):
+        retrieval_context = []
+    retrieval_source_ref_ids = [
+        item["source_ref_id"]
+        for item in retrieval_context
+        if isinstance(item, dict) and isinstance(item.get("source_ref_id"), int)
+    ]
+    retrieval_document_ids = [
+        item["document_id"]
+        for item in retrieval_context
+        if isinstance(item, dict) and isinstance(item.get("document_id"), str)
+    ]
     return json.dumps(
         {
             "suggested_action": "needs_human_review",
@@ -71,6 +84,11 @@ def _fake_candidate_suggestion_response(request: AIProviderRequest) -> str:
             "evidence_summary_draft": "结构化关系显示二人可能有互动，需要人工查证。",
             "risk_flags": ["source_text_missing"] if not source_ref_ids else [],
             "supporting_source_ref_ids": source_ref_ids[:1],
+            "retrieval_source_ref_ids": retrieval_source_ref_ids[:3],
+            "retrieval_document_ids": retrieval_document_ids[:3],
+            "retrieval_limitations": (
+                ["RAG context is not reviewed evidence."] if retrieval_document_ids else []
+            ),
             "review_questions": ["是否有原文或页码可支持这条候选关系？"],
             "explanation": "该 fake 建议只基于输入的候选关系和 source_ref 生成。",
         },

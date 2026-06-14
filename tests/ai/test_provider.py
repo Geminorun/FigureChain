@@ -1,3 +1,5 @@
+import json
+
 from pytest import raises
 
 from figure_data.ai.errors import AIProviderConfigurationError, AIProviderError
@@ -67,6 +69,40 @@ def test_fake_ai_provider_generates_candidate_suggestion_from_prompt_input() -> 
 
     assert '"suggested_action": "needs_human_review"' in response.raw_text
     assert '"supporting_source_ref_ids": [501]' in response.raw_text
+
+
+def test_fake_ai_provider_preserves_candidate_retrieval_trace_fields() -> None:
+    provider = FakeAIProvider()
+
+    response = provider.generate(
+        AIProviderRequest(
+            system_prompt="system",
+            user_prompt=(
+                'Input JSON:\n{"candidate":{"id":1},'
+                '"source_refs":[{"source_ref_id":3853784}],'
+                '"retrieval_context":[{'
+                '"document_id":"00000000-0000-0000-0000-000000000501",'
+                '"source_ref_id":3853784'
+                "}]}\n"
+                "Output fields must be suggested_action, priority_score, "
+                "evidence_summary_draft, risk_flags, supporting_source_ref_ids, "
+                "review_questions, explanation, retrieval_source_ref_ids, "
+                "retrieval_document_ids, retrieval_limitations."
+            ),
+            model_name="fake-model",
+            max_output_tokens=1200,
+        )
+    )
+
+    payload = json.loads(response.raw_text)
+
+    assert payload["retrieval_source_ref_ids"] == [3853784]
+    assert payload["retrieval_document_ids"] == [
+        "00000000-0000-0000-0000-000000000501"
+    ]
+    assert payload["retrieval_limitations"] == [
+        "RAG context is not reviewed evidence."
+    ]
 
 
 def test_fake_ai_provider_generates_chain_explanation_from_prompt_input() -> None:
