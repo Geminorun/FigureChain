@@ -1,4 +1,5 @@
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
@@ -32,6 +33,14 @@ from figure_data.ai.errors import (
     AIProviderError,
     AIRunNotFoundError,
 )
+from figure_data.ai.evaluation_loader import load_acceptance_evidence, load_samples_for_evaluation
+from figure_data.ai.evaluation_reporting import write_stage4_evaluation_report
+from figure_data.ai.evaluation_scoring import (
+    build_gate_summary,
+    recommend_stage5_entry,
+    score_fixture,
+)
+from figure_data.ai.evaluation_types import EvaluationReport
 from figure_data.ai.formatting import format_ai_run_detail
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
@@ -462,6 +471,62 @@ def search_rag_evidence_command(
         raise typer.Exit(code=1) from exc
     for line in format_search_rag_evidence_result(result):
         _echo_cli_line(line)
+
+
+@app.command("evaluate-ai-samples")
+def evaluate_ai_samples_command(
+    fixture: Annotated[
+        Path,
+        typer.Option("--fixture", exists=True, file_okay=True, dir_okay=False),
+    ] = Path("docs/superpowers/evaluation/stage4-ai-samples.json"),
+    evidence: Annotated[
+        Path | None,
+        typer.Option("--evidence", exists=True, file_okay=True, dir_okay=False),
+    ] = None,
+    output: Annotated[
+        Path,
+        typer.Option("--output", file_okay=True, dir_okay=False),
+    ] = Path("docs/superpowers/reports/2026-06-14-ai-stage4-acceptance.md"),
+    resolve_ai_runs: Annotated[
+        bool,
+        typer.Option("--resolve-ai-runs/--fixture-only"),
+    ] = False,
+) -> None:
+    """Evaluate fixed AI samples and write a Stage 4 acceptance report."""
+    try:
+        if resolve_ai_runs:
+            settings = load_settings()
+            factory = create_session_factory(settings)
+            with factory() as session:
+                fixture_model = load_samples_for_evaluation(
+                    fixture,
+                    session=session,
+                    resolve_ai_runs=True,
+                )
+        else:
+            fixture_model = load_samples_for_evaluation(
+                fixture,
+                resolve_ai_runs=False,
+            )
+        evidence_model = load_acceptance_evidence(evidence)
+        item_results = score_fixture(fixture_model)
+        gate_summary = build_gate_summary(item_results, evidence_model)
+        recommendation = recommend_stage5_entry(gate_summary)
+        report = EvaluationReport(
+            generated_at=datetime.now(UTC).isoformat(),
+            fixture_version=fixture_model.fixture_version,
+            item_results=item_results,
+            acceptance_evidence=evidence_model,
+            gate_summary=gate_summary,
+            recommendation=recommendation,
+        )
+        report_path = write_stage4_evaluation_report(report, output)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _echo_cli_line(f"evaluation_report\t{report_path}")
+    _echo_cli_line(f"samples\t{len(fixture_model.samples)}")
+    _echo_cli_line(f"recommendation\t{recommendation}")
 
 
 @app.command("suggest-candidate-review")
