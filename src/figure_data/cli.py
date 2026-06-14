@@ -24,6 +24,7 @@ from figure_data.ai.chain_repository import (
     get_chain_explanation_by_hash,
 )
 from figure_data.ai.chain_service import generate_chain_explanation_for_shortest_path
+from figure_data.ai.embedding_provider import EmbeddingProviderConfigurationError
 from figure_data.ai.errors import (
     AIOutputPolicyViolation,
     AIOutputValidationError,
@@ -33,6 +34,16 @@ from figure_data.ai.errors import (
 )
 from figure_data.ai.formatting import format_ai_run_detail
 from figure_data.ai.repository import get_ai_run
+from figure_data.ai.retrieval_formatting import (
+    format_build_rag_index_result,
+    format_search_rag_evidence_result,
+)
+from figure_data.ai.retrieval_service import (
+    BuildRagIndexOptions,
+    SearchRagEvidenceOptions,
+    build_rag_index,
+    search_rag_evidence,
+)
 from figure_data.cbdb.sqlite_reader import SQLiteReader
 from figure_data.config import load_settings
 from figure_data.db.enums import CertaintyLevel, EncounterKind
@@ -390,6 +401,63 @@ def inspect_ai_run_command(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     for line in format_ai_run_detail(record, ai_api_key=getattr(settings, "ai_api_key", None)):
+        _echo_cli_line(line)
+
+
+@app.command("build-rag-index")
+def build_rag_index_command(
+    source_ref_id: Annotated[int | None, typer.Option("--source-ref-id", min=1)] = None,
+    include_encounter_evidence: Annotated[
+        bool,
+        typer.Option("--include-encounter-evidence/--source-refs-only"),
+    ] = True,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 50,
+) -> None:
+    """Build a small RAG evidence index from source refs and encounter evidence."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with session_scope(factory) as session:
+            result = build_rag_index(
+                session=session,
+                settings=settings,
+                options=BuildRagIndexOptions(
+                    source_ref_id=source_ref_id,
+                    limit=limit,
+                    include_encounter_evidence=include_encounter_evidence,
+                ),
+            )
+    except (EmbeddingProviderConfigurationError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_build_rag_index_result(result):
+        _echo_cli_line(line)
+
+
+@app.command("search-rag-evidence")
+def search_rag_evidence_command(
+    query: Annotated[str, typer.Option("--query")],
+    source_ref_id: Annotated[int | None, typer.Option("--source-ref-id", min=1)] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=50)] = 5,
+) -> None:
+    """Search the local RAG evidence index."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    try:
+        with factory() as session:
+            result = search_rag_evidence(
+                session=session,
+                settings=settings,
+                options=SearchRagEvidenceOptions(
+                    query=query,
+                    source_ref_id=source_ref_id,
+                    limit=limit,
+                ),
+            )
+    except (EmbeddingProviderConfigurationError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for line in format_search_rag_evidence_result(result):
         _echo_cli_line(line)
 
 
