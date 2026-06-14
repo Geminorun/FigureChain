@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
+from figure_data.ai.retrieval_context import AIRetrievalContextItem
 from figure_data.db.enums import CertaintyLevel, EncounterKind, EncounterStatus
 from figure_data.encounters.types import EncounterDetail
 from figure_data.graph.types import ChainLookupResult
@@ -55,6 +58,8 @@ class ChainExplanationPromptInput(BaseModel):
     language: str
     people: list[ChainExplanationPersonInput]
     encounters: list[ChainExplanationEncounterInput]
+    retrieval_context: list[AIRetrievalContextItem] = Field(default_factory=list)
+    retrieval_context_status: Literal["available", "missing"] = "missing"
 
 
 class InvalidChainContextError(ValueError):
@@ -66,6 +71,8 @@ def build_chain_explanation_prompt_input(
     result: ChainLookupResult,
     encounter_details: dict[str, EncounterDetail],
     language: str,
+    retrieval_context: list[AIRetrievalContextItem] | None = None,
+    retrieval_context_status: Literal["available", "missing"] = "missing",
 ) -> ChainExplanationPromptInput:
     if result.path is None:
         raise InvalidChainContextError("chain explanation requires a found path")
@@ -95,6 +102,8 @@ def build_chain_explanation_prompt_input(
         language=language,
         people=people,
         encounters=encounters,
+        retrieval_context=retrieval_context or [],
+        retrieval_context_status=retrieval_context_status,
     )
 
 

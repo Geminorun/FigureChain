@@ -7,6 +7,7 @@ def validate_chain_explanation_policy(
     *,
     allowed_encounter_ids: set[str],
     allowed_source_ref_ids: set[int],
+    allowed_retrieval_document_ids: set[str] | None = None,
 ) -> None:
     seen_encounter_ids: set[str] = set()
     for edge in output.edge_explanations:
@@ -21,6 +22,17 @@ def validate_chain_explanation_policy(
         if unknown_source_ref_ids:
             joined = ",".join(str(source_ref_id) for source_ref_id in unknown_source_ref_ids)
             raise AIOutputPolicyViolation(f"unknown source_ref_id in AI output: {joined}")
+    resolved_retrieval_document_ids = allowed_retrieval_document_ids or set()
+    unknown_retrieval_document_ids = [
+        document_id
+        for document_id in output.retrieval_document_ids
+        if document_id not in resolved_retrieval_document_ids
+    ]
+    if unknown_retrieval_document_ids:
+        joined = ",".join(unknown_retrieval_document_ids)
+        raise AIOutputPolicyViolation(
+            f"unknown retrieval document_id in AI output: {joined}"
+        )
     missing_edges = sorted(allowed_encounter_ids - seen_encounter_ids)
     if missing_edges:
         raise AIOutputPolicyViolation(

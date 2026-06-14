@@ -41,3 +41,5 @@ class ChainExplanationOutput(BaseModel):
     source_notes: list[str] = Field(default_factory=list, max_length=50)
     limitations: list[str] = Field(default_factory=list, max_length=20)
     display_language: Literal["zh-Hans", "zh-Hant", "en"] = "zh-Hans"
+    retrieval_document_ids: list[str] = Field(default_factory=list, max_length=50)
+    retrieval_notes: list[str] = Field(default_factory=list, max_length=50)

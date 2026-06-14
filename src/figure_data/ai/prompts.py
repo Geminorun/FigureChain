@@ -56,12 +56,16 @@ CHAIN_EXPLANATION_PROMPT = PromptDefinition(
         "每条 edge_explanation 必须引用输入中的 encounter_id。"
         "source_ref_ids 只能来自输入 JSON。"
         "如果缺少原文，只能说明来源为结构化候选关系或审核摘要。"
+        "retrieval_context 是 RAG 召回上下文，不是已审核证据；只能用于补充来源说明或限制说明。"
+        "不得用 retrieval_context 编造输入之外的人物关系或见面场景。"
         "只返回 JSON object。"
     ),
     user_prompt_template=(
         "请解释以下已审核人物链。"
+        "输入中的 retrieval_context 仅代表 RAG 召回上下文。"
         "输入 JSON：\n{chain_json}\n"
-        "输出字段必须为 summary, edge_explanations, source_notes, limitations, display_language。"
+        "输出字段必须为 summary, edge_explanations, source_notes, limitations, "
+        "display_language, retrieval_document_ids, retrieval_notes。"
     ),
     output_schema_name="chain_explanation_output",
     output_schema_version="1",

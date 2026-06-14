@@ -57,3 +57,24 @@ def test_chain_policy_rejects_unknown_source_ref_id() -> None:
             allowed_encounter_ids={"e1"},
             allowed_source_ref_ids={999},
         )
+
+
+def test_chain_policy_accepts_known_retrieval_document_ids() -> None:
+    validate_chain_explanation_policy(
+        chain_output(
+            retrieval_document_ids=["00000000-0000-0000-0000-000000000501"],
+        ),
+        allowed_encounter_ids={"e1"},
+        allowed_source_ref_ids={101},
+        allowed_retrieval_document_ids={"00000000-0000-0000-0000-000000000501"},
+    )
+
+
+def test_chain_policy_rejects_unknown_retrieval_document_ids() -> None:
+    with raises(AIOutputPolicyViolation, match="unknown retrieval document_id"):
+        validate_chain_explanation_policy(
+            chain_output(retrieval_document_ids=["missing-document"]),
+            allowed_encounter_ids={"e1"},
+            allowed_source_ref_ids={101},
+            allowed_retrieval_document_ids={"00000000-0000-0000-0000-000000000501"},
+        )
