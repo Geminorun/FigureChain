@@ -1,6 +1,15 @@
 from pathlib import Path
 
 
+def test_readme_documents_rag_prompt_integration_boundary() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "RAG 上下文接入 AI prompt" in readme
+    assert "retrieval_context" in readme
+    assert "RAG 召回上下文不是已审核事实" in readme
+    assert "不会自动创建 encounter" in readme
+
+
 def test_readme_uses_python_module_pytest_command() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 

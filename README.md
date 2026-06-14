@@ -240,6 +240,20 @@ uv run --no-sync figure-data search-rag-evidence --query "许几 韩琦" --limit
 检索输出中的 `source_ref_id`、`encounter_evidence_id` 和 snippet 只用于回溯和辅助阅读。
 只有人工审核后写入 encounter/evidence 的内容，才可能影响默认人物链图。
 
+### RAG 上下文接入 AI prompt
+
+候选审核建议和 AI 人物链解释可以把 `retrieval_context` 放入 prompt 输入。`retrieval_context`
+来自本地 RAG 检索索引，包含 retrieval document id、source kind、source ref id、
+encounter evidence id、score 和 snippet。
+
+RAG 召回上下文不是已审核事实，不会自动创建 encounter，不会修改 candidate、`encounter_evidence`
+或 Neo4j，也不会改变 `/api/v1/chains/shortest` 的结果。模型输出中如果引用 RAG，只能记录
+`retrieval_document_ids`、`retrieval_source_ref_ids`、`retrieval_notes` 或
+`retrieval_limitations`，仍需人工审核后才可能进入事实源。
+
+没有 RAG 结果时，AI 生成仍可继续运行，prompt 输入中的 `retrieval_context_status`
+会记录为 `missing`。
+
 ## FastAPI 查链应用层
 
 本地启动 API：
