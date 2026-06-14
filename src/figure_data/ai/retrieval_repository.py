@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -130,6 +130,39 @@ def upsert_retrieval_embedding(
             "created_at": datetime.now(UTC),
         },
     )
+
+
+def mark_retrieval_documents_stale_for_sources(
+    session: Session,
+    sources: Iterable[RetrievalDocumentChunk | RetrievalSourceText],
+) -> int:
+    updated = 0
+    seen: set[tuple[str, str]] = set()
+    for source in sources:
+        key = (source.source_kind, source.source_pk)
+        if key in seen:
+            continue
+        seen.add(key)
+        result = session.execute(
+            text(
+                """
+                update figure_data.ai_retrieval_documents
+                set status = :status,
+                    updated_at = :updated_at
+                where source_kind = :source_kind
+                  and source_pk = :source_pk
+                  and status = 'active'
+                """
+            ),
+            {
+                "status": "stale",
+                "updated_at": datetime.now(UTC),
+                "source_kind": source.source_kind,
+                "source_pk": source.source_pk,
+            },
+        )
+        updated += int(getattr(result, "rowcount", 0) or 0)
+    return updated
 
 
 def list_retrieval_source_texts(

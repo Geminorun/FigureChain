@@ -17,6 +17,9 @@ def format_search_rag_evidence_result(result: SearchRagEvidenceResult) -> list[s
     ]
     for index, item in enumerate(result.results):
         source_ref_id = "" if item.source_ref_id is None else str(item.source_ref_id)
+        encounter_evidence_id = (
+            "" if item.encounter_evidence_id is None else str(item.encounter_evidence_id)
+        )
         snippet = item.content_text.replace("\t", " ").replace("\n", " ")[:160]
         lines.append(
             "\t".join(
@@ -24,8 +27,11 @@ def format_search_rag_evidence_result(result: SearchRagEvidenceResult) -> list[s
                     "result",
                     str(index),
                     str(item.score),
+                    str(item.document_id),
                     item.source_kind,
+                    item.source_pk,
                     source_ref_id,
+                    encounter_evidence_id,
                     snippet,
                 ]
             )

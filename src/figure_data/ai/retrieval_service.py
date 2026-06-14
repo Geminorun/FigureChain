@@ -18,6 +18,7 @@ from figure_data.ai.retrieval_repository import (
     RetrievalSearchResult,
     create_or_update_retrieval_document,
     list_retrieval_source_texts,
+    mark_retrieval_documents_stale_for_sources,
     search_retrieval_embeddings,
     upsert_retrieval_embedding,
 )
@@ -40,6 +41,13 @@ class RetrievalRepository(Protocol):
     def create_document(self, session: object, chunk: RetrievalDocumentChunk) -> UUID:
         """Create or update one retrieval document."""
 
+    def mark_stale_for_sources(
+        self,
+        session: object,
+        sources: list[RetrievalSourceText],
+    ) -> int:
+        """Mark existing indexed documents stale for the source identities."""
+
     def upsert_embedding(self, session: object, **kwargs: object) -> None:
         """Upsert one retrieval embedding."""
 
@@ -61,6 +69,13 @@ class PostgresRetrievalRepository:
 
     def create_document(self, session: object, chunk: RetrievalDocumentChunk) -> UUID:
         return create_or_update_retrieval_document(session, chunk)  # type: ignore[arg-type]
+
+    def mark_stale_for_sources(
+        self,
+        session: object,
+        sources: list[RetrievalSourceText],
+    ) -> int:
+        return mark_retrieval_documents_stale_for_sources(session, sources)  # type: ignore[arg-type]
 
     def upsert_embedding(self, session: object, **kwargs: object) -> None:
         upsert_retrieval_embedding(session, **kwargs)  # type: ignore[arg-type]
@@ -123,6 +138,7 @@ def build_rag_index(
             limit=options.limit,
         ),
     )
+    resolved_repository.mark_stale_for_sources(session, sources)
     chunks = [chunk for source in sources for chunk in build_chunks(source)]
     if not chunks:
         return BuildRagIndexResult(

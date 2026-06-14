@@ -52,4 +52,39 @@ def test_format_search_rag_evidence_result_outputs_trace_rows() -> None:
 
     assert "rag_query\t许几 韩琦" in lines
     assert "embedding_model\tfake\tfake-hash-embedding" in lines
-    assert "result\t0\t0.88\tsource_ref\t3853784\t许几谒见韩琦。" in lines
+    assert (
+        "result\t0\t0.88\t00000000-0000-0000-0000-000000000501\t"
+        "source_ref\tsource_ref:3853784\t3853784\t\t许几谒见韩琦。"
+    ) in lines
+
+
+def test_format_search_rag_evidence_result_outputs_document_and_evidence_ids() -> None:
+    result = SearchRagEvidenceResult(
+        query="许几 韩琦",
+        provider="fake",
+        model_name="fake-hash-embedding",
+        results=[
+            RetrievalSearchResult(
+                document_id=UUID("00000000-0000-0000-0000-000000000502"),
+                source_kind="encounter_evidence",
+                source_pk="encounter_evidence:12",
+                source_ref_id=3853784,
+                encounter_evidence_id=12,
+                source_work_id=111,
+                title_zh=None,
+                title_en=None,
+                pages="卷一",
+                chunk_index=0,
+                content_text="许几谒见韩琦。",
+                text_hash="def",
+                score=0.77,
+            )
+        ],
+    )
+
+    lines = format_search_rag_evidence_result(result)
+
+    assert (
+        "result\t0\t0.77\t00000000-0000-0000-0000-000000000502\t"
+        "encounter_evidence\tencounter_evidence:12\t3853784\t12\t许几谒见韩琦。"
+    ) in lines

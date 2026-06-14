@@ -8,6 +8,7 @@ from figure_data.ai.retrieval_repository import (
     RetrievalSearchFilters,
     create_or_update_retrieval_document,
     list_retrieval_source_texts,
+    mark_retrieval_documents_stale_for_sources,
     search_retrieval_embeddings,
     upsert_retrieval_embedding,
 )
@@ -24,6 +25,7 @@ class ScalarResult:
 @dataclass
 class MappingResult:
     rows: list[dict[str, Any]]
+    rowcount: int = 0
 
     def mappings(self) -> "MappingResult":
         return self
@@ -44,6 +46,8 @@ class FakeSession:
         self.params.append(params or {})
         if "insert into figure_data.ai_retrieval_documents" in sql:
             return ScalarResult(self.document_id)
+        if "update figure_data.ai_retrieval_documents" in sql:
+            return MappingResult([], rowcount=1)
         if "from figure_data.source_refs" in sql:
             return MappingResult(
                 [
@@ -133,6 +137,22 @@ def test_upsert_retrieval_embedding_uses_vector_literal() -> None:
 
     assert "insert into figure_data.ai_retrieval_embeddings" in session.statements[0]
     assert session.params[0]["embedding"] == "[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]"
+
+
+def test_mark_retrieval_documents_stale_for_sources_uses_source_identity() -> None:
+    session = FakeSession()
+
+    count = mark_retrieval_documents_stale_for_sources(
+        session,  # type: ignore[arg-type]
+        [chunk()],
+    )
+
+    assert count == 1
+    assert "update figure_data.ai_retrieval_documents" in session.statements[0]
+    assert "source_kind = :source_kind" in session.statements[0]
+    assert "source_pk = :source_pk" in session.statements[0]
+    assert session.params[0]["source_kind"] == "source_ref"
+    assert session.params[0]["source_pk"] == "source_ref:3853784"
 
 
 def test_list_retrieval_source_texts_reads_source_refs() -> None:
