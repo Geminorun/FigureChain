@@ -79,3 +79,10 @@ def test_readme_documents_rag_evidence_retrieval() -> None:
     assert "figure-data build-rag-index" in readme
     assert "figure-data search-rag-evidence" in readme
     assert "RAG 召回结果不是事实源" in readme
+
+
+def test_readme_documents_no_path_exploration_command() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "figure-data suggest-no-path-exploration" in readme
+    assert "无路径探索建议不会创建 candidate、不会提升 encounter、不会写 Neo4j" in readme

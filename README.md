@@ -254,6 +254,28 @@ RAG 召回上下文不是已审核事实，不会自动创建 encounter，不会
 没有 RAG 结果时，AI 生成仍可继续运行，prompt 输入中的 `retrieval_context_status`
 会记录为 `missing`。
 
+### 无路径探索建议
+
+当 `figure-data find-chain` 返回 `no_path` 时，可以生成一份只用于人工判断下一步资料扩展方向的
+AI 建议：
+
+```powershell
+uv run --no-sync figure-data suggest-no-path-exploration `
+  --from-person-id 38966b03-8aa7-5143-8021-2d266889b6c5 `
+  --to-person-id 46cfdf66-08c4-5876-964b-4a95d098afe9 `
+  --max-depth 12 `
+  --candidate-limit 10 `
+  --rag-limit 5 `
+  --created-by local
+```
+
+该命令会先复用 Neo4j 最短路径查询确认当前图投影在给定深度内没有路径，再读取 PostgreSQL
+中两端点附近的已审核边数量、候选关系摘要，并可选使用本地 RAG 索引召回片段。输出结果只写入
+`figure_data.ai_runs`，可通过 `figure-data inspect-ai-run --id <run_id>` 复查。
+
+无路径探索建议不会创建 candidate、不会提升 encounter、不会写 Neo4j，也不能证明历史上两人没有关系
+或没有见过面。它只给人工审核提供下一步复核候选、`source_ref` 或检索片段的方向。
+
 ## FastAPI 查链应用层
 
 本地启动 API：
