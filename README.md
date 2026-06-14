@@ -211,6 +211,35 @@ GET /api/v1/ai/runs/{run_id}
 
 前端查链成功后会使用返回的 `chain_hash` 读取已生成解释。解释不存在时，路径和证据详情仍正常显示。
 
+### RAG 证据检索试点
+
+RAG 证据检索试点只为 AI prompt 提供可回溯上下文。RAG 召回结果不是事实源，
+不会自动创建 encounter，不会修改 `encounter_evidence`，也不会写入 Neo4j。
+
+本地 fake embedding 配置：
+
+```text
+FIGURE_EMBEDDING_PROVIDER=fake
+FIGURE_EMBEDDING_MODEL=fake-hash-embedding
+FIGURE_EMBEDDING_DIMENSIONS=8
+FIGURE_EMBEDDING_BATCH_SIZE=16
+```
+
+构建小范围索引：
+
+```powershell
+uv run --no-sync figure-data build-rag-index --source-ref-id 3853784 --limit 20
+```
+
+检索本地证据索引：
+
+```powershell
+uv run --no-sync figure-data search-rag-evidence --query "许几 韩琦" --limit 5
+```
+
+检索输出中的 `source_ref_id`、`encounter_evidence_id` 和 snippet 只用于回溯和辅助阅读。
+只有人工审核后写入 encounter/evidence 的内容，才可能影响默认人物链图。
+
 ## FastAPI 查链应用层
 
 本地启动 API：

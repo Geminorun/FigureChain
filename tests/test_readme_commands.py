@@ -61,3 +61,12 @@ def test_readme_documents_ai_chain_explanation_commands() -> None:
     assert "figure-data inspect-chain-explanation" in readme
     assert "/api/v1/ai/chains/explanations/{chain_hash}" in readme
     assert "AI 人物链解释不会修改 encounter 或 Neo4j" in readme
+
+
+def test_readme_documents_rag_evidence_retrieval() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "FIGURE_EMBEDDING_PROVIDER=fake" in readme
+    assert "figure-data build-rag-index" in readme
+    assert "figure-data search-rag-evidence" in readme
+    assert "RAG 召回结果不是事实源" in readme
