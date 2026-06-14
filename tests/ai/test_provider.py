@@ -126,6 +126,35 @@ def test_fake_ai_provider_generates_chain_explanation_from_prompt_input() -> Non
     assert '"source_ref_ids": [501]' in response.raw_text
 
 
+def test_fake_ai_provider_preserves_chain_retrieval_trace_fields() -> None:
+    provider = FakeAIProvider()
+
+    response = provider.generate(
+        AIProviderRequest(
+            system_prompt="system",
+            user_prompt=(
+                'Input JSON:\n{"encounters":[{"encounter_id":"e1",'
+                '"source_refs":[{"source_ref_id":3853784}]}],'
+                '"retrieval_context":[{'
+                '"document_id":"00000000-0000-0000-0000-000000000601",'
+                '"source_ref_id":3853784'
+                "}]}\n"
+                "Output fields must be summary, edge_explanations, source_notes, "
+                "limitations, display_language, retrieval_document_ids, retrieval_notes."
+            ),
+            model_name="fake-model",
+            max_output_tokens=1200,
+        )
+    )
+
+    payload = json.loads(response.raw_text)
+
+    assert payload["retrieval_document_ids"] == [
+        "00000000-0000-0000-0000-000000000601"
+    ]
+    assert payload["retrieval_notes"] == ["RAG context is auxiliary only."]
+
+
 def test_create_ai_provider_returns_disabled_when_ai_is_disabled() -> None:
     settings = Settings(database_url="postgresql://example.invalid/figure")
 

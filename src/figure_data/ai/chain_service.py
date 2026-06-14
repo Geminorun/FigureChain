@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from figure_data.ai.chain_context import (
     ChainExplanationEncounterInput,
+    ChainExplanationPromptInput,
     InvalidChainContextError,
     build_chain_explanation_prompt_input,
 )
@@ -24,6 +25,17 @@ from figure_data.ai.chain_repository import (
 from figure_data.ai.prompts import get_prompt_definition
 from figure_data.ai.provider import AIProvider, create_ai_provider
 from figure_data.ai.repository import AIRunRepository
+from figure_data.ai.retrieval_context import (
+    AIRetrievalContextItem,
+    build_chain_retrieval_queries,
+    retrieval_context_items_from_search_results,
+    retrieval_document_ids,
+)
+from figure_data.ai.retrieval_service import (
+    SearchRagEvidenceOptions,
+    SearchRagEvidenceResult,
+    search_rag_evidence,
+)
 from figure_data.ai.schemas import ChainExplanationOutput
 from figure_data.ai.service import AIRunResult, record_failed_ai_prompt, run_ai_prompt
 from figure_data.config import Settings
@@ -98,6 +110,8 @@ def generate_chain_explanation_for_result(
     repository: ChainExplanationRepository | None = None,
     run_repository: AIRunRepository | None = None,
     run_prompt: Callable[..., AIRunResult[ChainExplanationOutput]] = run_ai_prompt,
+    retrieval_limit: int = 3,
+    retrieval_search: Callable[..., SearchRagEvidenceResult] = search_rag_evidence,
 ) -> ChainExplanationGenerationResult:
     prompt = get_prompt_definition("chain_explanation")
     model_name = _require_ai_model(settings)
@@ -123,6 +137,19 @@ def generate_chain_explanation_for_result(
         )
         raise
 
+    retrieval_context = _chain_retrieval_context(
+        session=session,
+        settings=settings,
+        prompt_input=prompt_input,
+        retrieval_limit=retrieval_limit,
+        retrieval_search=retrieval_search,
+    )
+    prompt_input = prompt_input.model_copy(
+        update={
+            "retrieval_context": retrieval_context,
+            "retrieval_context_status": "available" if retrieval_context else "missing",
+        }
+    )
     prompt_snapshot = prompt_input.model_dump(mode="json")
     chain_json = json.dumps(prompt_snapshot, ensure_ascii=False, sort_keys=True)
     encounter_ids = [edge.encounter_id for edge in result.path.edges] if result.path else []
@@ -153,6 +180,7 @@ def generate_chain_explanation_for_result(
             output,
             allowed_encounter_ids=allowed_encounter_ids,
             allowed_source_ref_ids=allowed_source_ref_ids,
+            allowed_retrieval_document_ids=retrieval_document_ids(retrieval_context),
         ),
     )
     explanation = save_chain_explanation_output(
@@ -211,6 +239,69 @@ def save_chain_explanation_output(
         ),
     )
     return resolved_repository.get_by_hash(session, chain_hash)
+
+
+def _chain_retrieval_context(
+    *,
+    session: object,
+    settings: Settings,
+    prompt_input: ChainExplanationPromptInput,
+    retrieval_limit: int,
+    retrieval_search: Callable[..., SearchRagEvidenceResult],
+) -> list[AIRetrievalContextItem]:
+    source_ref_ids = _source_ref_ids_for_prompt_input(prompt_input)
+    if not source_ref_ids:
+        return []
+    results: list[AIRetrievalContextItem] = []
+    for source_ref_id, query in build_chain_retrieval_queries(
+        people_names=[person.display_name for person in prompt_input.people],
+        encounter_summaries=[
+            encounter.evidence_summary for encounter in prompt_input.encounters
+        ],
+        source_ref_ids=source_ref_ids,
+    ):
+        retrieval_result = retrieval_search(
+            session=session,
+            settings=settings,
+            options=SearchRagEvidenceOptions(
+                query=query,
+                source_ref_id=source_ref_id,
+                limit=retrieval_limit,
+            ),
+        )
+        results.extend(
+            retrieval_context_items_from_search_results(
+                retrieval_result.results,
+                provider=retrieval_result.provider,
+                model_name=retrieval_result.model_name,
+                embedding_dimensions=settings.embedding_dimensions,
+            )
+        )
+    return _deduplicate_retrieval_context(results)
+
+
+def _source_ref_ids_for_prompt_input(prompt_input: ChainExplanationPromptInput) -> list[int]:
+    source_ref_ids: list[int] = []
+    for encounter in prompt_input.encounters:
+        for source_ref in encounter.source_refs:
+            source_ref_ids.append(source_ref.source_ref_id)
+        for evidence in encounter.evidence:
+            if evidence.source_ref_id is not None:
+                source_ref_ids.append(evidence.source_ref_id)
+    return source_ref_ids
+
+
+def _deduplicate_retrieval_context(
+    items: list[AIRetrievalContextItem],
+) -> list[AIRetrievalContextItem]:
+    deduped: list[AIRetrievalContextItem] = []
+    seen: set[str] = set()
+    for item in items:
+        if item.document_id in seen:
+            continue
+        seen.add(item.document_id)
+        deduped.append(item)
+    return deduped
 
 
 def _load_encounter_details(

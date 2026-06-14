@@ -101,6 +101,14 @@ def _fake_chain_explanation_response(request: AIProviderRequest) -> str:
     encounters = payload.get("encounters", [])
     if not isinstance(encounters, list):
         encounters = []
+    retrieval_context = payload.get("retrieval_context", [])
+    if not isinstance(retrieval_context, list):
+        retrieval_context = []
+    retrieval_document_ids = [
+        item["document_id"]
+        for item in retrieval_context
+        if isinstance(item, dict) and isinstance(item.get("document_id"), str)
+    ]
     edge_explanations = []
     source_ref_ids: list[int] = []
     for encounter in encounters:
@@ -131,6 +139,10 @@ def _fake_chain_explanation_response(request: AIProviderRequest) -> str:
             ],
             "limitations": ["AI 解释不是新的历史证据。"],
             "display_language": "zh-Hans",
+            "retrieval_document_ids": retrieval_document_ids[:5],
+            "retrieval_notes": (
+                ["RAG context is auxiliary only."] if retrieval_document_ids else []
+            ),
         },
         ensure_ascii=False,
     )

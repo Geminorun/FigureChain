@@ -15,6 +15,8 @@ from figure_data.ai.chain_service import (
     generate_chain_explanation_for_result,
     save_chain_explanation_output,
 )
+from figure_data.ai.retrieval_repository import RetrievalSearchResult
+from figure_data.ai.retrieval_service import SearchRagEvidenceResult
 from figure_data.ai.schemas import ChainExplanationOutput
 from figure_data.ai.service import AIRunResult
 from figure_data.ai.types import AIProviderRequest, AIProviderResponse
@@ -239,7 +241,47 @@ def encounter_detail(*, status: str = "active") -> EncounterDetail:
 
 
 def settings() -> Any:
-    return SimpleNamespace(ai_model="fake-history-model", ai_max_output_tokens=1200)
+    return SimpleNamespace(
+        ai_model="fake-history-model",
+        ai_max_output_tokens=1200,
+        embedding_provider="fake",
+        embedding_model="fake-hash-embedding",
+        embedding_dimensions=8,
+    )
+
+
+def fake_chain_retrieval_search(**kwargs: object) -> SearchRagEvidenceResult:
+    return SearchRagEvidenceResult(
+        query="Xu Ji Han Qi",
+        provider="fake",
+        model_name="fake-hash-embedding",
+        results=[
+            RetrievalSearchResult(
+                document_id=UUID("00000000-0000-0000-0000-000000000601"),
+                source_kind="encounter_evidence",
+                source_pk="encounter_evidence:12",
+                source_ref_id=3853784,
+                encounter_evidence_id=12,
+                source_work_id=111,
+                title_zh="Xu zizhi tongjian changbian",
+                title_en=None,
+                pages="juan 1",
+                chunk_index=0,
+                content_text="Xu Ji met Han Qi.",
+                text_hash="abc",
+                score=0.88,
+            )
+        ],
+    )
+
+
+def empty_chain_retrieval_search(**kwargs: object) -> SearchRagEvidenceResult:
+    return SearchRagEvidenceResult(
+        query="Xu Ji Han Qi",
+        provider="fake",
+        model_name="fake-hash-embedding",
+        results=[],
+    )
 
 
 def test_save_chain_explanation_output_writes_ai_table_only() -> None:
@@ -294,6 +336,7 @@ def test_generate_chain_explanation_for_result_calls_prompt_runner() -> None:
         language="zh-Hans",
         repository=repository,
         run_prompt=runner,
+        retrieval_search=empty_chain_retrieval_search,
     )
 
     assert isinstance(result, ChainExplanationGenerationResult)
@@ -303,6 +346,52 @@ def test_generate_chain_explanation_for_result_calls_prompt_runner() -> None:
     assert isinstance(input_variables, dict)
     assert "chain_json" in input_variables
     assert callable(runner.kwargs["output_guard"])
+
+
+def test_generate_chain_explanation_for_result_adds_scoped_retrieval_context() -> None:
+    runner = CapturingPromptRunner()
+
+    result = generate_chain_explanation_for_result(
+        session=object(),
+        result=chain_result(),
+        encounter_details={ENCOUNTER_ID: encounter_detail()},
+        settings=settings(),
+        provider=FakeProvider(),
+        created_by="lyl",
+        repository=FakeChainRepository(),
+        run_prompt=runner,
+        retrieval_search=fake_chain_retrieval_search,
+    )
+
+    assert isinstance(result, ChainExplanationGenerationResult)
+    prompt_snapshot = runner.kwargs["input_snapshot"]
+    assert isinstance(prompt_snapshot, dict)
+    assert prompt_snapshot["retrieval_context_status"] == "available"
+    assert prompt_snapshot["retrieval_context"][0]["document_id"] == (
+        "00000000-0000-0000-0000-000000000601"
+    )
+    assert prompt_snapshot["retrieval_context"][0]["source_ref_id"] == 3853784
+
+
+def test_generate_chain_explanation_for_result_runs_without_retrieval_results() -> None:
+    runner = CapturingPromptRunner()
+
+    generate_chain_explanation_for_result(
+        session=object(),
+        result=chain_result(),
+        encounter_details={ENCOUNTER_ID: encounter_detail()},
+        settings=settings(),
+        provider=FakeProvider(),
+        created_by="lyl",
+        repository=FakeChainRepository(),
+        run_prompt=runner,
+        retrieval_search=empty_chain_retrieval_search,
+    )
+
+    prompt_snapshot = runner.kwargs["input_snapshot"]
+    assert isinstance(prompt_snapshot, dict)
+    assert prompt_snapshot["retrieval_context_status"] == "missing"
+    assert prompt_snapshot["retrieval_context"] == []
 
 
 def test_generate_chain_explanation_for_result_records_invalid_context_failure() -> None:
