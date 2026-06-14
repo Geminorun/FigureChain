@@ -276,6 +276,21 @@ uv run --no-sync figure-data suggest-no-path-exploration `
 无路径探索建议不会创建 candidate、不会提升 encounter、不会写 Neo4j，也不能证明历史上两人没有关系
 或没有见过面。它只给人工审核提供下一步复核候选、`source_ref` 或检索片段的方向。
 
+### 阶段 4 AI 评测与验收报告
+
+阶段 4 收口使用固定样本和验收 evidence 生成 Markdown 报告：
+
+```powershell
+uv run --no-sync figure-data evaluate-ai-samples `
+  --fixture docs/superpowers/evaluation/stage4-ai-samples.json `
+  --evidence docs/superpowers/evaluation/stage4-acceptance-evidence.example.json `
+  --output docs/superpowers/reports/2026-06-14-ai-stage4-acceptance.md `
+  --fixture-only
+```
+
+AI 评测不会调用真实模型，不会写事实源，不会写 Neo4j。它只读取 fixture、可选读取既有
+`ai_runs`，并按 faithfulness、traceability、safety、usefulness、clarity 五个维度生成报告。
+
 ## FastAPI 查链应用层
 
 本地启动 API：

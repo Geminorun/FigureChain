@@ -86,3 +86,12 @@ def test_readme_documents_no_path_exploration_command() -> None:
 
     assert "figure-data suggest-no-path-exploration" in readme
     assert "无路径探索建议不会创建 candidate、不会提升 encounter、不会写 Neo4j" in readme
+
+
+def test_readme_documents_ai_evaluation_stage4_acceptance() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "figure-data evaluate-ai-samples" in readme
+    assert "docs/superpowers/evaluation/stage4-ai-samples.json" in readme
+    assert "docs/superpowers/reports/2026-06-14-ai-stage4-acceptance.md" in readme
+    assert "AI 评测不会调用真实模型，不会写事实源，不会写 Neo4j" in readme
