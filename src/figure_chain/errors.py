@@ -25,6 +25,9 @@ class ErrorCode(StrEnum):
     AI_JOB_NOT_FOUND = "ai_job_not_found"
     AI_JOB_INVALID_TYPE = "ai_job_invalid_type"
     AI_JOB_EXECUTION_FAILED = "ai_job_execution_failed"
+    SHARE_SNAPSHOT_NOT_FOUND = "share_snapshot_not_found"
+    SHARE_SNAPSHOT_INVALID = "share_snapshot_invalid"
+    EXPORT_FORMAT_NOT_SUPPORTED = "export_format_not_supported"
     CANDIDATE_NOT_FOUND = "candidate_not_found"
     CANDIDATE_INVALID_KIND = "candidate_invalid_kind"
     CANDIDATE_NOT_PROMOTABLE = "candidate_not_promotable"
@@ -49,6 +52,9 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.AI_JOB_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.AI_JOB_INVALID_TYPE: status.HTTP_400_BAD_REQUEST,
     ErrorCode.AI_JOB_EXECUTION_FAILED: status.HTTP_500_INTERNAL_SERVER_ERROR,
+    ErrorCode.SHARE_SNAPSHOT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    ErrorCode.SHARE_SNAPSHOT_INVALID: status.HTTP_400_BAD_REQUEST,
+    ErrorCode.EXPORT_FORMAT_NOT_SUPPORTED: status.HTTP_400_BAD_REQUEST,
     ErrorCode.CANDIDATE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.CANDIDATE_INVALID_KIND: status.HTTP_400_BAD_REQUEST,
     ErrorCode.CANDIDATE_NOT_PROMOTABLE: status.HTTP_409_CONFLICT,

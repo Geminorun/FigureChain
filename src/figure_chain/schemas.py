@@ -246,6 +246,50 @@ class MultiPathChainResponse(BaseModel):
     filters_applied: MultiPathFiltersRequest
 
 
+class ChainShareCreateRequest(BaseModel):
+    source_person_id: UUID
+    target_person_id: UUID
+    chain_hash: str = Field(min_length=1)
+    path_payload: dict[str, object]
+    filters_applied: dict[str, object] = Field(default_factory=dict)
+    include_ai_explanation: bool = False
+    include_rag_context: bool = False
+    created_by: str | None = None
+
+
+class ChainShareCreateResponse(BaseModel):
+    share_slug: str
+    url_path: str
+
+
+class ChainShareDetailResponse(BaseModel):
+    id: UUID
+    share_slug: str
+    url_path: str
+    source_person_id: UUID
+    target_person_id: UUID
+    chain_hash: str
+    encounter_ids: list[str]
+    path_payload: dict[str, object]
+    filters_applied: dict[str, object]
+    include_ai_explanation: bool
+    include_rag_context: bool
+    schema_version: str
+    created_by: str | None
+    created_at: datetime
+
+
+class MarkdownExportRequest(BaseModel):
+    share_slug: str = Field(min_length=1)
+    format: str = "markdown"
+
+
+class MarkdownExportResponse(BaseModel):
+    content: str
+    filename: str
+    source_ids: dict[str, list[str]]
+
+
 class AIChainExplanationResponse(BaseModel):
     id: UUID
     ai_run_id: UUID
