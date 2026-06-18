@@ -3,11 +3,15 @@
 import { ArrowLeftRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { ChainResult } from "@/components/chain-result";
 import { DependencyStatusBanner } from "@/components/dependency-status-banner";
 import { EvidencePanel } from "@/components/evidence-panel";
+import {
+  MultiPathFiltersPanel,
+  type MultiPathFilterState,
+} from "@/components/multipath-filters";
+import { MultiPathResult } from "@/components/multipath-result";
 import { PersonSelector } from "@/components/person-selector";
-import { useShortestChain } from "@/hooks/use-shortest-chain";
+import { useMultiPathChain } from "@/hooks/use-multipath-chain";
 import { parseErrorResponse, type DisplayableError } from "@/lib/api-errors";
 import type {
   PersonSearchItem,
@@ -33,9 +37,16 @@ export function ChainWorkspace() {
   const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(
     null,
   );
+  const [multiPathFilters, setMultiPathFilters] =
+    useState<MultiPathFilterState>({
+      maxPaths: 5,
+      extraDepth: 0,
+      minCertaintyLevel: "high",
+      encounterKinds: [],
+    });
   const [ready, setReady] = useState<ReadyResponse | null>(null);
   const [healthError, setHealthError] = useState<DisplayableError | null>(null);
-  const chain = useShortestChain();
+  const multipath = useMultiPathChain();
 
   useEffect(() => {
     fetch("/api/figure-chain/health/ready")
@@ -55,17 +66,29 @@ export function ChainWorkspace() {
   }, []);
 
   const validationMessage = getChainValidationMessage(source, target, maxDepth);
-  const canSubmit = canSubmitChain(source, target, maxDepth, chain.isLoading);
+  const canSubmit = canSubmitChain(source, target, maxDepth, multipath.isLoading);
 
   async function handleSubmit() {
     if (!source || !target || !canSubmit) {
       return;
     }
     setSelectedEncounterId(null);
-    await chain.findShortestChain({
+    await multipath.findMultiPath({
       source: { person_id: source.person_id },
       target: { person_id: target.person_id },
       max_depth: maxDepth,
+      max_paths: multiPathFilters.maxPaths,
+      extra_depth: multiPathFilters.extraDepth,
+      filters: {
+        min_certainty_level: multiPathFilters.minCertaintyLevel,
+        encounter_kinds: multiPathFilters.encounterKinds,
+        exclude_person_ids: [],
+        exclude_encounter_ids: [],
+        source_work_ids: [],
+        intermediate_dynasty_codes: [],
+        intermediate_year_min: null,
+        intermediate_year_max: null,
+      },
     });
   }
 
@@ -129,8 +152,14 @@ export function ChainWorkspace() {
               type="button"
               onClick={handleSubmit}
             >
-              {chain.isLoading ? "查询中..." : "查询人物链"}
+              {multipath.isLoading ? "查询中..." : "查询人物链"}
             </button>
+          </div>
+          <div className="mt-4">
+            <MultiPathFiltersPanel
+              value={multiPathFilters}
+              onChange={setMultiPathFilters}
+            />
           </div>
 
           {validationMessage ? (
@@ -141,10 +170,10 @@ export function ChainWorkspace() {
 
       <section className="space-y-5">
         <div className="rounded border border-stone-200 bg-white p-4 shadow-sm">
-          <ChainResult
-            error={chain.error}
-            isLoading={chain.isLoading}
-            result={chain.result}
+          <MultiPathResult
+            error={multipath.error}
+            isLoading={multipath.isLoading}
+            result={multipath.result}
             onSelectEncounter={setSelectedEncounterId}
           />
         </div>

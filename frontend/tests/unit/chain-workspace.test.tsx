@@ -35,6 +35,9 @@ describe("ChainWorkspace", () => {
       expect(screen.getByText("部分依赖不可用")).toBeInTheDocument();
     });
     expect(screen.getByText("neo4j: bolt down")).toBeInTheDocument();
+    expect(screen.getByLabelText("max_paths")).toBeInTheDocument();
+    expect(screen.getByLabelText("extra_depth")).toBeInTheDocument();
+    expect(screen.getByLabelText("min_certainty_level")).toBeInTheDocument();
     expect(
       screen.queryByText("FigureChain API readiness 暂不可用。"),
     ).not.toBeInTheDocument();
