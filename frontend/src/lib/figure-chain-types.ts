@@ -101,6 +101,40 @@ export type AIRun = {
   created_by: string;
 };
 
+export type AiJobCreateRequest = {
+  job_type: string;
+  target_type: string;
+  target_kind: string;
+  target_id: number;
+  created_by: string;
+  params: Record<string, unknown>;
+};
+
+export type AiJobResponse = {
+  id: string;
+  job_type: string;
+  target_type: string;
+  target_kind: string;
+  target_id: number;
+  status: string;
+  created_by: string;
+  params: Record<string, unknown>;
+  result_ref_type: string | null;
+  result_ref_id: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AiJobListResponse = {
+  items: AiJobResponse[];
+  count: number;
+  limit: number;
+};
+
 export type ShortestChainResponse = {
   status: "found" | "no_path";
   source_person_id: string;
@@ -159,6 +193,140 @@ export type EncounterDetail = {
   person_b: EncounterPerson;
   evidence: EncounterEvidence[];
   source_refs: SourceRef[];
+};
+
+export type ReviewCandidatePerson = {
+  person_id: string | null;
+  cbdb_id: number | null;
+  display_name: string;
+  primary_name_zh_hant: string | null;
+  primary_name_zh_hans: string | null;
+  primary_name_romanized: string | null;
+  birth_year: number | null;
+  death_year: number | null;
+};
+
+export type ReviewPromotionReadiness = {
+  default_promotable: boolean;
+  default_path_eligible: boolean;
+  reasons: string[];
+};
+
+export type ReviewCandidateSummary = {
+  kind: string;
+  candidate_id: number;
+  person_a: ReviewCandidatePerson;
+  person_b: ReviewCandidatePerson;
+  relation_type: string | null;
+  time_summary: string | null;
+  place_summary: string | null;
+  status: string;
+  confidence: number;
+  evidence_count: number;
+  source_count: number;
+  promotion_readiness: ReviewPromotionReadiness;
+  latest_ai_job_status: string | null;
+  has_ai_suggestion: boolean;
+};
+
+export type ReviewCandidateListResponse = {
+  items: ReviewCandidateSummary[];
+  limit: number;
+  offset: number;
+  count: number;
+};
+
+export type ReviewCandidateRelation = {
+  relation_type: string | null;
+  basis: string | null;
+  strength: string | null;
+  notes: string | null;
+  source_name: string | null;
+  source_table: string | null;
+  source_pk: string | null;
+};
+
+export type ReviewCandidateTime = {
+  summary: string | null;
+  pages: string | null;
+};
+
+export type ReviewCandidatePlace = {
+  summary: string | null;
+};
+
+export type ReviewSourceRef = {
+  source_ref_id: number;
+  source_work_id: number | null;
+  title_zh: string | null;
+  title_en: string | null;
+  pages: string | null;
+  notes: string | null;
+};
+
+export type ReviewCandidateEvidence = {
+  evidence_id: number | null;
+  source_ref_id: number | null;
+  evidence_kind: string;
+  evidence_summary: string;
+  pages: string | null;
+};
+
+export type ReviewLinkedEncounter = {
+  encounter_id: string;
+  status: string | null;
+};
+
+export type ReviewAiSuggestionSummary = {
+  suggestion_id: string | null;
+  ai_run_id: string | null;
+  status: string;
+  recommendation: string | null;
+  summary: string | null;
+  created_at: string | null;
+};
+
+export type ReviewAiJobSummary = {
+  run_id: string;
+  status: string;
+  purpose: string;
+  created_at: string | null;
+  finished_at: string | null;
+};
+
+export type ReviewCandidateDetail = {
+  kind: string;
+  candidate_id: number;
+  person_a: ReviewCandidatePerson;
+  person_b: ReviewCandidatePerson;
+  relation: ReviewCandidateRelation;
+  time: ReviewCandidateTime | null;
+  place: ReviewCandidatePlace | null;
+  status: string;
+  confidence: number;
+  source_refs: ReviewSourceRef[];
+  evidence: ReviewCandidateEvidence[];
+  promotion_readiness: ReviewPromotionReadiness;
+  linked_encounter: ReviewLinkedEncounter | null;
+  latest_ai_suggestion: ReviewAiSuggestionSummary | null;
+  ai_jobs: ReviewAiJobSummary[];
+};
+
+export type ReviewActionRequest = {
+  reviewed_by: string;
+  evidence_summary?: string;
+  note?: string | null;
+  allow_non_default?: boolean;
+  reason?: string;
+};
+
+export type ReviewActionResponse = {
+  kind: string;
+  candidate_id: number;
+  status: string;
+  reviewed_by: string;
+  encounter: ReviewLinkedEncounter | null;
+  message: string | null;
 };
 
 export type DependencyStatus = {
