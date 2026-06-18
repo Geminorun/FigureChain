@@ -18,8 +18,8 @@ def test_multipath_real_smoke_returns_stable_shape() -> None:
         response = client.post(
             "/api/v1/chains/multipath",
             json={
-                "source": {"query": "许几"},
-                "target": {"query": "韩琦"},
+                "source": {"cbdb_id": "780"},
+                "target": {"cbdb_id": "630"},
                 "max_depth": 4,
                 "max_paths": 5,
                 "extra_depth": 1,
