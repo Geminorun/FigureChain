@@ -42,6 +42,7 @@ from figure_data.ai.evaluation_scoring import (
 )
 from figure_data.ai.evaluation_types import EvaluationReport
 from figure_data.ai.formatting import format_ai_run_detail
+from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
 from figure_data.ai.no_path_service import generate_no_path_exploration
@@ -571,6 +572,36 @@ def suggest_candidate_review_command(
         session.close()
     for line in format_candidate_suggestion_detail(result.suggestion):
         _echo_cli_line(line)
+
+
+@app.command("run-ai-jobs")
+def run_ai_jobs_command(
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 10,
+    job_type: Annotated[str | None, typer.Option("--job-type")] = None,
+) -> None:
+    """Run queued AI generation jobs."""
+    if job_type not in (None, "candidate_review_suggestion"):
+        typer.echo(f"unsupported AI job type: {job_type}", err=True)
+        raise typer.Exit(code=1)
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with session_scope(factory) as session:
+        summary = run_ai_jobs(
+            session=session,
+            settings=settings,
+            limit=limit,
+            job_type=job_type,
+        )
+    _echo_cli_line(
+        "ai_jobs\t"
+        f"claimed={summary.claimed_count}\t"
+        f"succeeded={summary.succeeded_count}\t"
+        f"failed={summary.failed_count}"
+    )
+    for failure in summary.failures:
+        _echo_cli_line(
+            f"failed_job\t{failure.job_id}\t{failure.error_code}\t{failure.error_message}"
+        )
 
 
 @app.command("generate-chain-explanation")
