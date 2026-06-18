@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.services.ai import AIService
+from figure_chain.services.ai_jobs import AIJobsService
 from figure_chain.services.chains import ChainService
 from figure_chain.services.encounters import EncounterService
 from figure_chain.services.health import HealthService
@@ -80,6 +81,12 @@ def get_ai_service(
     pg_session: Annotated[Session, Depends(get_pg_session)],
 ) -> AIService:
     return AIService(pg_session)
+
+
+def get_ai_jobs_service(
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> AIJobsService:
+    return AIJobsService(pg_session)
 
 
 def get_review_service(
