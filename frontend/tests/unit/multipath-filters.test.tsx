@@ -81,4 +81,28 @@ describe("MultiPathFiltersPanel", () => {
       }),
     );
   });
+
+  it("keeps typed separators while editing excluded ids", async () => {
+    function StatefulPanel() {
+      const [value, setValue] = useState<MultiPathFilterState>({
+        maxPaths: 5,
+        extraDepth: 0,
+        minCertaintyLevel: "high",
+        encounterKinds: [],
+        excludePersonIds: [],
+        excludeEncounterIds: [],
+      });
+      return <MultiPathFiltersPanel value={value} onChange={setValue} />;
+    }
+
+    renderUi(<StatefulPanel />);
+
+    const firstId = "38966b03-8aa7-5143-8021-2d266889b6c5";
+    const secondId = "46cfdf66-08c4-5876-964b-4a95d098afe9";
+    const textarea = screen.getByLabelText("exclude_person_ids");
+
+    await userEvent.type(textarea, `${firstId}{enter}${secondId}`);
+
+    expect(textarea).toHaveValue(`${firstId}\n${secondId}`);
+  });
 });

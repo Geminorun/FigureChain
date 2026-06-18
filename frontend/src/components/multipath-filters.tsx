@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export type MultiPathFilterState = {
   maxPaths: number;
   extraDepth: number;
@@ -36,6 +38,13 @@ export function MultiPathFiltersPanel({
   value,
   onChange,
 }: MultiPathFiltersPanelProps) {
+  const [personIdsText, setPersonIdsText] = useState(() =>
+    value.excludePersonIds.join("\n"),
+  );
+  const [encounterIdsText, setEncounterIdsText] = useState(() =>
+    value.excludeEncounterIds.join("\n"),
+  );
+
   function update(next: Partial<MultiPathFilterState>) {
     onChange({ ...value, ...next });
   }
@@ -119,10 +128,12 @@ export function MultiPathFiltersPanel({
         <textarea
           aria-label="exclude_person_ids"
           className="mt-1 min-h-20 w-full resize-y rounded border border-stone-300 px-3 py-2 font-mono text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
-          value={value.excludePersonIds.join("\n")}
-          onChange={(event) =>
-            update({ excludePersonIds: parseIdList(event.target.value) })
-          }
+          value={personIdsText}
+          onChange={(event) => {
+            const nextText = event.target.value;
+            setPersonIdsText(nextText);
+            update({ excludePersonIds: parseIdList(nextText) });
+          }}
         />
       </label>
       <label className="block text-sm font-medium text-stone-800 sm:col-span-3">
@@ -130,10 +141,12 @@ export function MultiPathFiltersPanel({
         <textarea
           aria-label="exclude_encounter_ids"
           className="mt-1 min-h-20 w-full resize-y rounded border border-stone-300 px-3 py-2 font-mono text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
-          value={value.excludeEncounterIds.join("\n")}
-          onChange={(event) =>
-            update({ excludeEncounterIds: parseIdList(event.target.value) })
-          }
+          value={encounterIdsText}
+          onChange={(event) => {
+            const nextText = event.target.value;
+            setEncounterIdsText(nextText);
+            update({ excludeEncounterIds: parseIdList(nextText) });
+          }}
         />
       </label>
     </fieldset>
