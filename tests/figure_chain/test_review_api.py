@@ -5,8 +5,9 @@ from uuid import UUID
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from figure_chain.app import create_app
 from figure_chain.dependencies import get_review_service
-from figure_chain.errors import register_error_handlers
+from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.schemas import (
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
@@ -51,6 +52,18 @@ class FakeReviewService:
         )
 
     def get_candidate(self, kind: str, candidate_id: int) -> ReviewCandidateDetailResponse:
+        if kind == "invalid":
+            raise ApplicationError(
+                code=ErrorCode.CANDIDATE_INVALID_KIND,
+                message="candidate kind is not supported",
+                details={"kind": kind},
+            )
+        if candidate_id != 10:
+            raise ApplicationError(
+                code=ErrorCode.CANDIDATE_NOT_FOUND,
+                message="candidate was not found",
+                details={"kind": kind, "candidate_id": candidate_id},
+            )
         return ReviewCandidateDetailResponse(
             kind=kind,
             candidate_id=candidate_id,
@@ -122,12 +135,43 @@ def test_review_candidate_router_returns_detail_response() -> None:
     assert body["ai_jobs"] == []
 
 
-def _router_app(service: FakeReviewService) -> FastAPI:
-    from figure_chain.routers import review
+def test_review_candidate_router_returns_not_found_error() -> None:
+    app = _router_app(FakeReviewService())
 
-    app = FastAPI()
-    register_error_handlers(app)
-    app.include_router(review.router)
+    with TestClient(app) as client:
+        response = client.get("/api/v1/review/candidates/relationship/999")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "candidate_not_found",
+            "message": "candidate was not found",
+            "details": {"kind": "relationship", "candidate_id": 999},
+        }
+    }
+
+
+def test_review_candidate_router_returns_invalid_kind_error() -> None:
+    app = _router_app(FakeReviewService())
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/review/candidates/invalid/10")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "candidate_invalid_kind"
+
+
+def test_review_candidates_router_rejects_limit_over_max() -> None:
+    app = _router_app(FakeReviewService())
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/review/candidates", params={"limit": "201"})
+
+    assert response.status_code == 422
+
+
+def _router_app(service: FakeReviewService) -> FastAPI:
+    app = create_app(lifespan_enabled=False)
     app.dependency_overrides[get_review_service] = lambda: service
     return app
 
