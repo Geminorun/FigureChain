@@ -286,6 +286,50 @@ export type MultiPathChainResponse = {
   filters_applied: MultiPathFilters;
 };
 
+export type ChainShareCreateRequest = {
+  source_person_id: string;
+  target_person_id: string;
+  chain_hash: string;
+  path_payload: Record<string, unknown>;
+  filters_applied: Record<string, unknown>;
+  include_ai_explanation: boolean;
+  include_rag_context: boolean;
+  created_by: string | null;
+};
+
+export type ChainShareCreateResponse = {
+  share_slug: string;
+  url_path: string;
+};
+
+export type ChainShareDetail = {
+  id: string;
+  share_slug: string;
+  url_path: string;
+  source_person_id: string;
+  target_person_id: string;
+  chain_hash: string;
+  encounter_ids: string[];
+  path_payload: Record<string, unknown>;
+  filters_applied: Record<string, unknown>;
+  include_ai_explanation: boolean;
+  include_rag_context: boolean;
+  schema_version: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type MarkdownExportRequest = {
+  share_slug: string;
+  format: string;
+};
+
+export type MarkdownExportResponse = {
+  content: string;
+  filename: string;
+  source_ids: Record<string, string[]>;
+};
+
 export type EncounterPerson = {
   person_id: string;
   cbdb_id: number | null;
