@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
 
 class GraphOperationError(ValueError):
@@ -119,7 +120,7 @@ class ChainPath:
 
 @dataclass(frozen=True)
 class MultiPathFilters:
-    min_certainty_level: str | None = "high"
+    min_certainty_level: Literal["high", "medium", "low"] | None = "high"
     encounter_kinds: tuple[str, ...] = ()
     exclude_person_ids: tuple[str, ...] = ()
     exclude_encounter_ids: tuple[str, ...] = ()
@@ -162,7 +163,7 @@ class MultiPathLookupResult:
     paths: tuple[RankedChainPath, ...]
 
     @property
-    def status(self) -> str:
+    def status(self) -> Literal["found", "no_path"]:
         return "found" if self.paths else "no_path"
 
     @property
