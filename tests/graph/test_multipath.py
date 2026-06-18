@@ -1,10 +1,17 @@
+from collections.abc import Iterator, Mapping
+from typing import Any
+
+from pytest import MonkeyPatch
+
 from figure_data.graph.multipath import (
     build_multipath_cypher,
     certainty_levels_for_minimum,
+    find_multipath,
     quality_score_for_path,
     rank_paths,
     validate_multipath_limits,
 )
+from figure_data.graph.pathfinding import ChainEndpointInput
 from figure_data.graph.types import (
     ChainEdge,
     ChainPath,
@@ -92,3 +99,51 @@ def test_rank_paths_orders_by_length_score_and_hash() -> None:
     assert [item.length for item in ranked] == [1, 2]
     assert [item.rank for item in ranked] == [1, 2]
     assert ranked[0].path_id == "path-1"
+
+
+class FakeResult:
+    def __init__(self, rows: list[Mapping[str, object]]) -> None:
+        self.rows = rows
+
+    def __iter__(self) -> Iterator[Mapping[str, object]]:
+        return iter(self.rows)
+
+    def single(self) -> Mapping[str, object] | None:
+        return self.rows[0] if self.rows else None
+
+
+class FakeGraphSession:
+    def __init__(self, rows: list[Mapping[str, object]]) -> None:
+        self.rows = rows
+        self.calls: list[tuple[str, dict[str, object] | None]] = []
+
+    def run(self, query: str, parameters: dict[str, object] | None = None) -> FakeResult:
+        self.calls.append((query, parameters))
+        if "return p.person_id as person_id" in query:
+            return FakeResult(
+                [
+                    {"person_id": "source"},
+                    {"person_id": "target"},
+                ]
+            )
+        return FakeResult(self.rows)
+
+
+def test_find_multipath_returns_no_path(monkeypatch: MonkeyPatch) -> None:
+    def resolve(pg_session: object, endpoint: ChainEndpointInput) -> Any:
+        return type("Resolved", (), {"label": endpoint.label, "person_id": endpoint.label})()
+
+    monkeypatch.setattr("figure_data.graph.multipath.resolve_endpoint", resolve)
+    result = find_multipath(
+        pg_session=object(),
+        neo4j_session=FakeGraphSession([]),
+        source=ChainEndpointInput("source", None, None, "source"),
+        target=ChainEndpointInput("target", None, None, "target"),
+        max_depth=12,
+        max_paths=5,
+        extra_depth=0,
+        filters=MultiPathFilters(),
+    )
+
+    assert result.status == "no_path"
+    assert result.paths == ()
