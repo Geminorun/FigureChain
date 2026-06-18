@@ -40,6 +40,26 @@ export type ShortestChainRequest = {
   max_depth: number;
 };
 
+export type MultiPathFilters = {
+  min_certainty_level: "high" | "medium" | "low" | null;
+  encounter_kinds: string[];
+  exclude_person_ids: string[];
+  exclude_encounter_ids: string[];
+  source_work_ids: number[];
+  intermediate_dynasty_codes: number[];
+  intermediate_year_min: number | null;
+  intermediate_year_max: number | null;
+};
+
+export type MultiPathChainRequest = {
+  source: ChainEndpointRequest;
+  target: ChainEndpointRequest;
+  max_depth: number;
+  max_paths: number;
+  extra_depth: number;
+  filters: MultiPathFilters;
+};
+
 export type ChainPerson = {
   person_id: string;
   display_name: string;
@@ -58,6 +78,16 @@ export type ChainEdge = {
 
 export type ChainPath = {
   length: number;
+  people: ChainPerson[];
+  edges: ChainEdge[];
+};
+
+export type MultiPathItem = {
+  path_id: string;
+  rank: number;
+  chain_hash: string;
+  length: number;
+  quality_score: number;
   people: ChainPerson[];
   edges: ChainEdge[];
 };
@@ -142,6 +172,19 @@ export type ShortestChainResponse = {
   max_depth: number;
   chain_hash: string | null;
   path: ChainPath | null;
+};
+
+export type MultiPathChainResponse = {
+  status: "found" | "no_path";
+  source_person_id: string;
+  target_person_id: string;
+  max_depth: number;
+  max_paths: number;
+  extra_depth: number;
+  shortest_length: number | null;
+  returned_paths: number;
+  paths: MultiPathItem[];
+  filters_applied: MultiPathFilters;
 };
 
 export type EncounterPerson = {
