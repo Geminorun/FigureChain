@@ -104,6 +104,10 @@ def quality_score_for_path(path: ChainPath) -> float:
     return max(score, 0.0)
 
 
+def high_certainty_edge_count(path: ChainPath) -> int:
+    return sum(1 for edge in path.edges if edge.certainty_level == "high")
+
+
 def _chain_hash_for_path(
     *,
     source_person_id: str,
@@ -145,7 +149,15 @@ def rank_paths(
         )
         for path in paths
     ]
-    ordered = sorted(candidates, key=lambda item: (item[0].length, -item[1], item[2]))
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            item[0].length,
+            -item[1],
+            -high_certainty_edge_count(item[0]),
+            item[2],
+        ),
+    )
     return tuple(
         RankedChainPath(
             rank=index,
