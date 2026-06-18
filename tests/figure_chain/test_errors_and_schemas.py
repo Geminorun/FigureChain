@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from figure_chain.errors import ApplicationError, ErrorCode, register_error_handlers
+from figure_chain.errors import ApplicationError, ERROR_STATUS, ErrorCode, register_error_handlers
 from figure_chain.schemas import ChainEndpointRequest, ShortestChainRequest, display_name
 
 
@@ -105,3 +105,10 @@ def test_review_candidate_error_codes_have_stable_http_statuses() -> None:
             "details": {"kind": "invalid"},
         }
     }
+
+
+def test_multipath_error_codes_have_status_mapping() -> None:
+    assert ErrorCode.PATH_FILTER_INVALID.value == "path_filter_invalid"
+    assert ErrorCode.PATH_QUERY_TOO_BROAD.value == "path_query_too_broad"
+    assert ERROR_STATUS[ErrorCode.PATH_FILTER_INVALID] == 400
+    assert ERROR_STATUS[ErrorCode.PATH_QUERY_TOO_BROAD] == 400

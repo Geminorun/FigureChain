@@ -15,6 +15,8 @@ class ErrorCode(StrEnum):
     PERSON_AMBIGUOUS = "person_ambiguous"
     SAME_PERSON_ENDPOINT = "same_person_endpoint"
     GRAPH_NOT_SYNCED = "graph_not_synced"
+    PATH_FILTER_INVALID = "path_filter_invalid"
+    PATH_QUERY_TOO_BROAD = "path_query_too_broad"
     DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
     CONFIGURATION_ERROR = "configuration_error"
     AI_RESULT_NOT_FOUND = "ai_result_not_found"
@@ -35,6 +37,8 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.PERSON_AMBIGUOUS: status.HTTP_409_CONFLICT,
     ErrorCode.SAME_PERSON_ENDPOINT: status.HTTP_400_BAD_REQUEST,
     ErrorCode.GRAPH_NOT_SYNCED: status.HTTP_409_CONFLICT,
+    ErrorCode.PATH_FILTER_INVALID: status.HTTP_400_BAD_REQUEST,
+    ErrorCode.PATH_QUERY_TOO_BROAD: status.HTTP_400_BAD_REQUEST,
     ErrorCode.DEPENDENCY_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
     ErrorCode.CONFIGURATION_ERROR: status.HTTP_503_SERVICE_UNAVAILABLE,
     ErrorCode.AI_RESULT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
