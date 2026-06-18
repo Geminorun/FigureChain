@@ -5,7 +5,6 @@ from fastapi.testclient import TestClient
 
 from figure_chain.app import create_app
 
-
 pytestmark = pytest.mark.skipif(
     os.environ.get("FIGURECHAIN_RUN_REAL_SMOKE") != "1",
     reason="real PostgreSQL/Neo4j smoke is opt-in",
