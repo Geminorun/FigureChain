@@ -94,7 +94,10 @@ def get_source_ref_detail(session: Session, source_ref_id: int) -> SourceRefDeta
 
     source_work = None
     if row["source_work_id"] is not None:
-        source_work = get_source_work_detail(session, row["source_work_id"])
+        try:
+            source_work = get_source_work_detail(session, row["source_work_id"])
+        except SourceWorkNotFoundError:
+            source_work = None
 
     evidence_rows = (
         session.execute(text(SOURCE_REF_EVIDENCE_SQL), {"source_ref_id": source_ref_id})

@@ -132,6 +132,44 @@ def test_get_source_ref_detail_returns_work_and_linked_evidence() -> None:
     assert "figure_data.encounter_evidence" in session.statements[2]
 
 
+def test_get_source_ref_detail_keeps_ref_when_source_work_is_missing() -> None:
+    encounter_id = UUID("00000000-0000-0000-0000-000000000101")
+    session = FakeSession(
+        [
+            [
+                {
+                    "source_ref_id": 3853784,
+                    "source_work_id": 7596,
+                    "ref_source_table": "BIOG_MAIN",
+                    "ref_source_pk": "780",
+                    "pages": "11905",
+                    "notes": "原始引用",
+                    "source_name": "CBDB",
+                    "source_table": "BIOG_SOURCE_DATA",
+                    "source_pk": "3853784",
+                }
+            ],
+            [],
+            [
+                {
+                    "evidence_id": 55,
+                    "encounter_id": encounter_id,
+                    "evidence_kind": "reviewed",
+                    "evidence_summary": "有直接交往證據",
+                    "pages": "11905",
+                    "created_at": "2026-06-19T00:00:00Z",
+                }
+            ],
+        ]
+    )
+
+    detail = get_source_ref_detail(session, 3853784)  # type: ignore[arg-type]
+
+    assert detail.source_ref_id == 3853784
+    assert detail.source_work is None
+    assert detail.linked_encounter_evidence[0].encounter_id == encounter_id
+
+
 def test_get_source_ref_detail_raises_when_missing() -> None:
     session = FakeSession([[]])
 
