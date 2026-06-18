@@ -43,6 +43,8 @@ export function ChainWorkspace() {
       extraDepth: 0,
       minCertaintyLevel: "high",
       encounterKinds: [],
+      excludePersonIds: [],
+      excludeEncounterIds: [],
     });
   const [ready, setReady] = useState<ReadyResponse | null>(null);
   const [healthError, setHealthError] = useState<DisplayableError | null>(null);
@@ -82,8 +84,8 @@ export function ChainWorkspace() {
       filters: {
         min_certainty_level: multiPathFilters.minCertaintyLevel,
         encounter_kinds: multiPathFilters.encounterKinds,
-        exclude_person_ids: [],
-        exclude_encounter_ids: [],
+        exclude_person_ids: multiPathFilters.excludePersonIds,
+        exclude_encounter_ids: multiPathFilters.excludeEncounterIds,
         source_work_ids: [],
         intermediate_dynasty_codes: [],
         intermediate_year_min: null,
@@ -139,7 +141,7 @@ export function ChainWorkspace() {
               max_depth
               <input
                 className="mt-1 min-h-11 w-full rounded border border-stone-300 px-3 py-2 text-base focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                max={30}
+                max={20}
                 min={1}
                 type="number"
                 value={maxDepth}

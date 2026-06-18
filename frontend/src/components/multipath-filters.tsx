@@ -5,6 +5,8 @@ export type MultiPathFilterState = {
   extraDepth: number;
   minCertaintyLevel: "high" | "medium" | "low";
   encounterKinds: string[];
+  excludePersonIds: string[];
+  excludeEncounterIds: string[];
 };
 
 type MultiPathFiltersPanelProps = {
@@ -18,6 +20,17 @@ const ENCOUNTER_KIND_OPTIONS = [
   "manual_contact",
   "co_presence",
 ];
+
+function parseIdList(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/[\s,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
 
 export function MultiPathFiltersPanel({
   value,
@@ -101,6 +114,28 @@ export function MultiPathFiltersPanel({
           ))}
         </div>
       </div>
+      <label className="block text-sm font-medium text-stone-800 sm:col-span-3">
+        exclude_person_ids
+        <textarea
+          aria-label="exclude_person_ids"
+          className="mt-1 min-h-20 w-full resize-y rounded border border-stone-300 px-3 py-2 font-mono text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
+          value={value.excludePersonIds.join("\n")}
+          onChange={(event) =>
+            update({ excludePersonIds: parseIdList(event.target.value) })
+          }
+        />
+      </label>
+      <label className="block text-sm font-medium text-stone-800 sm:col-span-3">
+        exclude_encounter_ids
+        <textarea
+          aria-label="exclude_encounter_ids"
+          className="mt-1 min-h-20 w-full resize-y rounded border border-stone-300 px-3 py-2 font-mono text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
+          value={value.excludeEncounterIds.join("\n")}
+          onChange={(event) =>
+            update({ excludeEncounterIds: parseIdList(event.target.value) })
+          }
+        />
+      </label>
     </fieldset>
   );
 }
