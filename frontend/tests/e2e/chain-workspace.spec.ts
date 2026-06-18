@@ -13,7 +13,8 @@ test("queries the real one-hop FigureChain sample", async ({ page }) => {
 
   await page.getByRole("button", { name: "查询人物链" }).click();
 
-  await expect(page.getByText("路径长度：1")).toBeVisible();
+  await expect(page.getByText("找到 1 条路径")).toBeVisible();
+  await expect(page.getByText(/path-1/)).toBeVisible();
   await expect(
     page.getByText("e4f22ec2-22f7-4cda-bcc1-73aa83d0685f"),
   ).toBeVisible();
