@@ -13,6 +13,7 @@ from figure_chain.services.chains import ChainService
 from figure_chain.services.encounters import EncounterService
 from figure_chain.services.health import HealthService
 from figure_chain.services.people import PeopleService
+from figure_chain.services.review import ReviewService
 from figure_data.graph.neo4j_client import graph_session
 
 
@@ -79,3 +80,9 @@ def get_ai_service(
     pg_session: Annotated[Session, Depends(get_pg_session)],
 ) -> AIService:
     return AIService(pg_session)
+
+
+def get_review_service(
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> ReviewService:
+    return ReviewService(pg_session)
