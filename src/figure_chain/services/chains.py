@@ -11,6 +11,7 @@ from figure_chain.schemas import (
     ChainEndpointRequest,
     ChainPathResponse,
     ChainPersonResponse,
+    MultiPathChainRequest,
     ShortestChainRequest,
     ShortestChainResponse,
 )
@@ -21,6 +22,7 @@ from figure_data.graph.types import (
     ChainLookupResult,
     GraphPathError,
     GraphPersonAmbiguousError,
+    MultiPathFilters,
     ResolvedEndpoint,
 )
 
@@ -29,6 +31,20 @@ FindChainFn = Callable[
     ChainLookupResult,
 ]
 ResolveEndpointFn = Callable[[Session, ChainEndpointInput], ResolvedEndpoint]
+
+
+def multipath_filters_from_request(request: MultiPathChainRequest) -> MultiPathFilters:
+    filters = request.filters
+    return MultiPathFilters(
+        min_certainty_level=filters.min_certainty_level,
+        encounter_kinds=tuple(filters.encounter_kinds),
+        exclude_person_ids=tuple(str(value) for value in filters.exclude_person_ids),
+        exclude_encounter_ids=tuple(str(value) for value in filters.exclude_encounter_ids),
+        source_work_ids=tuple(filters.source_work_ids),
+        intermediate_dynasty_codes=tuple(filters.intermediate_dynasty_codes),
+        intermediate_year_min=filters.intermediate_year_min,
+        intermediate_year_max=filters.intermediate_year_max,
+    )
 
 
 class ChainService:
