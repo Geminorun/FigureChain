@@ -73,6 +73,26 @@ class ShortestChainRequest(BaseModel):
     max_depth: int = Field(default=12, ge=1, le=30)
 
 
+class MultiPathFiltersRequest(BaseModel):
+    min_certainty_level: Literal["high", "medium", "low"] | None = "high"
+    encounter_kinds: list[str] = Field(default_factory=list)
+    exclude_person_ids: list[UUID] = Field(default_factory=list)
+    exclude_encounter_ids: list[UUID] = Field(default_factory=list)
+    source_work_ids: list[int] = Field(default_factory=list)
+    intermediate_dynasty_codes: list[int] = Field(default_factory=list)
+    intermediate_year_min: int | None = None
+    intermediate_year_max: int | None = None
+
+
+class MultiPathChainRequest(BaseModel):
+    source: ChainEndpointRequest
+    target: ChainEndpointRequest
+    max_depth: int = Field(default=12, ge=1, le=20)
+    max_paths: int = Field(default=5, ge=1, le=20)
+    extra_depth: int = Field(default=0, ge=0, le=2)
+    filters: MultiPathFiltersRequest = Field(default_factory=MultiPathFiltersRequest)
+
+
 class ChainPersonResponse(BaseModel):
     person_id: str
     display_name: str
@@ -95,6 +115,16 @@ class ChainPathResponse(BaseModel):
     edges: list[ChainEdgeResponse]
 
 
+class MultiPathItemResponse(BaseModel):
+    path_id: str
+    rank: int
+    chain_hash: str
+    length: int
+    quality_score: float
+    people: list[ChainPersonResponse]
+    edges: list[ChainEdgeResponse]
+
+
 class ShortestChainResponse(BaseModel):
     status: Literal["found", "no_path"]
     source_person_id: str
@@ -102,6 +132,19 @@ class ShortestChainResponse(BaseModel):
     max_depth: int
     chain_hash: str | None = None
     path: ChainPathResponse | None
+
+
+class MultiPathChainResponse(BaseModel):
+    status: Literal["found", "no_path"]
+    source_person_id: str
+    target_person_id: str
+    max_depth: int
+    max_paths: int
+    extra_depth: int
+    shortest_length: int | None
+    returned_paths: int
+    paths: list[MultiPathItemResponse]
+    filters_applied: MultiPathFiltersRequest
 
 
 class AIChainExplanationResponse(BaseModel):
