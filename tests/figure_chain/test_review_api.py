@@ -9,12 +9,17 @@ from figure_chain.app import create_app
 from figure_chain.dependencies import get_review_service
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.schemas import (
+    ReviewActionResponse,
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
     ReviewCandidatePersonResponse,
     ReviewCandidateRelationResponse,
     ReviewCandidateSummary,
+    ReviewLinkedEncounterResponse,
+    ReviewNeedsReviewRequest,
+    ReviewPromoteRequest,
     ReviewPromotionReadinessResponse,
+    ReviewRejectRequest,
 )
 from figure_chain.services.review import ReviewCandidateFilters
 
@@ -88,6 +93,60 @@ class FakeReviewService:
             linked_encounter=None,
             latest_ai_suggestion=None,
             ai_jobs=[],
+        )
+
+    def promote_candidate(
+        self,
+        kind: str,
+        candidate_id: int,
+        request: ReviewPromoteRequest,
+    ) -> ReviewActionResponse:
+        if candidate_id == 99:
+            raise ApplicationError(
+                code=ErrorCode.CANDIDATE_NOT_PROMOTABLE,
+                message="candidate requires --allow-non-default",
+                details={"kind": kind, "candidate_id": candidate_id},
+            )
+        return ReviewActionResponse(
+            kind=kind,
+            candidate_id=candidate_id,
+            status="promoted_to_encounter",
+            reviewed_by=request.reviewed_by,
+            encounter=ReviewLinkedEncounterResponse(
+                encounter_id=UUID("00000000-0000-0000-0000-000000000003"),
+                status="active",
+            ),
+            message=None,
+        )
+
+    def reject_candidate(
+        self,
+        kind: str,
+        candidate_id: int,
+        request: ReviewRejectRequest,
+    ) -> ReviewActionResponse:
+        return ReviewActionResponse(
+            kind=kind,
+            candidate_id=candidate_id,
+            status="rejected",
+            reviewed_by=request.reviewed_by,
+            encounter=None,
+            message=request.reason,
+        )
+
+    def mark_candidate_needs_review(
+        self,
+        kind: str,
+        candidate_id: int,
+        request: ReviewNeedsReviewRequest,
+    ) -> ReviewActionResponse:
+        return ReviewActionResponse(
+            kind=kind,
+            candidate_id=candidate_id,
+            status="needs_review",
+            reviewed_by=request.reviewed_by,
+            encounter=None,
+            message=request.note,
         )
 
 
@@ -168,6 +227,64 @@ def test_review_candidates_router_rejects_limit_over_max() -> None:
         response = client.get("/api/v1/review/candidates", params={"limit": "201"})
 
     assert response.status_code == 422
+
+
+def test_review_candidate_promote_route_returns_action_response() -> None:
+    app = _router_app(FakeReviewService())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/review/candidates/relationship/10/promote",
+            json={
+                "reviewed_by": "lyl",
+                "evidence_summary": "有明确见面证据",
+                "note": "人工确认",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "promoted_to_encounter"
+    assert body["encounter"]["status"] == "active"
+
+
+def test_review_candidate_reject_route_returns_action_response() -> None:
+    app = _router_app(FakeReviewService())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/review/candidates/relationship/10/reject",
+            json={"reviewed_by": "lyl", "reason": "证据不足"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "rejected"
+
+
+def test_review_candidate_needs_review_route_returns_action_response() -> None:
+    app = _router_app(FakeReviewService())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/review/candidates/relationship/10/needs-review",
+            json={"reviewed_by": "lyl", "note": "稍后复核"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "needs_review"
+
+
+def test_review_candidate_promote_route_returns_stable_failure() -> None:
+    app = _router_app(FakeReviewService())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/review/candidates/relationship/99/promote",
+            json={"reviewed_by": "lyl", "evidence_summary": "证据摘要"},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "candidate_not_promotable"
 
 
 def _router_app(service: FakeReviewService) -> FastAPI:

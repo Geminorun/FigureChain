@@ -6,7 +6,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from figure_chain.dependencies import get_review_service
-from figure_chain.schemas import ReviewCandidateDetailResponse, ReviewCandidateListResponse
+from figure_chain.schemas import (
+    ReviewActionResponse,
+    ReviewCandidateDetailResponse,
+    ReviewCandidateListResponse,
+    ReviewNeedsReviewRequest,
+    ReviewPromoteRequest,
+    ReviewRejectRequest,
+)
 from figure_chain.services.review import ReviewCandidateFilters, ReviewService
 
 router = APIRouter(prefix="/api/v1/review", tags=["review"])
@@ -41,3 +48,33 @@ def get_review_candidate(
     service: Annotated[ReviewService, Depends(get_review_service)],
 ) -> ReviewCandidateDetailResponse:
     return service.get_candidate(kind, candidate_id)
+
+
+@router.post("/candidates/{kind}/{candidate_id}/promote", response_model=ReviewActionResponse)
+def promote_review_candidate(
+    kind: str,
+    candidate_id: int,
+    request: ReviewPromoteRequest,
+    service: Annotated[ReviewService, Depends(get_review_service)],
+) -> ReviewActionResponse:
+    return service.promote_candidate(kind, candidate_id, request)
+
+
+@router.post("/candidates/{kind}/{candidate_id}/reject", response_model=ReviewActionResponse)
+def reject_review_candidate(
+    kind: str,
+    candidate_id: int,
+    request: ReviewRejectRequest,
+    service: Annotated[ReviewService, Depends(get_review_service)],
+) -> ReviewActionResponse:
+    return service.reject_candidate(kind, candidate_id, request)
+
+
+@router.post("/candidates/{kind}/{candidate_id}/needs-review", response_model=ReviewActionResponse)
+def mark_review_candidate_needs_review(
+    kind: str,
+    candidate_id: int,
+    request: ReviewNeedsReviewRequest,
+    service: Annotated[ReviewService, Depends(get_review_service)],
+) -> ReviewActionResponse:
+    return service.mark_candidate_needs_review(kind, candidate_id, request)
