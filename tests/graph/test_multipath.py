@@ -1,9 +1,31 @@
 from figure_data.graph.multipath import (
     build_multipath_cypher,
     certainty_levels_for_minimum,
+    quality_score_for_path,
+    rank_paths,
     validate_multipath_limits,
 )
-from figure_data.graph.types import GraphPathError, MultiPathFilters
+from figure_data.graph.types import (
+    ChainEdge,
+    ChainPath,
+    ChainPerson,
+    GraphPathError,
+    MultiPathFilters,
+)
+
+
+def _person(person_id: str) -> ChainPerson:
+    return ChainPerson(person_id, person_id, None, None, None)
+
+
+def _edge(encounter_id: str, certainty: str, kind: str = "direct_interaction") -> ChainEdge:
+    return ChainEdge(
+        encounter_id=encounter_id,
+        encounter_kind=kind,
+        certainty_level=certainty,
+        pages=None,
+        evidence_summary="evidence",
+    )
 
 
 def test_validate_multipath_limits() -> None:
@@ -40,3 +62,33 @@ def test_build_multipath_cypher_has_filter_hooks_without_apoc() -> None:
     assert "all(rel in relationships(path)" in query
     assert "single(other in nodes(path)" in query
     assert "limit $candidate_limit" in query
+
+
+def test_quality_score_penalizes_weaker_edges() -> None:
+    high = ChainPath(people=(_person("a"), _person("b")), edges=(_edge("e1", "high"),))
+    medium = ChainPath(people=(_person("a"), _person("b")), edges=(_edge("e1", "medium"),))
+    low = ChainPath(people=(_person("a"), _person("b")), edges=(_edge("e1", "low"),))
+
+    assert quality_score_for_path(high) == 1.0
+    assert quality_score_for_path(medium) == 0.9
+    assert quality_score_for_path(low) == 0.75
+
+
+def test_rank_paths_orders_by_length_score_and_hash() -> None:
+    short = ChainPath(people=(_person("a"), _person("b")), edges=(_edge("e1", "high"),))
+    long = ChainPath(
+        people=(_person("a"), _person("c"), _person("b")),
+        edges=(_edge("e2", "high"), _edge("e3", "high")),
+    )
+
+    ranked = rank_paths(
+        source_person_id="a",
+        target_person_id="b",
+        max_depth=12,
+        paths=[long, short],
+        max_paths=5,
+    )
+
+    assert [item.length for item in ranked] == [1, 2]
+    assert [item.rank for item in ranked] == [1, 2]
+    assert ranked[0].path_id == "path-1"
