@@ -1,0 +1,260 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { useAiJob } from "@/hooks/use-ai-job";
+import { useReviewCandidateDetail } from "@/hooks/use-review-candidate-detail";
+import { useReviewCandidates } from "@/hooks/use-review-candidates";
+
+const candidateSummary = {
+  kind: "relationship",
+  candidate_id: 960664,
+  person_a: {
+    person_id: "38966b03-8aa7-5143-8021-2d266889b6c5",
+    cbdb_id: 780,
+    display_name: "許幾",
+    primary_name_zh_hant: "許幾",
+    primary_name_zh_hans: "许几",
+    primary_name_romanized: "Xu Ji",
+    birth_year: 1054,
+    death_year: 1115,
+  },
+  person_b: {
+    person_id: "46cfdf66-08c4-5876-964b-4a95d098afe9",
+    cbdb_id: 630,
+    display_name: "韓琦",
+    primary_name_zh_hant: "韓琦",
+    primary_name_zh_hans: "韩琦",
+    primary_name_romanized: "Han Qi",
+    birth_year: 1008,
+    death_year: 1075,
+  },
+  relation_type: "visited",
+  time_summary: "北宋",
+  place_summary: "魏",
+  status: "needs_review",
+  confidence: 0.92,
+  evidence_count: 1,
+  source_count: 1,
+  promotion_readiness: {
+    default_promotable: true,
+    default_path_eligible: true,
+    reasons: [],
+  },
+  latest_ai_job_status: null,
+  has_ai_suggestion: false,
+};
+
+const candidateDetail = {
+  ...candidateSummary,
+  relation: {
+    relation_type: "visited",
+    basis: "source_ref",
+    strength: "high",
+    notes: null,
+    source_name: "CBDB",
+    source_table: "assoc_data",
+    source_pk: "960664",
+  },
+  time: { summary: "北宋", pages: "11905" },
+  place: { summary: "魏" },
+  source_refs: [],
+  evidence: [],
+  linked_encounter: null,
+  latest_ai_suggestion: null,
+  ai_jobs: [],
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function flushPromises(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+describe("review workspace hooks", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("loads review candidates and supports refresh", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ items: [candidateSummary], count: 1, limit: 20, offset: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ items: [], count: 0, limit: 20, offset: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useReviewCandidates({
+        kind: "relationship",
+        status: "needs_review",
+        minConfidence: 0.75,
+        personId: "38966b03-8aa7-5143-8021-2d266889b6c5",
+        limit: 20,
+        offset: 0,
+      }),
+    );
+
+    await flushPromises();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.data?.items).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/figure-chain/review/candidates?kind=relationship&status=needs_review&min_confidence=0.75&person_id=38966b03-8aa7-5143-8021-2d266889b6c5&limit=20&offset=0",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+
+    await act(async () => {
+      result.current.refresh();
+    });
+
+    await waitFor(() => expect(result.current.data?.count).toBe(0));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces review candidate load errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            error: {
+              code: "dependency_unavailable",
+              message: "PostgreSQL unavailable",
+              details: {},
+            },
+          },
+          503,
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useReviewCandidates({ limit: 20 }));
+
+    await flushPromises();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error?.code).toBe("dependency_unavailable");
+    expect(result.current.data).toBeNull();
+  });
+
+  it("loads review candidate details", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(candidateDetail)));
+
+    const { result } = renderHook(() => useReviewCandidateDetail("relationship", 960664));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.detail?.candidate_id).toBe(960664);
+  });
+
+  it("creates AI jobs, polls active jobs, and stops after terminal status", async () => {
+    const queuedJob = {
+      id: "9d6958d5-c0e5-4112-9659-bb47c27cbdb7",
+      job_type: "candidate_review_suggestion",
+      target_type: "review_candidate",
+      target_kind: "relationship",
+      target_id: 960664,
+      status: "queued",
+      created_by: "lyl",
+      params: {},
+      result_ref_type: null,
+      result_ref_id: null,
+      error_code: null,
+      error_message: null,
+      started_at: null,
+      finished_at: null,
+      created_at: "2026-06-18T00:00:00Z",
+      updated_at: "2026-06-18T00:00:00Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ items: [], count: 0, limit: 20 }))
+      .mockResolvedValueOnce(jsonResponse(queuedJob))
+      .mockResolvedValueOnce(jsonResponse({ ...queuedJob, status: "running" }))
+      .mockResolvedValueOnce(jsonResponse({ ...queuedJob, status: "succeeded", finished_at: "2026-06-18T00:00:10Z" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useAiJob({
+        targetType: "review_candidate",
+        targetKind: "relationship",
+        targetId: 960664,
+        pollIntervalMs: 1,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.createJob({ createdBy: "lyl" });
+    });
+
+    expect(result.current.activeJob?.status).toBe("queued");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    expect(result.current.activeJob?.status).toBe("succeeded");
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("stops polling old AI jobs when the candidate target changes", async () => {
+    vi.useFakeTimers();
+    const activeJob = {
+      id: "9d6958d5-c0e5-4112-9659-bb47c27cbdb7",
+      job_type: "candidate_review_suggestion",
+      target_type: "review_candidate",
+      target_kind: "relationship",
+      target_id: 960664,
+      status: "queued",
+      created_by: "lyl",
+      params: {},
+      result_ref_type: null,
+      result_ref_id: null,
+      error_code: null,
+      error_message: null,
+      started_at: null,
+      finished_at: null,
+      created_at: "2026-06-18T00:00:00Z",
+      updated_at: "2026-06-18T00:00:00Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ items: [activeJob], count: 1, limit: 20 }))
+      .mockResolvedValue(jsonResponse({ items: [], count: 0, limit: 20 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = renderHook(
+      ({ targetId }) =>
+        useAiJob({
+          targetType: "review_candidate",
+          targetKind: "relationship",
+          targetId,
+          pollIntervalMs: 2000,
+        }),
+      { initialProps: { targetId: 960664 } },
+    );
+
+    await flushPromises();
+    const oldJobUrl = `/api/figure-chain/ai/jobs/${activeJob.id}`;
+    const oldJobCallsBeforeSwitch = fetchMock.mock.calls.filter(
+      ([url]) => url === oldJobUrl,
+    ).length;
+
+    rerender({ targetId: 960665 });
+    await flushPromises();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    const oldJobCallsAfterSwitch = fetchMock.mock.calls.filter(
+      ([url]) => url === oldJobUrl,
+    ).length;
+    expect(oldJobCallsAfterSwitch).toBe(oldJobCallsBeforeSwitch);
+  });
+});
