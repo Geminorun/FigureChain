@@ -118,11 +118,56 @@ class ChainPath:
 
 
 @dataclass(frozen=True)
+class MultiPathFilters:
+    min_certainty_level: str | None = "high"
+    encounter_kinds: tuple[str, ...] = ()
+    exclude_person_ids: tuple[str, ...] = ()
+    exclude_encounter_ids: tuple[str, ...] = ()
+    source_work_ids: tuple[int, ...] = ()
+    intermediate_dynasty_codes: tuple[int, ...] = ()
+    intermediate_year_min: int | None = None
+    intermediate_year_max: int | None = None
+
+
+@dataclass(frozen=True)
+class RankedChainPath:
+    rank: int
+    path_id: str
+    chain_hash: str
+    quality_score: float
+    path: ChainPath
+
+    @property
+    def length(self) -> int:
+        return self.path.length
+
+
+@dataclass(frozen=True)
 class ChainLookupResult:
     source_person_id: str
     target_person_id: str
     max_depth: int
     path: ChainPath | None
+
+
+@dataclass(frozen=True)
+class MultiPathLookupResult:
+    source_person_id: str
+    target_person_id: str
+    max_depth: int
+    max_paths: int
+    extra_depth: int
+    filters: MultiPathFilters
+    shortest_length: int | None
+    paths: tuple[RankedChainPath, ...]
+
+    @property
+    def status(self) -> str:
+        return "found" if self.paths else "no_path"
+
+    @property
+    def returned_paths(self) -> int:
+        return len(self.paths)
 
 
 @dataclass(frozen=True)
