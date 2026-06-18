@@ -12,6 +12,8 @@ class ErrorCode(StrEnum):
     INVALID_REQUEST = "invalid_request"
     PERSON_NOT_FOUND = "person_not_found"
     ENCOUNTER_NOT_FOUND = "encounter_not_found"
+    SOURCE_WORK_NOT_FOUND = "source_work_not_found"
+    SOURCE_REF_NOT_FOUND = "source_ref_not_found"
     PERSON_AMBIGUOUS = "person_ambiguous"
     SAME_PERSON_ENDPOINT = "same_person_endpoint"
     GRAPH_NOT_SYNCED = "graph_not_synced"
@@ -34,6 +36,8 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.INVALID_REQUEST: status.HTTP_400_BAD_REQUEST,
     ErrorCode.PERSON_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.ENCOUNTER_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    ErrorCode.SOURCE_WORK_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    ErrorCode.SOURCE_REF_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.PERSON_AMBIGUOUS: status.HTTP_409_CONFLICT,
     ErrorCode.SAME_PERSON_ENDPOINT: status.HTTP_400_BAD_REQUEST,
     ErrorCode.GRAPH_NOT_SYNCED: status.HTTP_409_CONFLICT,

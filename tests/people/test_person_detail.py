@@ -135,5 +135,7 @@ def test_list_person_encounters_builds_filters_and_pagination() -> None:
     assert "e.person_a_id = :person_id or e.person_b_id = :person_id" in session.statements[0]
     assert "e.status = :status" in session.statements[0]
     assert "e.path_eligible = :path_eligible" in session.statements[0]
-    assert session.params[0]["limit"] == 10
-    assert session.params[0]["offset"] == 20
+    params = session.params[0]
+    assert params is not None
+    assert params["limit"] == 10
+    assert params["offset"] == 20
