@@ -64,18 +64,27 @@ def render_chain_markdown(snapshot: ChainShareSnapshotRecord) -> MarkdownExportR
         debug_note = _string(edge.get("debug_note"))
         if debug_note:
             lines.append(f"- note: {_sanitize(debug_note)}")
+        direct_ref_id = _string(edge.get("source_ref_id"))
+        direct_work_id = _string(edge.get("source_work_id"))
+        if direct_ref_id or direct_work_id:
+            _append_source_ref_line(
+                lines,
+                source_ids,
+                ref_id=direct_ref_id,
+                work_id=direct_work_id,
+                title=None,
+                pages=_string(edge.get("pages")),
+            )
         for source_ref in _list_of_dicts(edge.get("source_refs")):
             ref_id = _string(source_ref.get("source_ref_id"))
             work_id = _string(source_ref.get("source_work_id"))
-            if ref_id:
-                _append_unique(source_ids["source_ref_ids"], ref_id)
-            if work_id:
-                _append_unique(source_ids["source_work_ids"], work_id)
-            title = _string(source_ref.get("title")) or "未记录题名"
-            pages = _string(source_ref.get("pages")) or "未记录"
-            lines.append(
-                f"- source_ref {ref_id or '未记录'} / source_work {work_id or '未记录'}"
-                f" / pages {pages} / {_sanitize(title)}"
+            _append_source_ref_line(
+                lines,
+                source_ids,
+                ref_id=ref_id,
+                work_id=work_id,
+                title=_string(source_ref.get("title")),
+                pages=_string(source_ref.get("pages")),
             )
         lines.append("")
 
@@ -158,6 +167,25 @@ def _person_label(person: dict[str, object]) -> str:
 
 def _empty_source_ids() -> dict[str, list[str]]:
     return {key: [] for key in SOURCE_ID_KEYS}
+
+
+def _append_source_ref_line(
+    lines: list[str],
+    source_ids: dict[str, list[str]],
+    *,
+    ref_id: str | None,
+    work_id: str | None,
+    title: str | None,
+    pages: str | None,
+) -> None:
+    if ref_id:
+        _append_unique(source_ids["source_ref_ids"], ref_id)
+    if work_id:
+        _append_unique(source_ids["source_work_ids"], work_id)
+    lines.append(
+        f"- source_ref {ref_id or '未记录'} / source_work {work_id or '未记录'}"
+        f" / pages {pages or '未记录'} / {_sanitize(title or '未记录题名')}"
+    )
 
 
 def _append_unique(values: list[str], value: object) -> None:

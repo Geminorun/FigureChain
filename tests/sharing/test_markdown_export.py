@@ -113,3 +113,18 @@ def test_markdown_returns_grouped_source_ids() -> None:
         "ai_run_ids": ["00000000-0000-0000-0000-000000000601"],
         "retrieval_document_ids": ["00000000-0000-0000-0000-000000000701"],
     }
+
+
+def test_markdown_collects_direct_edge_source_ids() -> None:
+    record = snapshot(include_ai=False, include_rag=False)
+    edge = record.path_payload["edges"][0]  # type: ignore[index]
+    edge.pop("source_refs")
+    edge["source_ref_id"] = 3853784
+    edge["source_work_id"] = 7596
+
+    result = render_chain_markdown(record)
+
+    assert "source_ref 3853784" in result.content
+    assert "source_work 7596" in result.content
+    assert result.source_ids["source_ref_ids"] == ["3853784"]
+    assert result.source_ids["source_work_ids"] == ["7596"]
