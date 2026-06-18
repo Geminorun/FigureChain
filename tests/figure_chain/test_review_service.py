@@ -76,6 +76,21 @@ def test_review_service_filters_summary_by_person_and_confidence() -> None:
     assert response.items[0].candidate_id == 10
 
 
+def test_review_service_applies_offset_after_filters() -> None:
+    def list_fn(session: Session, filters: CandidateListFilters) -> list[CandidateSummary]:
+        return [
+            _summary(CandidateKind.RELATIONSHIP, 10, "同僚"),
+            _summary(CandidateKind.RELATIONSHIP, 11, "同僚"),
+        ]
+
+    service = ReviewService(cast(Session, object()), list_summaries_fn=list_fn)
+
+    response = service.list_candidates(ReviewCandidateFilters(limit=1, offset=1))
+
+    assert response.count == 1
+    assert response.items[0].candidate_id == 11
+
+
 def test_review_service_returns_empty_list() -> None:
     service = ReviewService(
         cast(Session, object()),
@@ -127,6 +142,16 @@ def test_review_service_maps_invalid_kind_to_application_error() -> None:
 
     with pytest.raises(ApplicationError) as exc_info:
         service.get_candidate("invalid", 10)
+
+    assert exc_info.value.code is ErrorCode.CANDIDATE_INVALID_KIND
+    assert exc_info.value.details == {"kind": "invalid"}
+
+
+def test_review_service_maps_invalid_list_kind_to_application_error() -> None:
+    service = ReviewService(cast(Session, object()))
+
+    with pytest.raises(ApplicationError) as exc_info:
+        service.list_candidates(ReviewCandidateFilters(kind="invalid", limit=50, offset=0))
 
     assert exc_info.value.code is ErrorCode.CANDIDATE_INVALID_KIND
     assert exc_info.value.details == {"kind": "invalid"}
