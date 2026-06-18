@@ -23,6 +23,8 @@ class ErrorCode(StrEnum):
     AI_JOB_EXECUTION_FAILED = "ai_job_execution_failed"
     CANDIDATE_NOT_FOUND = "candidate_not_found"
     CANDIDATE_INVALID_KIND = "candidate_invalid_kind"
+    CANDIDATE_NOT_PROMOTABLE = "candidate_not_promotable"
+    CANDIDATE_ALREADY_PROMOTED = "candidate_already_promoted"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -41,6 +43,8 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.AI_JOB_EXECUTION_FAILED: status.HTTP_500_INTERNAL_SERVER_ERROR,
     ErrorCode.CANDIDATE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.CANDIDATE_INVALID_KIND: status.HTTP_400_BAD_REQUEST,
+    ErrorCode.CANDIDATE_NOT_PROMOTABLE: status.HTTP_409_CONFLICT,
+    ErrorCode.CANDIDATE_ALREADY_PROMOTED: status.HTTP_409_CONFLICT,
     ErrorCode.INTERNAL_ERROR: status.HTTP_500_INTERNAL_SERVER_ERROR,
 }
 

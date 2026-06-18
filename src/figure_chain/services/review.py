@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.schemas import (
+    ReviewActionResponse,
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
     ReviewCandidatePersonResponse,
@@ -15,18 +16,29 @@ from figure_chain.schemas import (
     ReviewCandidateSummary,
     ReviewCandidateTimeResponse,
     ReviewLinkedEncounterResponse,
+    ReviewNeedsReviewRequest,
+    ReviewPromoteRequest,
     ReviewPromotionReadinessResponse,
+    ReviewRejectRequest,
     ReviewSourceRefResponse,
     display_name,
 )
+from figure_data.encounters.promotion import promote_candidate_to_encounter
+from figure_data.encounters.types import (
+    EncounterOperationError,
+    EncounterPromotionOptions,
+    EncounterPromotionResult,
+)
 from figure_data.review.candidate_detail import get_candidate_detail
 from figure_data.review.candidate_listing import CandidateListFilters, list_candidate_summaries
+from figure_data.review.candidate_status import mark_candidate_for_review, reject_candidate
 from figure_data.review.types import (
     CandidateDetail,
     CandidateKind,
     CandidatePerson,
     CandidateReviewError,
     CandidateSourceRef,
+    CandidateStatusChange,
     CandidateSummary,
     PromotionReadiness,
     normalize_candidate_kind,
@@ -34,6 +46,8 @@ from figure_data.review.types import (
 
 ListCandidateSummariesFn = Callable[[Session, CandidateListFilters], list[CandidateSummary]]
 GetCandidateDetailFn = Callable[[Session, CandidateKind, int], CandidateDetail]
+PromoteCandidateFn = Callable[[Session, EncounterPromotionOptions], EncounterPromotionResult]
+UpdateCandidateStatusFn = Callable[..., CandidateStatusChange]
 
 CONFIDENCE_BY_STRENGTH: dict[str, float] = {
     "high": 0.9,
@@ -58,10 +72,16 @@ class ReviewService:
         session: Session,
         list_summaries_fn: ListCandidateSummariesFn = list_candidate_summaries,
         get_detail_fn: GetCandidateDetailFn = get_candidate_detail,
+        promote_candidate_fn: PromoteCandidateFn = promote_candidate_to_encounter,
+        reject_candidate_fn: UpdateCandidateStatusFn = reject_candidate,
+        mark_candidate_review_fn: UpdateCandidateStatusFn = mark_candidate_for_review,
     ) -> None:
         self._session = session
         self._list_summaries_fn = list_summaries_fn
         self._get_detail_fn = get_detail_fn
+        self._promote_candidate_fn = promote_candidate_fn
+        self._reject_candidate_fn = reject_candidate_fn
+        self._mark_candidate_review_fn = mark_candidate_review_fn
 
     def list_candidates(self, filters: ReviewCandidateFilters) -> ReviewCandidateListResponse:
         kind = self._normalize_kind(filters.kind)
@@ -99,6 +119,96 @@ class ReviewService:
             ) from exc
         return self._detail(detail)
 
+    def promote_candidate(
+        self,
+        kind: str,
+        candidate_id: int,
+        request: ReviewPromoteRequest,
+    ) -> ReviewActionResponse:
+        normalized_kind = self._require_kind(kind)
+        try:
+            result = self._promote_candidate_fn(
+                self._session,
+                EncounterPromotionOptions(
+                    candidate_kind=normalized_kind,
+                    candidate_id=candidate_id,
+                    reviewed_by=request.reviewed_by,
+                    evidence_summary=request.evidence_summary,
+                    review_note=request.note,
+                    allow_non_default=request.allow_non_default,
+                ),
+            )
+        except EncounterOperationError as exc:
+            raise self._promotion_error(
+                kind=normalized_kind.value,
+                candidate_id=candidate_id,
+                exc=exc,
+            ) from exc
+        except CandidateReviewError as exc:
+            raise self._candidate_error(
+                kind=normalized_kind.value,
+                candidate_id=candidate_id,
+                exc=exc,
+            ) from exc
+        return ReviewActionResponse(
+            kind=result.candidate_kind.value,
+            candidate_id=result.candidate_id,
+            status="promoted_to_encounter",
+            reviewed_by=request.reviewed_by,
+            encounter=ReviewLinkedEncounterResponse(
+                encounter_id=result.encounter_id,
+                status="active",
+            ),
+            message="reused existing encounter" if result.reused_existing else None,
+        )
+
+    def reject_candidate(
+        self,
+        kind: str,
+        candidate_id: int,
+        request: ReviewRejectRequest,
+    ) -> ReviewActionResponse:
+        normalized_kind = self._require_kind(kind)
+        try:
+            change = self._reject_candidate_fn(
+                self._session,
+                normalized_kind,
+                candidate_id,
+                reviewed_by=request.reviewed_by,
+                note=request.reason,
+            )
+        except CandidateReviewError as exc:
+            raise self._candidate_error(
+                kind=normalized_kind.value,
+                candidate_id=candidate_id,
+                exc=exc,
+            ) from exc
+        return self._status_change_response(change, message=change.review_note)
+
+    def mark_candidate_needs_review(
+        self,
+        kind: str,
+        candidate_id: int,
+        request: ReviewNeedsReviewRequest,
+    ) -> ReviewActionResponse:
+        normalized_kind = self._require_kind(kind)
+        note = request.note or "needs review"
+        try:
+            change = self._mark_candidate_review_fn(
+                self._session,
+                normalized_kind,
+                candidate_id,
+                reviewed_by=request.reviewed_by,
+                note=note,
+            )
+        except CandidateReviewError as exc:
+            raise self._candidate_error(
+                kind=normalized_kind.value,
+                candidate_id=candidate_id,
+                exc=exc,
+            ) from exc
+        return self._status_change_response(change, message=change.review_note)
+
     def _normalize_kind(self, kind: str | None) -> CandidateKind | None:
         if kind is None:
             return None
@@ -110,6 +220,11 @@ class ReviewService:
                 message="candidate kind is not supported",
                 details={"kind": kind},
             ) from exc
+
+    def _require_kind(self, kind: str) -> CandidateKind:
+        normalized_kind = self._normalize_kind(kind)
+        assert normalized_kind is not None
+        return normalized_kind
 
     def _summary(self, summary: CandidateSummary) -> ReviewCandidateSummary:
         readiness = self._summary_readiness(summary)
@@ -216,6 +331,60 @@ class ReviewService:
             title_en=source_ref.title_en,
             pages=source_ref.pages,
             notes=source_ref.notes,
+        )
+
+    def _status_change_response(
+        self,
+        change: CandidateStatusChange,
+        *,
+        message: str | None,
+    ) -> ReviewActionResponse:
+        return ReviewActionResponse(
+            kind=change.candidate_kind.value,
+            candidate_id=change.candidate_id,
+            status=change.review_status.value,
+            reviewed_by=change.reviewed_by,
+            encounter=None,
+            message=message,
+        )
+
+    def _candidate_error(
+        self,
+        *,
+        kind: str,
+        candidate_id: int,
+        exc: CandidateReviewError,
+    ) -> ApplicationError:
+        message = str(exc)
+        if "not found" in message:
+            code = ErrorCode.CANDIDATE_NOT_FOUND
+        elif "already promoted" in message or "active encounter" in message:
+            code = ErrorCode.CANDIDATE_ALREADY_PROMOTED
+        else:
+            code = ErrorCode.INVALID_REQUEST
+        return ApplicationError(
+            code=code,
+            message=message,
+            details={"kind": kind, "candidate_id": candidate_id},
+        )
+
+    def _promotion_error(
+        self,
+        *,
+        kind: str,
+        candidate_id: int,
+        exc: EncounterOperationError,
+    ) -> ApplicationError:
+        message = str(exc)
+        code = (
+            ErrorCode.CANDIDATE_ALREADY_PROMOTED
+            if "already" in message or "linked to an encounter" in message
+            else ErrorCode.CANDIDATE_NOT_PROMOTABLE
+        )
+        return ApplicationError(
+            code=code,
+            message=message,
+            details={"kind": kind, "candidate_id": candidate_id},
         )
 
     def _summary_readiness(self, summary: CandidateSummary) -> ReviewPromotionReadinessResponse:

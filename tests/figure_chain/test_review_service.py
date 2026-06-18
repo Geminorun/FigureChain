@@ -5,14 +5,22 @@ import pytest
 from sqlalchemy.orm import Session
 
 from figure_chain.errors import ApplicationError, ErrorCode
+from figure_chain.schemas import ReviewNeedsReviewRequest, ReviewPromoteRequest, ReviewRejectRequest
 from figure_chain.services.review import ReviewCandidateFilters, ReviewService
+from figure_data.encounters.types import (
+    EncounterOperationError,
+    EncounterPromotionOptions,
+    EncounterPromotionResult,
+)
 from figure_data.review.candidate_listing import CandidateListFilters
 from figure_data.review.types import (
     CandidateDetail,
     CandidateKind,
     CandidatePerson,
     CandidateReviewError,
+    CandidateReviewStatus,
     CandidateSourceRef,
+    CandidateStatusChange,
     CandidateSummary,
     PromotionReadiness,
 )
@@ -155,6 +163,153 @@ def test_review_service_maps_invalid_list_kind_to_application_error() -> None:
 
     assert exc_info.value.code is ErrorCode.CANDIDATE_INVALID_KIND
     assert exc_info.value.details == {"kind": "invalid"}
+
+
+def test_review_service_promotes_candidate_with_existing_promotion_service() -> None:
+    captured_options: list[EncounterPromotionOptions] = []
+
+    def promote_fn(
+        session: Session,
+        options: EncounterPromotionOptions,
+    ) -> EncounterPromotionResult:
+        captured_options.append(options)
+        return EncounterPromotionResult(
+            encounter_id=ENCOUNTER_ID,
+            candidate_kind=options.candidate_kind,
+            candidate_id=options.candidate_id,
+            encounter_kind="direct_interaction",
+            certainty_level="high",
+            path_eligible=True,
+            reused_existing=False,
+        )
+
+    service = ReviewService(cast(Session, object()), promote_candidate_fn=promote_fn)
+
+    response = service.promote_candidate(
+        "relationship",
+        10,
+        ReviewPromoteRequest(
+            reviewed_by="lyl",
+            evidence_summary="有明确见面证据",
+            note="人工确认",
+        ),
+    )
+
+    assert captured_options[0].candidate_kind is CandidateKind.RELATIONSHIP
+    assert captured_options[0].evidence_summary == "有明确见面证据"
+    assert captured_options[0].review_note == "人工确认"
+    assert response.status == "promoted_to_encounter"
+    assert response.encounter is not None
+    assert response.encounter.encounter_id == ENCOUNTER_ID
+
+
+def test_review_service_rejects_candidate_with_existing_status_service() -> None:
+    def reject_fn(
+        session: Session,
+        kind: CandidateKind,
+        candidate_id: int,
+        *,
+        reviewed_by: str,
+        note: str,
+    ) -> CandidateStatusChange:
+        return CandidateStatusChange(
+            candidate_kind=kind,
+            candidate_id=candidate_id,
+            review_status=CandidateReviewStatus.REJECTED,
+            reviewed_by=reviewed_by,
+            review_note=note,
+        )
+
+    service = ReviewService(cast(Session, object()), reject_candidate_fn=reject_fn)
+
+    response = service.reject_candidate(
+        "relationship",
+        10,
+        ReviewRejectRequest(reviewed_by="lyl", reason="证据不足"),
+    )
+
+    assert response.status == "rejected"
+    assert response.reviewed_by == "lyl"
+    assert response.encounter is None
+
+
+def test_review_service_marks_candidate_needs_review_with_default_note() -> None:
+    captured_note: list[str] = []
+
+    def mark_fn(
+        session: Session,
+        kind: CandidateKind,
+        candidate_id: int,
+        *,
+        reviewed_by: str,
+        note: str,
+    ) -> CandidateStatusChange:
+        captured_note.append(note)
+        return CandidateStatusChange(
+            candidate_kind=kind,
+            candidate_id=candidate_id,
+            review_status=CandidateReviewStatus.NEEDS_REVIEW,
+            reviewed_by=reviewed_by,
+            review_note=note,
+        )
+
+    service = ReviewService(cast(Session, object()), mark_candidate_review_fn=mark_fn)
+
+    response = service.mark_candidate_needs_review(
+        "relationship",
+        10,
+        ReviewNeedsReviewRequest(reviewed_by="lyl"),
+    )
+
+    assert captured_note == ["needs review"]
+    assert response.status == "needs_review"
+    assert response.message == "needs review"
+
+
+def test_review_service_maps_not_promotable_error() -> None:
+    def promote_fn(
+        session: Session,
+        options: EncounterPromotionOptions,
+    ) -> EncounterPromotionResult:
+        raise EncounterOperationError("candidate requires --allow-non-default")
+
+    service = ReviewService(cast(Session, object()), promote_candidate_fn=promote_fn)
+
+    with pytest.raises(ApplicationError) as exc_info:
+        service.promote_candidate(
+            "relationship",
+            10,
+            ReviewPromoteRequest(
+                reviewed_by="lyl",
+                evidence_summary="证据摘要",
+            ),
+        )
+
+    assert exc_info.value.code is ErrorCode.CANDIDATE_NOT_PROMOTABLE
+    assert exc_info.value.details == {"kind": "relationship", "candidate_id": 10}
+
+
+def test_review_service_maps_already_promoted_reject_error() -> None:
+    def reject_fn(
+        session: Session,
+        kind: CandidateKind,
+        candidate_id: int,
+        *,
+        reviewed_by: str,
+        note: str,
+    ) -> CandidateStatusChange:
+        raise CandidateReviewError("candidate is already promoted; retract first")
+
+    service = ReviewService(cast(Session, object()), reject_candidate_fn=reject_fn)
+
+    with pytest.raises(ApplicationError) as exc_info:
+        service.reject_candidate(
+            "relationship",
+            10,
+            ReviewRejectRequest(reviewed_by="lyl", reason="证据不足"),
+        )
+
+    assert exc_info.value.code is ErrorCode.CANDIDATE_ALREADY_PROMOTED
 
 
 def _summary(
