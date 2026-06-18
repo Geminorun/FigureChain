@@ -1,13 +1,18 @@
 from uuid import UUID
 
 from figure_chain.schemas import (
+    ReviewActionResponse,
     ReviewAiJobSummary,
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
     ReviewCandidatePersonResponse,
     ReviewCandidateRelationResponse,
     ReviewCandidateSummary,
+    ReviewLinkedEncounterResponse,
+    ReviewNeedsReviewRequest,
+    ReviewPromoteRequest,
     ReviewPromotionReadinessResponse,
+    ReviewRejectRequest,
 )
 
 
@@ -113,3 +118,36 @@ def test_review_candidate_detail_schema_keeps_ai_fields_stable_when_empty() -> N
 
     assert payload["latest_ai_suggestion"] is None
     assert payload["ai_jobs"][0]["status"] == "succeeded"
+
+
+def test_review_action_request_schemas_have_required_fields_and_defaults() -> None:
+    promote = ReviewPromoteRequest(
+        reviewed_by="lyl",
+        evidence_summary="有明确见面证据",
+    )
+    reject = ReviewRejectRequest(reviewed_by="lyl", reason="证据不足")
+    needs_review = ReviewNeedsReviewRequest(reviewed_by="lyl")
+
+    assert promote.allow_non_default is False
+    assert promote.note is None
+    assert reject.reason == "证据不足"
+    assert needs_review.note is None
+
+
+def test_review_action_response_schema_carries_candidate_and_encounter_state() -> None:
+    response = ReviewActionResponse(
+        kind="relationship",
+        candidate_id=10,
+        status="promoted_to_encounter",
+        reviewed_by="lyl",
+        encounter=ReviewLinkedEncounterResponse(
+            encounter_id=UUID("00000000-0000-0000-0000-000000000003"),
+            status="active",
+        ),
+        message=None,
+    )
+
+    payload = response.model_dump()
+
+    assert payload["status"] == "promoted_to_encounter"
+    assert payload["encounter"]["status"] == "active"

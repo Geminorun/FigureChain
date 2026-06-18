@@ -303,6 +303,32 @@ class ReviewLinkedEncounterResponse(BaseModel):
     status: str | None = None
 
 
+class ReviewPromoteRequest(BaseModel):
+    reviewed_by: str = Field(min_length=1)
+    evidence_summary: str = Field(min_length=1)
+    note: str | None = None
+    allow_non_default: bool = False
+
+
+class ReviewRejectRequest(BaseModel):
+    reviewed_by: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+
+
+class ReviewNeedsReviewRequest(BaseModel):
+    reviewed_by: str = Field(min_length=1)
+    note: str | None = None
+
+
+class ReviewActionResponse(BaseModel):
+    kind: str
+    candidate_id: int
+    status: str
+    reviewed_by: str
+    encounter: ReviewLinkedEncounterResponse | None
+    message: str | None
+
+
 class ReviewAiSuggestionSummary(BaseModel):
     suggestion_id: UUID | None
     ai_run_id: UUID | None
