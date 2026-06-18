@@ -1,12 +1,18 @@
 "use client";
 
+import { Download } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { ErrorCallout } from "@/components/error-callout";
 import { useChainShare } from "@/hooks/use-chain-share";
-import type { ChainEdge, ChainPerson, ChainShareDetail } from "@/lib/figure-chain-types";
+import type {
+  ChainEdge,
+  ChainPerson,
+  ChainShareDetail,
+  MarkdownExportResponse,
+} from "@/lib/figure-chain-types";
 import { formatLifeYears, formatMaybeText } from "@/lib/formatters";
 
 type SharePageProps = {
@@ -15,8 +21,9 @@ type SharePageProps = {
 
 export function SharePage({ shareSlug }: SharePageProps) {
   const share = useChainShare();
-  const { error, isLoading, loadShare } = share;
+  const { error, exportMarkdown, isLoading, loadShare } = share;
   const [detail, setDetail] = useState<ChainShareDetail | null>(null);
+  const [markdown, setMarkdown] = useState<MarkdownExportResponse | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,6 +57,30 @@ export function SharePage({ shareSlug }: SharePageProps) {
     people.at(-1)?.display_name ?? "未记录"
   }`;
 
+  async function handleExportMarkdown() {
+    if (!detail) {
+      return;
+    }
+    const response = await exportMarkdown({
+      share_slug: detail.share_slug,
+      format: "markdown",
+    });
+    setMarkdown(response);
+  }
+
+  function handleDownloadMarkdown() {
+    if (!markdown || typeof document === "undefined") {
+      return;
+    }
+    const blob = new Blob([markdown.content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = markdown.filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <main className="mx-auto max-w-5xl space-y-5 px-4 py-6">
       <section className="border-b border-stone-200 pb-4">
@@ -58,6 +89,39 @@ export function SharePage({ shareSlug }: SharePageProps) {
         <p className="mt-2 break-all font-mono text-sm text-stone-600">
           {detail.chain_hash}
         </p>
+      </section>
+
+      <section className="space-y-3 rounded border border-stone-200 bg-stone-50 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="inline-flex min-h-10 items-center gap-2 rounded border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-800 hover:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400"
+            disabled={isLoading}
+            type="button"
+            onClick={handleExportMarkdown}
+          >
+            <Download aria-hidden="true" className="h-4 w-4" />
+            导出 Markdown
+          </button>
+          <button
+            className="min-h-10 rounded border border-stone-300 bg-white px-3 py-2 text-sm text-stone-700 disabled:cursor-not-allowed disabled:text-stone-400"
+            disabled={!markdown}
+            type="button"
+            onClick={handleDownloadMarkdown}
+          >
+            下载 Markdown
+          </button>
+        </div>
+        {markdown ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-stone-800">{markdown.filename}</p>
+            <textarea
+              aria-label="Markdown 内容"
+              className="min-h-32 w-full rounded border border-stone-300 bg-white p-2 font-mono text-xs text-stone-800"
+              readOnly
+              value={markdown.content}
+            />
+          </div>
+        ) : null}
       </section>
 
       {typeof detail.path_payload.partial_warning === "string" ? (
