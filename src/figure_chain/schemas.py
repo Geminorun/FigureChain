@@ -136,6 +136,40 @@ class AIRunResponse(BaseModel):
     created_by: str
 
 
+class AiJobCreateRequest(BaseModel):
+    job_type: str
+    target_type: str
+    target_kind: str
+    target_id: int = Field(ge=1)
+    created_by: str = Field(min_length=1)
+    params: dict[str, object] = Field(default_factory=dict)
+
+
+class AiJobResponse(BaseModel):
+    id: UUID
+    job_type: str
+    target_type: str
+    target_kind: str
+    target_id: int
+    status: str
+    created_by: str
+    params: dict[str, object]
+    result_ref_type: str | None
+    result_ref_id: UUID | None
+    error_code: str | None
+    error_message: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AiJobListResponse(BaseModel):
+    items: list[AiJobResponse]
+    count: int
+    limit: int
+
+
 class EncounterPersonResponse(BaseModel):
     person_id: str
     cbdb_id: int | None
