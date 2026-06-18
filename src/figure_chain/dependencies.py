@@ -23,6 +23,10 @@ def get_pg_session(request: Request) -> Iterator[Session]:
     session = factory()
     try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
 

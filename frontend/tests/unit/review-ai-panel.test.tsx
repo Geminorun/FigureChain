@@ -75,7 +75,7 @@ const detail: ReviewCandidateDetail = {
 const queuedJob: AiJobResponse = {
   id: "9d6958d5-c0e5-4112-9659-bb47c27cbdb7",
   job_type: "candidate_review_suggestion",
-  target_type: "review_candidate",
+  target_type: "candidate",
   target_kind: "relationship",
   target_id: 960664,
   status: "queued",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.schemas import (
     ReviewActionResponse,
+    ReviewAiJobSummary,
+    ReviewAiSuggestionSummary,
     ReviewCandidateDetailResponse,
     ReviewCandidateListResponse,
     ReviewCandidatePersonResponse,
@@ -23,6 +26,12 @@ from figure_chain.schemas import (
     ReviewSourceRefResponse,
     display_name,
 )
+from figure_data.ai.candidate_repository import (
+    CandidateSuggestionListFilters,
+    CandidateSuggestionRecord,
+    list_candidate_review_suggestions,
+)
+from figure_data.ai.job_repository import AIGenerationJobRecord, list_jobs_for_target
 from figure_data.encounters.promotion import promote_candidate_to_encounter
 from figure_data.encounters.types import (
     EncounterOperationError,
@@ -48,6 +57,11 @@ ListCandidateSummariesFn = Callable[[Session, CandidateListFilters], list[Candid
 GetCandidateDetailFn = Callable[[Session, CandidateKind, int], CandidateDetail]
 PromoteCandidateFn = Callable[[Session, EncounterPromotionOptions], EncounterPromotionResult]
 UpdateCandidateStatusFn = Callable[..., CandidateStatusChange]
+ListAIJobsFn = Callable[..., list[AIGenerationJobRecord]]
+ListCandidateSuggestionsFn = Callable[
+    [Session, CandidateSuggestionListFilters],
+    list[CandidateSuggestionRecord],
+]
 
 CONFIDENCE_BY_STRENGTH: dict[str, float] = {
     "high": 0.9,
@@ -75,6 +89,8 @@ class ReviewService:
         promote_candidate_fn: PromoteCandidateFn = promote_candidate_to_encounter,
         reject_candidate_fn: UpdateCandidateStatusFn = reject_candidate,
         mark_candidate_review_fn: UpdateCandidateStatusFn = mark_candidate_for_review,
+        list_ai_jobs_fn: ListAIJobsFn = list_jobs_for_target,
+        list_suggestions_fn: ListCandidateSuggestionsFn = list_candidate_review_suggestions,
     ) -> None:
         self._session = session
         self._list_summaries_fn = list_summaries_fn
@@ -82,22 +98,20 @@ class ReviewService:
         self._promote_candidate_fn = promote_candidate_fn
         self._reject_candidate_fn = reject_candidate_fn
         self._mark_candidate_review_fn = mark_candidate_review_fn
+        self._list_ai_jobs_fn = list_ai_jobs_fn
+        self._list_suggestions_fn = list_suggestions_fn
 
     def list_candidates(self, filters: ReviewCandidateFilters) -> ReviewCandidateListResponse:
         kind = self._normalize_kind(filters.kind)
         list_filters = CandidateListFilters(
             kind=kind,
+            person_id=filters.person_id,
             review_status=filters.status,
-            limit=filters.limit + filters.offset,
+            min_confidence=filters.min_confidence,
+            limit=filters.limit,
+            offset=filters.offset,
         )
-        summaries = self._list_summaries_fn(self._session, list_filters)
-        filtered = [
-            summary
-            for summary in summaries
-            if self._matches_person(summary, filters.person_id)
-            and self._confidence(summary.candidate_strength) >= (filters.min_confidence or 0.0)
-        ]
-        page = filtered[filters.offset : filters.offset + filters.limit]
+        page = self._list_summaries_fn(self._session, list_filters)
         items = [self._summary(summary) for summary in page]
         return ReviewCandidateListResponse(
             items=items,
@@ -249,8 +263,14 @@ class ReviewService:
             evidence_count=0,
             source_count=1 if summary.source_work_id is not None else 0,
             promotion_readiness=readiness,
-            latest_ai_job_status=None,
-            has_ai_suggestion=False,
+            latest_ai_job_status=self._latest_ai_job_status(
+                summary.candidate_kind,
+                summary.candidate_id,
+            ),
+            has_ai_suggestion=self._has_ai_suggestion(
+                summary.candidate_kind,
+                summary.candidate_id,
+            ),
         )
 
     def _detail(self, detail: CandidateDetail) -> ReviewCandidateDetailResponse:
@@ -280,8 +300,11 @@ class ReviewService:
                 if detail.promoted_encounter_id is not None
                 else None
             ),
-            latest_ai_suggestion=None,
-            ai_jobs=[],
+            latest_ai_suggestion=self._latest_ai_suggestion(
+                detail.candidate_kind,
+                detail.candidate_id,
+            ),
+            ai_jobs=self._ai_job_summaries(detail.candidate_kind, detail.candidate_id),
         )
 
     def _summary_person(
@@ -331,6 +354,80 @@ class ReviewService:
             title_en=source_ref.title_en,
             pages=source_ref.pages,
             notes=source_ref.notes,
+        )
+
+    def _latest_ai_job_status(self, kind: CandidateKind, candidate_id: int) -> str | None:
+        jobs = self._ai_jobs(kind, candidate_id, limit=1)
+        return jobs[0].status if jobs else None
+
+    def _has_ai_suggestion(self, kind: CandidateKind, candidate_id: int) -> bool:
+        return bool(self._suggestions(kind, candidate_id, limit=1))
+
+    def _latest_ai_suggestion(
+        self,
+        kind: CandidateKind,
+        candidate_id: int,
+    ) -> ReviewAiSuggestionSummary | None:
+        suggestions = self._suggestions(kind, candidate_id, limit=1)
+        if not suggestions:
+            return None
+        suggestion = suggestions[0]
+        return ReviewAiSuggestionSummary(
+            suggestion_id=suggestion.id,
+            ai_run_id=suggestion.ai_run_id,
+            status=suggestion.status,
+            recommendation=suggestion.suggested_action,
+            summary=suggestion.evidence_summary_draft,
+            created_at=(
+                suggestion.created_at if isinstance(suggestion.created_at, datetime) else None
+            ),
+        )
+
+    def _ai_job_summaries(
+        self,
+        kind: CandidateKind,
+        candidate_id: int,
+    ) -> list[ReviewAiJobSummary]:
+        return [
+            ReviewAiJobSummary(
+                run_id=job.id,
+                status=job.status,
+                purpose=job.job_type,
+                created_at=job.created_at,
+                finished_at=job.finished_at,
+            )
+            for job in self._ai_jobs(kind, candidate_id, limit=20)
+        ]
+
+    def _ai_jobs(
+        self,
+        kind: CandidateKind,
+        candidate_id: int,
+        *,
+        limit: int,
+    ) -> list[AIGenerationJobRecord]:
+        return self._list_ai_jobs_fn(
+            self._session,
+            target_type="candidate",
+            target_kind=kind.value,
+            target_id=candidate_id,
+            limit=limit,
+        )
+
+    def _suggestions(
+        self,
+        kind: CandidateKind,
+        candidate_id: int,
+        *,
+        limit: int,
+    ) -> list[CandidateSuggestionRecord]:
+        return self._list_suggestions_fn(
+            self._session,
+            CandidateSuggestionListFilters(
+                candidate_kind=kind,
+                candidate_id=candidate_id,
+                limit=limit,
+            ),
         )
 
     def _status_change_response(
@@ -414,11 +511,6 @@ class ReviewService:
             default_path_eligible=readiness.default_path_eligible,
             reasons=readiness.reasons,
         )
-
-    def _matches_person(self, summary: CandidateSummary, person_id: UUID | None) -> bool:
-        if person_id is None:
-            return True
-        return person_id in (summary.person_a_id, summary.person_b_id)
 
     def _confidence(self, strength: str) -> float:
         return CONFIDENCE_BY_STRENGTH.get(strength, 0.0)

@@ -32,7 +32,7 @@ export function ReviewWorkspace() {
   );
   const actions = useReviewActions(selection);
   const ai = useAiJob({
-    targetType: "review_candidate",
+    targetType: "candidate",
     targetKind: selection?.kind ?? "",
     targetId: selection?.candidateId ?? null,
   });

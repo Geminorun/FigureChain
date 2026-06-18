@@ -167,7 +167,7 @@ describe("review workspace API types", () => {
   it("models AI job creation and polling responses", () => {
     const request: AiJobCreateRequest = {
       job_type: "candidate_review_suggestion",
-      target_type: "review_candidate",
+      target_type: "candidate",
       target_kind: "relationship",
       target_id: 960664,
       created_by: "lyl",

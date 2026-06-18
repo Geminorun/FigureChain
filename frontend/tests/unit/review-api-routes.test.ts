@@ -91,12 +91,12 @@ describe("review workspace API routes", () => {
 
     await listAiJobsRoute(
       new Request(
-        "http://localhost/api/figure-chain/ai/jobs?target_type=review_candidate&target_kind=relationship&target_id=960664&limit=5&ignored=1",
+        "http://localhost/api/figure-chain/ai/jobs?target_type=candidate&target_kind=relationship&target_id=960664&limit=5&ignored=1",
       ),
     );
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:8000/api/v1/ai/jobs?target_type=review_candidate&target_kind=relationship&target_id=960664&limit=5",
+      "http://127.0.0.1:8000/api/v1/ai/jobs?target_type=candidate&target_kind=relationship&target_id=960664&limit=5",
       expect.any(Object),
     );
   });
@@ -105,7 +105,7 @@ describe("review workspace API routes", () => {
     const fetchMock = stubJsonFetch();
     const body = JSON.stringify({
       job_type: "candidate_review_suggestion",
-      target_type: "review_candidate",
+      target_type: "candidate",
       target_kind: "relationship",
       target_id: 960664,
       created_by: "lyl",

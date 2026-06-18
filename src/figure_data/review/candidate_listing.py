@@ -15,11 +15,14 @@ from figure_data.search.person_search import search_people
 @dataclass(frozen=True)
 class CandidateListFilters:
     kind: CandidateKind | None = None
+    person_id: UUID | None = None
     person_query: str | None = None
     review_status: str | None = None
     strength: str | None = None
     basis: str | None = None
+    min_confidence: float | None = None
     limit: int = 20
+    offset: int = 0
 
 
 def list_candidate_summaries(
@@ -30,7 +33,7 @@ def list_candidate_summaries(
     if filters.person_query is not None and not person_ids:
         return []
 
-    params: dict[str, Any] = {"limit": filters.limit}
+    params: dict[str, Any] = {"limit": filters.limit, "offset": filters.offset}
     where_clauses = _build_where_clauses(filters, params, person_ids)
     statements = _candidate_selects(filters.kind)
     sql = f"""
@@ -48,6 +51,7 @@ def list_candidate_summaries(
       end,
       candidate_id
     limit :limit
+    offset :offset
     """
     rows = session.execute(text(sql), params).mappings().all()
     return [candidate_summary_from_row(cast(Mapping[str, Any], row)) for row in rows]
@@ -74,6 +78,23 @@ def _build_where_clauses(
     if filters.basis:
         clauses.append("candidate_basis = :basis")
         params["basis"] = filters.basis
+    if filters.person_id is not None:
+        clauses.append("(person_a_id = :person_id or person_b_id = :person_id)")
+        params["person_id"] = filters.person_id
+    if filters.min_confidence is not None:
+        clauses.append(
+            """
+            (
+              case candidate_strength
+                when 'high' then 0.9
+                when 'medium' then 0.6
+                when 'low' then 0.3
+                else 0.0
+              end
+            ) >= :min_confidence
+            """
+        )
+        params["min_confidence"] = filters.min_confidence
     if person_ids:
         clauses.append(
             "(person_a_id::text = any(:person_ids) or person_b_id::text = any(:person_ids))"

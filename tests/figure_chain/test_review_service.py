@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
@@ -7,6 +8,11 @@ from sqlalchemy.orm import Session
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.schemas import ReviewNeedsReviewRequest, ReviewPromoteRequest, ReviewRejectRequest
 from figure_chain.services.review import ReviewCandidateFilters, ReviewService
+from figure_data.ai.candidate_repository import (
+    CandidateSuggestionListFilters,
+    CandidateSuggestionRecord,
+)
+from figure_data.ai.job_repository import AIGenerationJobRecord
 from figure_data.encounters.types import (
     EncounterOperationError,
     EncounterPromotionOptions,
@@ -40,7 +46,7 @@ def test_review_service_maps_relationship_and_kinship_summaries() -> None:
             _summary(CandidateKind.KINSHIP, 11, "父子"),
         ]
 
-    service = ReviewService(cast(Session, object()), list_summaries_fn=list_fn)
+    service = _service(list_summaries_fn=list_fn)
 
     response = service.list_candidates(
         ReviewCandidateFilters(kind=None, status="unreviewed", limit=50, offset=0)
@@ -56,19 +62,15 @@ def test_review_service_maps_relationship_and_kinship_summaries() -> None:
 
 
 def test_review_service_filters_summary_by_person_and_confidence() -> None:
+    captured_filters: list[CandidateListFilters] = []
+
     def list_fn(session: Session, filters: CandidateListFilters) -> list[CandidateSummary]:
+        captured_filters.append(filters)
         return [
             _summary(CandidateKind.RELATIONSHIP, 10, "同僚", strength="high"),
-            _summary(
-                CandidateKind.RELATIONSHIP,
-                11,
-                "同僚",
-                strength="low",
-                person_a_id=UUID("00000000-0000-0000-0000-000000000099"),
-            ),
         ]
 
-    service = ReviewService(cast(Session, object()), list_summaries_fn=list_fn)
+    service = _service(list_summaries_fn=list_fn)
 
     response = service.list_candidates(
         ReviewCandidateFilters(
@@ -82,26 +84,33 @@ def test_review_service_filters_summary_by_person_and_confidence() -> None:
 
     assert response.count == 1
     assert response.items[0].candidate_id == 10
+    assert captured_filters[0].person_id == PERSON_A_ID
+    assert captured_filters[0].min_confidence == 0.8
+    assert captured_filters[0].limit == 50
+    assert captured_filters[0].offset == 0
 
 
-def test_review_service_applies_offset_after_filters() -> None:
+def test_review_service_passes_offset_to_candidate_listing() -> None:
+    captured_filters: list[CandidateListFilters] = []
+
     def list_fn(session: Session, filters: CandidateListFilters) -> list[CandidateSummary]:
+        captured_filters.append(filters)
         return [
-            _summary(CandidateKind.RELATIONSHIP, 10, "同僚"),
             _summary(CandidateKind.RELATIONSHIP, 11, "同僚"),
         ]
 
-    service = ReviewService(cast(Session, object()), list_summaries_fn=list_fn)
+    service = _service(list_summaries_fn=list_fn)
 
     response = service.list_candidates(ReviewCandidateFilters(limit=1, offset=1))
 
     assert response.count == 1
     assert response.items[0].candidate_id == 11
+    assert captured_filters[0].limit == 1
+    assert captured_filters[0].offset == 1
 
 
 def test_review_service_returns_empty_list() -> None:
-    service = ReviewService(
-        cast(Session, object()),
+    service = _service(
         list_summaries_fn=lambda session, filters: [],
     )
 
@@ -117,7 +126,7 @@ def test_review_service_maps_candidate_detail_with_stable_empty_ai_fields() -> N
         assert candidate_id == 10
         return _detail(kind, candidate_id)
 
-    service = ReviewService(cast(Session, object()), get_detail_fn=detail_fn)
+    service = _service(get_detail_fn=detail_fn)
 
     response = service.get_candidate("relationship", 10)
 
@@ -132,11 +141,73 @@ def test_review_service_maps_candidate_detail_with_stable_empty_ai_fields() -> N
     assert response.ai_jobs == []
 
 
+def test_review_service_maps_ai_job_and_suggestion_fields() -> None:
+    captured_job_targets: list[tuple[str, str, int, int]] = []
+    captured_suggestion_filters: list[CandidateSuggestionListFilters] = []
+
+    def detail_fn(session: Session, kind: CandidateKind, candidate_id: int) -> CandidateDetail:
+        return _detail(kind, candidate_id)
+
+    def list_jobs_fn(
+        session: Session,
+        *,
+        target_type: str,
+        target_kind: str,
+        target_id: int,
+        limit: int,
+    ) -> list[AIGenerationJobRecord]:
+        captured_job_targets.append((target_type, target_kind, target_id, limit))
+        return [_job_record(status="succeeded")]
+
+    def list_suggestions_fn(
+        session: Session,
+        filters: CandidateSuggestionListFilters,
+    ) -> list[CandidateSuggestionRecord]:
+        captured_suggestion_filters.append(filters)
+        return [_suggestion_record()]
+
+    service = ReviewService(
+        cast(Session, object()),
+        list_summaries_fn=lambda session, filters: [
+            _summary(CandidateKind.RELATIONSHIP, 10, "同僚")
+        ],
+        get_detail_fn=detail_fn,
+        list_ai_jobs_fn=list_jobs_fn,
+        list_suggestions_fn=list_suggestions_fn,
+    )
+
+    list_response = service.list_candidates(ReviewCandidateFilters(kind="relationship"))
+    detail_response = service.get_candidate("relationship", 10)
+
+    assert list_response.items[0].latest_ai_job_status == "succeeded"
+    assert list_response.items[0].has_ai_suggestion is True
+    assert detail_response.latest_ai_suggestion is not None
+    assert detail_response.latest_ai_suggestion.recommendation == "promote"
+    assert detail_response.latest_ai_suggestion.summary == "证据支持二人直接见面。"
+    assert detail_response.ai_jobs[0].status == "succeeded"
+    assert captured_job_targets == [
+        ("candidate", "relationship", 10, 1),
+        ("candidate", "relationship", 10, 20),
+    ]
+    assert captured_suggestion_filters == [
+        CandidateSuggestionListFilters(
+            candidate_kind=CandidateKind.RELATIONSHIP,
+            candidate_id=10,
+            limit=1,
+        ),
+        CandidateSuggestionListFilters(
+            candidate_kind=CandidateKind.RELATIONSHIP,
+            candidate_id=10,
+            limit=1,
+        ),
+    ]
+
+
 def test_review_service_maps_missing_candidate_to_application_error() -> None:
     def detail_fn(session: Session, kind: CandidateKind, candidate_id: int) -> CandidateDetail:
         raise CandidateReviewError("candidate not found")
 
-    service = ReviewService(cast(Session, object()), get_detail_fn=detail_fn)
+    service = _service(get_detail_fn=detail_fn)
 
     with pytest.raises(ApplicationError) as exc_info:
         service.get_candidate("relationship", 999)
@@ -146,7 +217,7 @@ def test_review_service_maps_missing_candidate_to_application_error() -> None:
 
 
 def test_review_service_maps_invalid_kind_to_application_error() -> None:
-    service = ReviewService(cast(Session, object()))
+    service = _service()
 
     with pytest.raises(ApplicationError) as exc_info:
         service.get_candidate("invalid", 10)
@@ -156,7 +227,7 @@ def test_review_service_maps_invalid_kind_to_application_error() -> None:
 
 
 def test_review_service_maps_invalid_list_kind_to_application_error() -> None:
-    service = ReviewService(cast(Session, object()))
+    service = _service()
 
     with pytest.raises(ApplicationError) as exc_info:
         service.list_candidates(ReviewCandidateFilters(kind="invalid", limit=50, offset=0))
@@ -183,7 +254,7 @@ def test_review_service_promotes_candidate_with_existing_promotion_service() -> 
             reused_existing=False,
         )
 
-    service = ReviewService(cast(Session, object()), promote_candidate_fn=promote_fn)
+    service = _service(promote_candidate_fn=promote_fn)
 
     response = service.promote_candidate(
         "relationship",
@@ -220,7 +291,7 @@ def test_review_service_rejects_candidate_with_existing_status_service() -> None
             review_note=note,
         )
 
-    service = ReviewService(cast(Session, object()), reject_candidate_fn=reject_fn)
+    service = _service(reject_candidate_fn=reject_fn)
 
     response = service.reject_candidate(
         "relationship",
@@ -253,7 +324,7 @@ def test_review_service_marks_candidate_needs_review_with_default_note() -> None
             review_note=note,
         )
 
-    service = ReviewService(cast(Session, object()), mark_candidate_review_fn=mark_fn)
+    service = _service(mark_candidate_review_fn=mark_fn)
 
     response = service.mark_candidate_needs_review(
         "relationship",
@@ -273,7 +344,7 @@ def test_review_service_maps_not_promotable_error() -> None:
     ) -> EncounterPromotionResult:
         raise EncounterOperationError("candidate requires --allow-non-default")
 
-    service = ReviewService(cast(Session, object()), promote_candidate_fn=promote_fn)
+    service = _service(promote_candidate_fn=promote_fn)
 
     with pytest.raises(ApplicationError) as exc_info:
         service.promote_candidate(
@@ -300,7 +371,7 @@ def test_review_service_maps_already_promoted_reject_error() -> None:
     ) -> CandidateStatusChange:
         raise CandidateReviewError("candidate is already promoted; retract first")
 
-    service = ReviewService(cast(Session, object()), reject_candidate_fn=reject_fn)
+    service = _service(reject_candidate_fn=reject_fn)
 
     with pytest.raises(ApplicationError) as exc_info:
         service.reject_candidate(
@@ -310,6 +381,30 @@ def test_review_service_maps_already_promoted_reject_error() -> None:
         )
 
     assert exc_info.value.code is ErrorCode.CANDIDATE_ALREADY_PROMOTED
+
+
+def _service(**kwargs: object) -> ReviewService:
+    kwargs.setdefault("list_ai_jobs_fn", _empty_ai_jobs)
+    kwargs.setdefault("list_suggestions_fn", _empty_suggestions)
+    return ReviewService(cast(Session, object()), **kwargs)  # type: ignore[arg-type]
+
+
+def _empty_ai_jobs(
+    session: Session,
+    *,
+    target_type: str,
+    target_kind: str,
+    target_id: int,
+    limit: int,
+) -> list[AIGenerationJobRecord]:
+    return []
+
+
+def _empty_suggestions(
+    session: Session,
+    filters: CandidateSuggestionListFilters,
+) -> list[CandidateSuggestionRecord]:
+    return []
 
 
 def _summary(
@@ -387,4 +482,48 @@ def _person(person_id: UUID, name: str, cbdb_id: int) -> CandidatePerson:
         birth_year=None,
         death_year=None,
         external_ids=[str(cbdb_id)],
+    )
+
+
+def _job_record(*, status: str) -> AIGenerationJobRecord:
+    now = datetime(2026, 6, 18, tzinfo=UTC)
+    return AIGenerationJobRecord(
+        id=UUID("00000000-0000-0000-0000-000000000501"),
+        job_type="candidate_review_suggestion",
+        target_type="candidate",
+        target_kind="relationship",
+        target_id=10,
+        status=status,
+        created_by="lyl",
+        params={},
+        result_ref_type="ai_candidate_review_suggestion",
+        result_ref_id=UUID("00000000-0000-0000-0000-000000000601"),
+        error_code=None,
+        error_message=None,
+        started_at=now,
+        finished_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _suggestion_record() -> CandidateSuggestionRecord:
+    now = datetime(2026, 6, 18, tzinfo=UTC)
+    return CandidateSuggestionRecord(
+        id=UUID("00000000-0000-0000-0000-000000000601"),
+        ai_run_id=UUID("00000000-0000-0000-0000-000000000301"),
+        candidate_kind=CandidateKind.RELATIONSHIP,
+        candidate_id=10,
+        suggested_action="promote",
+        priority_score=90,
+        evidence_summary_draft="证据支持二人直接见面。",
+        risk_flags=[],
+        supporting_source_ref_ids=[100],
+        review_questions=[],
+        explanation="来源文本明确支持直接互动。",
+        status="generated",
+        reviewed_by=None,
+        reviewed_at=None,
+        review_note=None,
+        created_at=now,
     )

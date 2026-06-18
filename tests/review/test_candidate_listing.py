@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from figure_data.review.candidate_listing import CandidateListFilters, list_candidate_summaries
 from figure_data.review.types import CandidateKind
@@ -78,10 +79,13 @@ def test_list_candidate_summaries_adds_filters() -> None:
         session,  # type: ignore[arg-type]
         CandidateListFilters(
             kind=CandidateKind.KINSHIP,
+            person_id=UUID("00000000-0000-0000-0000-000000000001"),
             review_status="needs_review",
             strength="medium",
             basis="family_close",
+            min_confidence=0.6,
             limit=10,
+            offset=20,
         ),
     )
 
@@ -89,8 +93,15 @@ def test_list_candidate_summaries_adds_filters() -> None:
     assert "candidate_strength = :strength" in statement
     assert "candidate_basis = :basis" in statement
     assert "review_status = :review_status" in statement
+    assert "(person_a_id = :person_id or person_b_id = :person_id)" in statement
+    assert "case candidate_strength" in statement
+    assert ">= :min_confidence" in statement
+    assert "offset :offset" in statement
     params = session.params[0]
     assert params is not None
+    assert params["person_id"] == UUID("00000000-0000-0000-0000-000000000001")
     assert params["strength"] == "medium"
     assert params["basis"] == "family_close"
     assert params["review_status"] == "needs_review"
+    assert params["min_confidence"] == 0.6
+    assert params["offset"] == 20
