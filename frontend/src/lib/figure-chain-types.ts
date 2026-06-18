@@ -28,6 +28,105 @@ export type PeopleSearchResponse = {
   items: PersonSearchItem[];
 };
 
+export type PersonAlias = {
+  alias_zh_hant: string | null;
+  alias_zh_hans: string | null;
+  alias_romanized: string | null;
+  alias_type_label_zh: string | null;
+  alias_type_label_en: string | null;
+};
+
+export type PersonExternalIdDetail = {
+  source_name: string;
+  external_id: string;
+};
+
+export type PersonEncounterSummaryCounts = {
+  active_count: number;
+  path_eligible_count: number;
+  high_certainty_count: number;
+};
+
+export type PersonDetail = {
+  person_id: string;
+  display_name: string;
+  primary_name_zh_hant: string | null;
+  primary_name_zh_hans: string | null;
+  primary_name_romanized: string | null;
+  birth_year: number | null;
+  death_year: number | null;
+  index_year: number | null;
+  floruit_start_year: number | null;
+  floruit_end_year: number | null;
+  dynasty_code: number | null;
+  dynasty_label_zh: string | null;
+  dynasty_label_en: string | null;
+  is_female: boolean | null;
+  notes: string | null;
+  aliases: PersonAlias[];
+  external_ids: PersonExternalIdDetail[];
+  encounter_summary: PersonEncounterSummaryCounts;
+};
+
+export type PersonEncounterListItem = {
+  encounter_id: string;
+  other_person_id: string;
+  other_person_name: string | null;
+  other_person_birth_year: number | null;
+  other_person_death_year: number | null;
+  encounter_kind: string;
+  certainty_level: string;
+  path_eligible: boolean;
+  source_work_id: number | null;
+  source_title: string | null;
+  pages: string | null;
+  evidence_summary: string;
+  status: string;
+  reviewed_by: string;
+  reviewed_at: string;
+};
+
+export type PersonEncounterListResponse = {
+  items: PersonEncounterListItem[];
+  count: number;
+  limit: number;
+  offset: number;
+};
+
+export type SourceWorkDetail = {
+  source_work_id: number;
+  text_code: number | null;
+  title_zh: string | null;
+  title_en: string | null;
+  source_name: string;
+  source_table: string;
+  source_pk: string;
+  ref_count: number;
+  encounter_count: number;
+};
+
+export type LinkedEncounterEvidence = {
+  evidence_id: number;
+  encounter_id: string;
+  evidence_kind: string;
+  evidence_summary: string;
+  pages: string | null;
+  created_at: string;
+};
+
+export type SourceRefDetail = {
+  source_ref_id: number;
+  source_work: SourceWorkDetail | null;
+  ref_source_table: string;
+  ref_source_pk: string;
+  pages: string | null;
+  notes: string | null;
+  source_name: string;
+  source_table: string;
+  source_pk: string;
+  linked_encounter_evidence: LinkedEncounterEvidence[];
+};
+
 export type ChainEndpointRequest = {
   person_id?: string;
   cbdb_id?: string;
