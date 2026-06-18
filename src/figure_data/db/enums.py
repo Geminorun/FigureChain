@@ -87,3 +87,24 @@ class AICandidateSuggestionStatus(StrEnum):
 class AIChainExplanationStatus(StrEnum):
     GENERATED = "generated"
     ARCHIVED = "archived"
+
+
+class AIJobType(StrEnum):
+    CANDIDATE_REVIEW_SUGGESTION = "candidate_review_suggestion"
+
+
+class AIJobTargetType(StrEnum):
+    CANDIDATE = "candidate"
+
+
+class AIJobTargetKind(StrEnum):
+    RELATIONSHIP = "relationship"
+    KINSHIP = "kinship"
+
+
+class AIJobStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
