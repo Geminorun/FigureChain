@@ -1,7 +1,8 @@
 from collections.abc import Iterator, Mapping
-from typing import Any
+from typing import Any, cast
 
 from pytest import MonkeyPatch
+from sqlalchemy.orm import Session
 
 from figure_data.graph.multipath import (
     build_multipath_cypher,
@@ -135,7 +136,7 @@ def test_find_multipath_returns_no_path(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr("figure_data.graph.multipath.resolve_endpoint", resolve)
     result = find_multipath(
-        pg_session=object(),
+        pg_session=cast(Session, object()),
         neo4j_session=FakeGraphSession([]),
         source=ChainEndpointInput("source", None, None, "source"),
         target=ChainEndpointInput("target", None, None, "target"),
