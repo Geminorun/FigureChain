@@ -18,6 +18,8 @@ class ErrorCode(StrEnum):
     DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
     CONFIGURATION_ERROR = "configuration_error"
     AI_RESULT_NOT_FOUND = "ai_result_not_found"
+    CANDIDATE_NOT_FOUND = "candidate_not_found"
+    CANDIDATE_INVALID_KIND = "candidate_invalid_kind"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -31,6 +33,8 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.DEPENDENCY_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
     ErrorCode.CONFIGURATION_ERROR: status.HTTP_503_SERVICE_UNAVAILABLE,
     ErrorCode.AI_RESULT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    ErrorCode.CANDIDATE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    ErrorCode.CANDIDATE_INVALID_KIND: status.HTTP_400_BAD_REQUEST,
     ErrorCode.INTERNAL_ERROR: status.HTTP_500_INTERNAL_SERVER_ERROR,
 }
 

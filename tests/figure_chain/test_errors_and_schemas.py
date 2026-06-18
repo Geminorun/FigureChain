@@ -70,3 +70,38 @@ def test_application_error_handler_returns_stable_shape() -> None:
             "details": {"endpoint": "source"},
         }
     }
+
+
+def test_review_candidate_error_codes_have_stable_http_statuses() -> None:
+    app = FastAPI()
+    register_error_handlers(app)
+
+    @app.get("/missing-candidate")
+    def missing_candidate() -> None:
+        raise ApplicationError(
+            code=ErrorCode.CANDIDATE_NOT_FOUND,
+            message="candidate was not found",
+        )
+
+    @app.get("/invalid-kind")
+    def invalid_kind() -> None:
+        raise ApplicationError(
+            code=ErrorCode.CANDIDATE_INVALID_KIND,
+            message="candidate kind is not supported",
+            details={"kind": "invalid"},
+        )
+
+    with TestClient(app) as client:
+        missing_response = client.get("/missing-candidate")
+        invalid_response = client.get("/invalid-kind")
+
+    assert missing_response.status_code == 404
+    assert missing_response.json()["error"]["code"] == "candidate_not_found"
+    assert invalid_response.status_code == 400
+    assert invalid_response.json() == {
+        "error": {
+            "code": "candidate_invalid_kind",
+            "message": "candidate kind is not supported",
+            "details": {"kind": "invalid"},
+        }
+    }
