@@ -10,6 +10,7 @@ from figure_data.db.models import (
     office,
     person,
     relationship,
+    sharing,
     source,
 )
 
@@ -25,5 +26,6 @@ __all__ = [
     "office",
     "person",
     "relationship",
+    "sharing",
     "source",
 ]
