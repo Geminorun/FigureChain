@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -167,4 +168,14 @@ def candidate_summary_from_row(row: Mapping[str, Any]) -> CandidateSummary:
         source_work_id=row["source_work_id"],
         pages=row["pages"],
         review_status=str(row["review_status"]),
+        person_a_id=_uuid_or_none(row.get("person_a_id")),
+        person_b_id=_uuid_or_none(row.get("person_b_id")),
     )
+
+
+def _uuid_or_none(value: object) -> UUID | None:
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return value
+    return UUID(str(value))

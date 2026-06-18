@@ -47,6 +47,8 @@ class CandidateSummary:
     source_work_id: int | None
     pages: str | None
     review_status: str
+    person_a_id: UUID | None = None
+    person_b_id: UUID | None = None
 
 
 @dataclass(frozen=True)
