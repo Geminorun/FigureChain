@@ -11,7 +11,6 @@ from figure_chain.schemas import (
     MultiPathItemResponse,
 )
 
-
 SOURCE_ID = UUID("38966b03-8aa7-5143-8021-2d266889b6c5")
 TARGET_ID = UUID("46cfdf66-08c4-5876-964b-4a95d098afe9")
 

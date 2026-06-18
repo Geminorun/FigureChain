@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from figure_chain.errors import ApplicationError, ERROR_STATUS, ErrorCode, register_error_handlers
+from figure_chain.errors import ERROR_STATUS, ApplicationError, ErrorCode, register_error_handlers
 from figure_chain.schemas import ChainEndpointRequest, ShortestChainRequest, display_name
 
 
