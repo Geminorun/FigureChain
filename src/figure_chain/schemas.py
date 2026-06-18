@@ -187,6 +187,123 @@ class EncounterDetailResponse(BaseModel):
     source_refs: list[SourceRefResponse]
 
 
+class ReviewCandidatePersonResponse(BaseModel):
+    person_id: str | None
+    cbdb_id: int | None
+    display_name: str
+    primary_name_zh_hant: str | None
+    primary_name_zh_hans: str | None
+    primary_name_romanized: str | None
+    birth_year: int | None
+    death_year: int | None
+
+
+class ReviewPromotionReadinessResponse(BaseModel):
+    default_promotable: bool
+    default_path_eligible: bool
+    reasons: list[str]
+
+
+class ReviewCandidateSummary(BaseModel):
+    kind: str
+    candidate_id: int
+    person_a: ReviewCandidatePersonResponse
+    person_b: ReviewCandidatePersonResponse
+    relation_type: str | None
+    time_summary: str | None
+    place_summary: str | None
+    status: str
+    confidence: float
+    evidence_count: int
+    source_count: int
+    promotion_readiness: ReviewPromotionReadinessResponse
+    latest_ai_job_status: str | None
+    has_ai_suggestion: bool
+
+
+class ReviewCandidateListResponse(BaseModel):
+    items: list[ReviewCandidateSummary]
+    limit: int
+    offset: int
+    count: int
+
+
+class ReviewCandidateRelationResponse(BaseModel):
+    relation_type: str | None
+    basis: str | None
+    strength: str | None
+    notes: str | None
+    source_name: str | None
+    source_table: str | None
+    source_pk: str | None
+
+
+class ReviewCandidateTimeResponse(BaseModel):
+    summary: str | None
+    pages: str | None
+
+
+class ReviewCandidatePlaceResponse(BaseModel):
+    summary: str | None
+
+
+class ReviewSourceRefResponse(BaseModel):
+    source_ref_id: int
+    source_work_id: int | None
+    title_zh: str | None
+    title_en: str | None
+    pages: str | None
+    notes: str | None
+
+
+class ReviewCandidateEvidenceResponse(BaseModel):
+    evidence_id: int | None
+    source_ref_id: int | None
+    evidence_kind: str
+    evidence_summary: str
+    pages: str | None
+
+
+class ReviewLinkedEncounterResponse(BaseModel):
+    encounter_id: UUID
+    status: str | None = None
+
+
+class ReviewAiSuggestionSummary(BaseModel):
+    suggestion_id: UUID | None
+    ai_run_id: UUID | None
+    status: str
+    recommendation: str | None
+    summary: str | None
+    created_at: datetime | None
+
+
+class ReviewAiJobSummary(BaseModel):
+    run_id: UUID
+    status: str
+    purpose: str
+    created_at: datetime | None
+    finished_at: datetime | None
+
+
+class ReviewCandidateDetailResponse(BaseModel):
+    kind: str
+    candidate_id: int
+    person_a: ReviewCandidatePersonResponse
+    person_b: ReviewCandidatePersonResponse
+    relation: ReviewCandidateRelationResponse
+    time: ReviewCandidateTimeResponse | None
+    place: ReviewCandidatePlaceResponse | None
+    status: str
+    confidence: float
+    source_refs: list[ReviewSourceRefResponse]
+    evidence: list[ReviewCandidateEvidenceResponse]
+    promotion_readiness: ReviewPromotionReadinessResponse
+    linked_encounter: ReviewLinkedEncounterResponse | None
+    latest_ai_suggestion: ReviewAiSuggestionSummary | None
+    ai_jobs: list[ReviewAiJobSummary]
+
+
 class DependencyStatusResponse(BaseModel):
     status: Literal["ok", "error"]
     message: str | None = None
