@@ -17,6 +17,10 @@ from figure_data.sharing.repository import (
     get_share_snapshot_by_slug,
     record_markdown_export,
 )
+from figure_data.sharing.snapshot_builder import (
+    ShareSnapshotBuildError,
+    build_share_snapshot_payload,
+)
 from figure_data.sharing.types import ChainShareSnapshotRecord, NewChainShareSnapshot
 
 SHARE_SCHEMA_VERSION = "share-v1"
@@ -33,14 +37,26 @@ class SharingService:
                 message="chain_hash is required",
             )
         self._validate_path_payload(request.path_payload)
+        try:
+            built_snapshot = build_share_snapshot_payload(
+                self._pg_session,
+                source_person_id=request.source_person_id,
+                target_person_id=request.target_person_id,
+                path_payload=request.path_payload,
+            )
+        except ShareSnapshotBuildError as exc:
+            raise ApplicationError(
+                code=ErrorCode.SHARE_SNAPSHOT_INVALID,
+                message=str(exc),
+            ) from exc
         record = create_share_snapshot(
             self._pg_session,
             NewChainShareSnapshot(
                 source_person_id=request.source_person_id,
                 target_person_id=request.target_person_id,
                 chain_hash=request.chain_hash.strip(),
-                encounter_ids=self._extract_encounter_ids(request.path_payload),
-                path_payload=request.path_payload,
+                encounter_ids=built_snapshot.encounter_ids,
+                path_payload=built_snapshot.path_payload,
                 filters_applied=request.filters_applied,
                 include_ai_explanation=request.include_ai_explanation,
                 include_rag_context=request.include_rag_context,
@@ -120,16 +136,3 @@ class SharingService:
                 code=ErrorCode.SHARE_SNAPSHOT_INVALID,
                 message="path_payload.edges must be a non-empty list",
             )
-
-    def _extract_encounter_ids(self, path_payload: dict[str, object]) -> list[str]:
-        encounter_ids: list[str] = []
-        edges = path_payload.get("edges")
-        if not isinstance(edges, list):
-            return encounter_ids
-        for edge in edges:
-            if not isinstance(edge, dict):
-                continue
-            encounter_id = edge.get("encounter_id")
-            if encounter_id is not None:
-                encounter_ids.append(str(encounter_id))
-        return encounter_ids
