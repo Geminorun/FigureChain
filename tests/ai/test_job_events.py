@@ -7,7 +7,6 @@ from figure_data.ai import job_events
 from figure_data.ai.job_events import NewAIJobEvent
 from figure_data.ai.job_repository import AIJobEventRecord
 
-
 JOB_ID = UUID("00000000-0000-0000-0000-000000000501")
 EVENT_ID = UUID("00000000-0000-0000-0000-000000000701")
 

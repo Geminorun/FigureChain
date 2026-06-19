@@ -97,6 +97,9 @@ def test_create_ai_run_inserts_running_record() -> None:
     assert params is not None
     assert params["status"] == "running"
     assert params["schema_valid"] is False
+    assert params["retry_count"] == 0
+    assert params["provider_metadata"] == "{}"
+    assert "retry_count, provider_metadata" in session.statements[0]
 
 
 def test_mark_ai_run_succeeded_updates_output_snapshot() -> None:

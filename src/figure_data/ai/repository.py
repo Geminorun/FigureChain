@@ -126,12 +126,14 @@ def create_ai_run(session: Session, run: NewAIRun) -> UUID:
               id, purpose, provider, model_name, prompt_version_id,
               input_hash, input_snapshot, output_snapshot, raw_output_excerpt,
               status, schema_valid, error_code, error_message,
-              started_at, finished_at, created_by
+              started_at, finished_at, created_by,
+              retry_count, provider_metadata
             ) values (
               gen_random_uuid(), :purpose, :provider, :model_name, :prompt_version_id,
               :input_hash, cast(:input_snapshot as jsonb), null, null,
               :status, :schema_valid, null, null,
-              :started_at, null, :created_by
+              :started_at, null, :created_by,
+              :retry_count, cast(:provider_metadata as jsonb)
             )
             returning id
             """
@@ -147,6 +149,8 @@ def create_ai_run(session: Session, run: NewAIRun) -> UUID:
             "schema_valid": False,
             "started_at": datetime.now(UTC),
             "created_by": run.created_by,
+            "retry_count": 0,
+            "provider_metadata": "{}",
         },
     ).scalar_one()
     return value if isinstance(value, UUID) else UUID(str(value))
