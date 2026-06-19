@@ -5,7 +5,7 @@ from uuid import UUID
 from pytest import raises
 from typer.testing import CliRunner
 
-from figure_data.ai.errors import AIProviderError
+from figure_data.ai.errors import AIOutputPolicyViolation, AIProviderError
 from figure_data.ai.provider import FakeAIProvider
 from figure_data.ai.real_provider_evaluation import (
     Stage5DEvaluationFixture,
@@ -110,6 +110,29 @@ def test_evaluation_runner_counts_policy_violation() -> None:
 
     assert result.failed_count == 1
     assert "labels_ai_as_auxiliary" in result.items[0].errors[0]
+
+
+def test_evaluation_runner_classifies_policy_violation_before_schema_invalid(
+    monkeypatch: Any,
+) -> None:
+    def raise_policy_violation(**kwargs: Any) -> object:
+        raise AIOutputPolicyViolation("unsafe output")
+
+    monkeypatch.setattr(
+        "figure_data.ai.real_provider_evaluation.run_ai_prompt",
+        raise_policy_violation,
+    )
+
+    result = run_stage5d_evaluation(
+        fixture=fixture_with_one_candidate_sample(),
+        settings=fake_settings(ai_provider="fake"),
+        provider=FakeAIProvider(),
+        session=object(),
+        repository=FakeRunRepository(),
+    )
+
+    assert result.failed_count == 1
+    assert result.items[0].errors == ["policy_violation: unsafe output"]
 
 
 def test_evaluation_runner_fails_traceability_for_ids_outside_allowed_set() -> None:

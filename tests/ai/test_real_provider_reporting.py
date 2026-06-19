@@ -35,7 +35,8 @@ def test_stage5d_report_redacts_item_errors() -> None:
                     update={
                         "status": "error",
                         "errors": [
-                            "provider failed with redis://:pass@example/0 and Bearer token"
+                            "provider failed with redis://:pass@example/0, "
+                            "Bearer token, and sk-test-secret"
                         ],
                     }
                 )
@@ -47,6 +48,7 @@ def test_stage5d_report_redacts_item_errors() -> None:
 
     assert "redis://" not in markdown
     assert "Bearer token" not in markdown
+    assert "sk-test-secret" not in markdown
     assert "[REDACTED]" in markdown
 
 

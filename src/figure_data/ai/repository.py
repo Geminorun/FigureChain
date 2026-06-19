@@ -114,6 +114,55 @@ class PostgresAIRunRepository:
 
 
 def ensure_prompt_version(session: Session, prompt: PromptDefinition) -> UUID:
+    existing = _get_prompt_version_row(session, prompt)
+    if existing is not None:
+        _assert_prompt_version_matches(prompt, existing)
+        return _uuid(existing["id"])
+
+    value = session.execute(
+        text(
+            """
+            insert into figure_data.ai_prompt_versions (
+              id, prompt_key, prompt_version, purpose, system_prompt,
+              user_prompt_template, output_schema_name, output_schema_version,
+              status, created_at
+            ) values (
+              gen_random_uuid(), :prompt_key, :prompt_version, :purpose, :system_prompt,
+              :user_prompt_template, :output_schema_name, :output_schema_version,
+              :status, :created_at
+            )
+            on conflict (prompt_key, prompt_version) do nothing
+            returning id
+            """
+        ),
+        {
+            "prompt_key": prompt.prompt_key,
+            "prompt_version": prompt.prompt_version,
+            "purpose": prompt.purpose,
+            "system_prompt": prompt.system_prompt,
+            "user_prompt_template": prompt.user_prompt_template,
+            "output_schema_name": prompt.output_schema_name,
+            "output_schema_version": prompt.output_schema_version,
+            "status": AIPromptStatus.ACTIVE.value,
+            "created_at": datetime.now(UTC),
+        },
+    ).scalar_one_or_none()
+    if value is not None:
+        return value if isinstance(value, UUID) else UUID(str(value))
+
+    existing_after_conflict = _get_prompt_version_row(session, prompt)
+    if existing_after_conflict is None:
+        raise AIPromptVersionConflictError(
+            "prompt version insert conflicted but existing row was not readable"
+        )
+    _assert_prompt_version_matches(prompt, existing_after_conflict)
+    return _uuid(existing_after_conflict["id"])
+
+
+def _get_prompt_version_row(
+    session: Session,
+    prompt: PromptDefinition,
+) -> Mapping[str, Any] | None:
     existing = (
         session.execute(
             text(
@@ -133,39 +182,7 @@ def ensure_prompt_version(session: Session, prompt: PromptDefinition) -> UUID:
         .mappings()
         .one_or_none()
     )
-    if existing is not None:
-        row = cast(Mapping[str, Any], existing)
-        _assert_prompt_version_matches(prompt, row)
-        return _uuid(row["id"])
-
-    value = session.execute(
-        text(
-            """
-            insert into figure_data.ai_prompt_versions (
-              id, prompt_key, prompt_version, purpose, system_prompt,
-              user_prompt_template, output_schema_name, output_schema_version,
-              status, created_at
-            ) values (
-              gen_random_uuid(), :prompt_key, :prompt_version, :purpose, :system_prompt,
-              :user_prompt_template, :output_schema_name, :output_schema_version,
-              :status, :created_at
-            )
-            returning id
-            """
-        ),
-        {
-            "prompt_key": prompt.prompt_key,
-            "prompt_version": prompt.prompt_version,
-            "purpose": prompt.purpose,
-            "system_prompt": prompt.system_prompt,
-            "user_prompt_template": prompt.user_prompt_template,
-            "output_schema_name": prompt.output_schema_name,
-            "output_schema_version": prompt.output_schema_version,
-            "status": AIPromptStatus.ACTIVE.value,
-            "created_at": datetime.now(UTC),
-        },
-    ).scalar_one()
-    return value if isinstance(value, UUID) else UUID(str(value))
+    return cast(Mapping[str, Any] | None, existing)
 
 
 def _assert_prompt_version_matches(

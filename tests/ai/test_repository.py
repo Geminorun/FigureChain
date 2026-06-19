@@ -23,6 +23,9 @@ class ScalarResult:
     def scalar_one(self) -> object:
         return self.value
 
+    def scalar_one_or_none(self) -> object:
+        return self.value
+
 
 @dataclass
 class MappingResult:
@@ -100,6 +103,36 @@ class ExistingPromptSession:
             return MappingResult([] if self.row is None else [self.row])
         if "insert into figure_data.ai_prompt_versions" in sql:
             return ScalarResult(UUID("00000000-0000-0000-0000-000000000003"))
+        return ScalarResult(None)
+
+
+class ConcurrentPromptCreateSession:
+    def __init__(self, prompt_id: UUID) -> None:
+        self.prompt_id = prompt_id
+        self.statements: list[str] = []
+        self.select_count = 0
+
+    def execute(self, statement: Any, params: dict[str, Any] | None = None) -> object:
+        sql = str(statement)
+        self.statements.append(sql)
+        if "select id, purpose, system_prompt" in sql:
+            self.select_count += 1
+            if self.select_count == 1:
+                return MappingResult([])
+            return MappingResult(
+                [
+                    {
+                        "id": self.prompt_id,
+                        "purpose": "ai_foundation_diagnostic",
+                        "system_prompt": "system",
+                        "user_prompt_template": "Return JSON.",
+                        "output_schema_name": "ai_foundation_diagnostic_output",
+                        "output_schema_version": "1",
+                    }
+                ]
+            )
+        if "insert into figure_data.ai_prompt_versions" in sql:
+            return ScalarResult(None)
         return ScalarResult(None)
 
 
@@ -181,6 +214,25 @@ def test_ensure_prompt_version_reuses_matching_existing_prompt() -> None:
 
     assert ensure_prompt_version(session, prompt) == prompt_id  # type: ignore[arg-type]
     assert "insert into figure_data.ai_prompt_versions" not in "\n".join(session.statements)
+
+
+def test_ensure_prompt_version_recovers_from_concurrent_first_insert() -> None:
+    prompt = PromptDefinition(
+        prompt_key="ai_foundation_diagnostic",
+        prompt_version="2026-06-13.1",
+        purpose="ai_foundation_diagnostic",
+        system_prompt="system",
+        user_prompt_template="Return JSON.",
+        output_schema_name="ai_foundation_diagnostic_output",
+        output_schema_version="1",
+    )
+    prompt_id = UUID("00000000-0000-0000-0000-000000000002")
+    session = ConcurrentPromptCreateSession(prompt_id)
+
+    assert ensure_prompt_version(session, prompt) == prompt_id  # type: ignore[arg-type]
+    sql = "\n".join(session.statements)
+    assert "on conflict (prompt_key, prompt_version) do nothing" in sql
+    assert session.select_count == 2
 
 
 def test_mark_ai_run_succeeded_updates_output_snapshot() -> None:

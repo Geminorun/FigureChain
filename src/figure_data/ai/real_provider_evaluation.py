@@ -189,12 +189,12 @@ def _evaluate_sample(
         output_snapshot = result.output.model_dump(mode="json")
         errors.extend(_deterministic_boundary_errors(sample, output_snapshot))
         status = "failed" if errors else "passed"
-    except AIOutputValidationError as exc:
-        status = "failed"
-        errors.append(_safe_error(f"schema_invalid: {exc}"))
     except AIOutputPolicyViolation as exc:
         status = "failed"
         errors.append(_safe_error(f"policy_violation: {exc}"))
+    except AIOutputValidationError as exc:
+        status = "failed"
+        errors.append(_safe_error(f"schema_invalid: {exc}"))
     except AIProviderError as exc:
         status = "error"
         errors.append(_safe_error(f"provider_error: {exc}"))

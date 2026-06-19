@@ -6,6 +6,7 @@ from collections.abc import Mapping
 SENSITIVE_KEYS = {"authorization", "api_key", "apikey", "token", "password", "secret"}
 SECRET_PATTERNS = (
     re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
+    re.compile(r"\bsk-[A-Za-z0-9][A-Za-z0-9._\-]{2,}\b"),
     re.compile(r"redis://[^\s]+", re.IGNORECASE),
     re.compile(r"postgresql(?:\+psycopg)?://[^\s]+", re.IGNORECASE),
 )
