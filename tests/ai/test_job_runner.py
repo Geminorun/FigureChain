@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from figure_data.ai.candidate_repository import CandidateSuggestionRecord
 from figure_data.ai.candidate_service import CandidateReviewSuggestionResult
 from figure_data.ai.job_repository import AIGenerationJobRecord
+from figure_data.ai import job_runner
 from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.config import Settings
 from figure_data.review.types import CandidateKind, CandidateReviewError
@@ -56,6 +57,38 @@ class FakeJobRepository:
     ) -> AIGenerationJobRecord:
         self.failed.append((job_id, error_code, error_message))
         return self.jobs[0]
+
+
+class FakeSingleJobRepository(FakeJobRepository):
+    def __init__(self, job: AIGenerationJobRecord | None) -> None:
+        super().__init__([job] if job is not None else [])
+        self.claimed_job_id: UUID | None = None
+        self.worker_id: str | None = None
+        self.events: list[str] = []
+
+    def claim_queued_job_by_id(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        worker_id: str,
+    ) -> AIGenerationJobRecord | None:
+        self.claimed_job_id = job_id
+        self.worker_id = worker_id
+        return self.jobs[0] if self.jobs else None
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        self.events.append(event_type)
+        return job_id
 
 
 def test_run_ai_jobs_executes_candidate_review_job_and_marks_success() -> None:
@@ -160,6 +193,48 @@ def test_run_ai_jobs_does_not_change_candidate_review_state() -> None:
 
     assert candidate_status_calls == ["generate_only"]
     assert repository.succeeded
+    assert repository.failed == []
+
+
+def test_execute_ai_job_claims_specific_job_and_marks_success() -> None:
+    repository = FakeSingleJobRepository(_job())
+
+    def generate(**kwargs: object) -> CandidateReviewSuggestionResult:
+        return CandidateReviewSuggestionResult(
+            ai_run_id=AI_RUN_ID,
+            suggestion=_suggestion(),
+        )
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, object()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+        generate_candidate_review_suggestion_fn=generate,
+    )
+
+    assert result.status == "succeeded"
+    assert repository.claimed_job_id == JOB_ID
+    assert repository.worker_id == "worker-1"
+    assert repository.succeeded == [(JOB_ID, "ai_candidate_review_suggestion", SUGGESTION_ID)]
+    assert "started" in repository.events
+    assert "succeeded" in repository.events
+
+
+def test_execute_ai_job_skips_when_claim_returns_none() -> None:
+    repository = FakeSingleJobRepository(None)
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, object()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+    )
+
+    assert result.status == "skipped"
+    assert repository.succeeded == []
     assert repository.failed == []
 
 

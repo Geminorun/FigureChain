@@ -12,9 +12,11 @@ from figure_data.ai.candidate_service import (
 )
 from figure_data.ai.job_repository import (
     AIGenerationJobRecord,
+    claim_queued_job_by_id,
     claim_queued_jobs,
     mark_failed,
     mark_succeeded,
+    record_job_event,
 )
 from figure_data.config import Settings
 from figure_data.review.types import CandidateKind, CandidateReviewError
@@ -31,6 +33,15 @@ class AIGenerationJobRepository(Protocol):
         job_type: str | None = None,
     ) -> list[AIGenerationJobRecord]:
         """Claim queued jobs and move them to running."""
+
+    def claim_queued_job_by_id(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        worker_id: str,
+    ) -> AIGenerationJobRecord | None:
+        """Claim a single queued job by id."""
 
     def mark_succeeded(
         self,
@@ -51,6 +62,18 @@ class AIGenerationJobRepository(Protocol):
         error_message: str,
     ) -> AIGenerationJobRecord:
         """Mark a running job as failed."""
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        """Record a job event."""
 
 
 class GenerateCandidateReviewSuggestionFn(Protocol):
@@ -76,6 +99,15 @@ class PostgresAIGenerationJobRepository:
         job_type: str | None = None,
     ) -> list[AIGenerationJobRecord]:
         return claim_queued_jobs(session, limit=limit, job_type=job_type)
+
+    def claim_queued_job_by_id(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        worker_id: str,
+    ) -> AIGenerationJobRecord | None:
+        return claim_queued_job_by_id(session, job_id, worker_id=worker_id)
 
     def mark_succeeded(
         self,
@@ -107,6 +139,25 @@ class PostgresAIGenerationJobRepository:
             error_message=error_message,
         )
 
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        return record_job_event(
+            session,
+            job_id=job_id,
+            event_type=event_type,
+            actor=actor,
+            message=message,
+            metadata=metadata,
+        )
+
 
 @dataclass(frozen=True)
 class AIGenerationJobFailure:
@@ -121,6 +172,14 @@ class AIGenerationJobRunSummary:
     succeeded_count: int
     failed_count: int
     failures: list[AIGenerationJobFailure]
+
+
+@dataclass(frozen=True)
+class AIGenerationJobExecutionResult:
+    job_id: UUID
+    status: str
+    error_code: str | None = None
+    error_message: str | None = None
 
 
 def run_ai_jobs(
@@ -177,6 +236,79 @@ def run_ai_jobs(
         failed_count=len(failures),
         failures=failures,
     )
+
+
+def execute_ai_job(
+    *,
+    session: Session,
+    settings: Settings,
+    job_id: UUID,
+    worker_id: str,
+    repository: AIGenerationJobRepository | None = None,
+    generate_candidate_review_suggestion_fn: GenerateCandidateReviewSuggestionFn = (
+        generate_candidate_review_suggestion
+    ),
+) -> AIGenerationJobExecutionResult:
+    resolved_repository = repository or PostgresAIGenerationJobRepository()
+    job = resolved_repository.claim_queued_job_by_id(
+        session,
+        job_id,
+        worker_id=worker_id,
+    )
+    if job is None:
+        return AIGenerationJobExecutionResult(job_id=job_id, status="skipped")
+
+    resolved_repository.record_event(
+        session,
+        job_id=job.id,
+        event_type="started",
+        actor="worker",
+        metadata={"worker_id": worker_id},
+    )
+    try:
+        result = _run_job(
+            session=session,
+            settings=settings,
+            job=job,
+            generate_candidate_review_suggestion_fn=generate_candidate_review_suggestion_fn,
+        )
+        resolved_repository.mark_succeeded(
+            session,
+            job.id,
+            result_ref_type="ai_candidate_review_suggestion",
+            result_ref_id=result.suggestion.id,
+        )
+        resolved_repository.record_event(
+            session,
+            job_id=job.id,
+            event_type="succeeded",
+            actor="worker",
+            metadata={"result_ref_id": str(result.suggestion.id)},
+        )
+        return AIGenerationJobExecutionResult(job_id=job.id, status="succeeded")
+    except Exception as exc:
+        error_code = _error_code(exc)
+        error_message = _error_message(exc)
+        resolved_repository.mark_failed(
+            session,
+            job.id,
+            error_code=error_code,
+            error_message=error_message,
+        )
+        resolved_repository.record_event(
+            session,
+            job_id=job.id,
+            event_type="failed",
+            actor="worker",
+            message=error_message,
+            metadata={"error_code": error_code},
+        )
+        return AIGenerationJobExecutionResult(
+            job_id=job.id,
+            status="failed",
+            error_code=error_code,
+            error_message=error_message,
+        )
 
 
 def _run_job(
