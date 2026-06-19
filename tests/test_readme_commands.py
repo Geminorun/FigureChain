@@ -95,3 +95,14 @@ def test_readme_documents_ai_evaluation_stage4_acceptance() -> None:
     assert "docs/superpowers/evaluation/stage4-ai-samples.json" in readme
     assert "docs/superpowers/reports/2026-06-14-ai-stage4-acceptance.md" in readme
     assert "AI 评测不会调用真实模型，不会写事实源，不会写 Neo4j" in readme
+
+
+def test_readme_documents_stage5e_runtime_commands() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "docker compose up -d neo4j redis" in readme
+    assert "uv run --no-sync alembic upgrade head" in readme
+    assert "uv run --no-sync figure-data doctor" in readme
+    assert "uv run --no-sync figure-data validate-encounters" in readme
+    assert "uv run --no-sync figure-data sync-graph --rebuild" in readme
+    assert "uv run --no-sync figure-data validate-graph" in readme

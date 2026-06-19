@@ -19,6 +19,40 @@ NEO4J_DATABASE=neo4j
 
 不要提交 `.env`、完整数据库连接串、密码或本机固定路径。
 
+## 阶段 5E 本地运行基线
+
+1. Create a private `.env` from `.env.example` and fill real credentials locally.
+2. Start Neo4j and Redis:
+
+   ```powershell
+   docker compose up -d neo4j redis
+   ```
+
+3. Apply migrations:
+
+   ```powershell
+   uv run --no-sync alembic upgrade head
+   ```
+
+4. Validate data and graph projection:
+
+   ```powershell
+   uv run --no-sync figure-data validate-encounters
+   uv run --no-sync figure-data sync-graph --rebuild
+   uv run --no-sync figure-data validate-graph
+   ```
+
+5. Inspect runtime dependencies:
+
+   ```powershell
+   uv run --no-sync figure-data doctor
+   ```
+
+6. Start API, RQ worker, and frontend in separate terminals.
+
+Never commit `.env`, real database URLs, Neo4j passwords, Redis credentials,
+provider API keys, or local absolute paths.
+
 ## 本地 Neo4j
 
 Neo4j 只作为图查询和最短路径的本地中间件；PostgreSQL 仍然是人物、候选关系和
