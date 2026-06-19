@@ -1,0 +1,84 @@
+{
+  "generated_at": "2026-06-19T20:19:54+08:00",
+  "environment": "local",
+  "command_results": [
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m alembic upgrade head",
+      "status": "pass",
+      "summary": "migration reached head"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\figure-data.exe validate-encounters",
+      "status": "pass",
+      "summary": "8 encounter validation checks passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\figure-data.exe sync-graph --rebuild",
+      "status": "pass",
+      "summary": "projected 12 persons and 10 relationships"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\figure-data.exe validate-graph",
+      "status": "pass",
+      "summary": "postgres=10 neo4j=10; latest_success batch recorded"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\figure-data.exe doctor",
+      "status": "pass",
+      "summary": "runtime_status=ok; PostgreSQL and Neo4j dependencies ok"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\graph tests\\figure_chain tests\\ai tests\\runtime -q",
+      "status": "pass",
+      "summary": "411 passed, 2 skipped"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m ruff check .",
+      "status": "pass",
+      "summary": "All checks passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\python.exe -m mypy src tests",
+      "status": "pass",
+      "summary": "Success: no issues found in 325 source files"
+    },
+    {
+      "command": "pnpm --dir frontend test",
+      "status": "pass",
+      "summary": "27 files and 105 tests passed"
+    },
+    {
+      "command": "pnpm --dir frontend lint",
+      "status": "pass",
+      "summary": "eslint completed successfully"
+    },
+    {
+      "command": "pnpm --dir frontend typecheck",
+      "status": "pass",
+      "summary": "tsc --noEmit completed successfully"
+    }
+  ],
+  "smoke_results": [
+    {
+      "name": "graph_rebuild_validate",
+      "status": "pass",
+      "summary": "rebuild followed by validate-graph produced matching PostgreSQL and Neo4j counts"
+    },
+    {
+      "name": "runtime_doctor",
+      "status": "pass",
+      "summary": "doctor reported PostgreSQL and Neo4j ok under network-enabled execution"
+    }
+  ],
+  "security_scan": {
+    "status": "pass",
+    "summary": "scan found only variable names, redaction code, lockfile text, and existing report path markers; no secret values were found"
+  },
+  "known_limits": [
+    "uv launcher currently fails from the WinGet Links shim in this shell; equivalent .venv commands were used for verification",
+    "真实 provider 默认关闭",
+    "第一版权限边界不是完整账号系统",
+    "图增量同步失败时以全量 rebuild 作为恢复路径"
+  ],
+  "recommendation": "ready_for_stage5_closeout"
+}

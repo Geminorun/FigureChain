@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 RUNBOOK = Path("docs/operations/stage5-runtime-runbook.md")
 
 
