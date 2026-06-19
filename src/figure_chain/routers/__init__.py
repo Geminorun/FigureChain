@@ -12,6 +12,7 @@ from figure_chain.routers import (
     review,
     sharing,
     sources,
+    system,
 )
 
 
@@ -27,4 +28,5 @@ def api_router() -> APIRouter:
     router.include_router(review.router)
     router.include_router(sharing.router)
     router.include_router(sources.router)
+    router.include_router(system.router)
     return router

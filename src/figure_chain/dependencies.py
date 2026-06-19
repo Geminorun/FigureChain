@@ -18,8 +18,10 @@ from figure_chain.services.people import PeopleService
 from figure_chain.services.review import ReviewService
 from figure_chain.services.sharing import SharingService
 from figure_chain.services.sources import SourceService
+from figure_chain.services.system import SystemService
 from figure_data.ai.queue import create_ai_job_queue
 from figure_data.graph.neo4j_client import graph_session
+from figure_data.runtime.diagnostics import RuntimeDiagnostics
 
 
 def get_operation_context(request: Request) -> OperationContext:
@@ -145,3 +147,10 @@ def get_sharing_service(
     pg_session: Annotated[Session, Depends(get_pg_session)],
 ) -> SharingService:
     return SharingService(pg_session)
+
+
+def get_system_service(request: Request) -> SystemService:
+    diagnostics = getattr(request.app.state, "runtime_diagnostics", None)
+    if diagnostics is None:
+        diagnostics = RuntimeDiagnostics(config={}, dependencies=[])
+    return SystemService(diagnostics)

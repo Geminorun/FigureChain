@@ -602,3 +602,14 @@ class DependencyStatusResponse(BaseModel):
 class ReadyResponse(BaseModel):
     status: Literal["ready", "not_ready"]
     dependencies: dict[str, DependencyStatusResponse]
+
+
+class SystemDependencyStatusResponse(BaseModel):
+    status: str
+    message: str | None = None
+
+
+class SystemDiagnosticsResponse(BaseModel):
+    status: str
+    dependencies: dict[str, SystemDependencyStatusResponse]
+    config: dict[str, object]
