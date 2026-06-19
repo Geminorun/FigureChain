@@ -40,11 +40,17 @@ class FakePgSession:
     def __init__(self) -> None:
         self.scalar_values = [1, 2, 0]
         self.statements: list[str] = []
+        self.params: list[dict[str, object] | None] = []
+        self.last_params: dict[str, object] = {}
         self.latest_succeeded_batch: dict[str, object] | None = None
         self.latest_failed_batch: dict[str, object] | None = None
 
     def execute(self, statement: Any, params: dict[str, object] | None = None) -> object:
         self.statements.append(str(statement))
+        self.params.append(params)
+        self.last_params = params or {}
+        if "update figure_data.graph_projection_batches" in str(statement):
+            return PgScalarResult(0)
         if "from figure_data.graph_projection_batches" in str(statement):
             status = None if params is None else params.get("status")
             row = (
@@ -236,3 +242,23 @@ def test_validate_graph_fails_when_failed_batch_is_newer_than_success() -> None:
     assert not batch_check.passed
     assert "latest_success=success-batch" in batch_check.detail
     assert "latest_failed=failed-batch" in batch_check.detail
+
+
+def test_validate_graph_records_validation_status_on_latest_successful_batch() -> None:
+    pg_session = FakePgSession()
+    pg_session.latest_succeeded_batch = _batch_row(
+        batch_id="success-batch",
+        status="succeeded",
+        started_at=datetime(2026, 6, 19, 8, tzinfo=UTC),
+        finished_at=datetime(2026, 6, 19, 8, 1, tzinfo=UTC),
+    )
+
+    validate_graph(pg_session, FakeNeo4jSession())  # type: ignore[arg-type]
+
+    assert any(
+        "update figure_data.graph_projection_batches" in statement
+        for statement in pg_session.statements
+    )
+    assert pg_session.last_params["batch_id"] == "success-batch"
+    assert pg_session.last_params["validation_status"] == "passed"
+    assert "graph:relationship_count" in str(pg_session.last_params["validation_summary"])

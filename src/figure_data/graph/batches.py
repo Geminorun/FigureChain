@@ -123,6 +123,34 @@ def mark_projection_batch_failed(
     )
 
 
+def mark_projection_batch_validation(
+    session: Session,
+    *,
+    batch_id: UUID | str,
+    validation_status: str,
+    validation_summary: dict[str, object],
+) -> None:
+    session.execute(
+        text(
+            """
+            update figure_data.graph_projection_batches
+            set validation_status = :validation_status,
+                validation_summary = cast(:validation_summary as jsonb)
+            where id = :batch_id
+            """
+        ),
+        {
+            "batch_id": batch_id,
+            "validation_status": validation_status,
+            "validation_summary": json.dumps(
+                validation_summary,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        },
+    )
+
+
 def get_latest_projection_batch(
     session: Session,
     *,

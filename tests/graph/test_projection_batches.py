@@ -9,6 +9,7 @@ from figure_data.graph.batches import (
     get_latest_projection_batch,
     mark_projection_batch_failed,
     mark_projection_batch_succeeded,
+    mark_projection_batch_validation,
     start_projection_batch,
 )
 
@@ -125,6 +126,23 @@ def test_mark_projection_batch_failed_redacts_error_message() -> None:
     assert session.last_params["status"] == "failed"
     assert "secret" not in session.last_params["error_message"]
     assert "[REDACTED]" in session.last_params["error_message"]
+
+
+def test_mark_projection_batch_validation_records_summary() -> None:
+    session = FakeSession()
+
+    mark_projection_batch_validation(
+        session,  # type: ignore[arg-type]
+        batch_id=BATCH_ID,
+        validation_status="passed",
+        validation_summary={"graph:relationship_count": "postgres=10 neo4j=10"},
+    )
+
+    assert session.last_params["batch_id"] == BATCH_ID
+    assert session.last_params["validation_status"] == "passed"
+    assert session.last_params["validation_summary"] == (
+        '{"graph:relationship_count": "postgres=10 neo4j=10"}'
+    )
 
 
 def test_get_latest_projection_batch_maps_record() -> None:
