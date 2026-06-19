@@ -7,15 +7,28 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from figure_chain.errors import ApplicationError, ErrorCode
-from figure_chain.schemas import AiJobCreateRequest, AiJobListResponse, AiJobResponse
+from figure_chain.schemas import (
+    AiJobCreateRequest,
+    AiJobEventListResponse,
+    AiJobEventResponse,
+    AiJobHealthResponse,
+    AiJobListResponse,
+    AiJobResponse,
+)
 from figure_data.ai.job_repository import (
     AIGenerationJobRecord,
+    AIJobEventRecord,
+    AIJobQueueHealthRecord,
     NewAIGenerationJob,
+    cancel_queued_job,
     create_job,
     get_job,
+    get_job_queue_health,
+    list_job_events,
     list_jobs_for_target,
     mark_enqueued,
     record_job_event,
+    request_running_job_cancel,
 )
 from figure_data.ai.queue import AIJobQueue
 from figure_data.review.candidate_detail import get_candidate_detail
@@ -72,6 +85,26 @@ class AIJobRepository(Protocol):
         metadata: dict[str, object] | None = None,
     ) -> UUID:
         """Record an AI job event."""
+
+    def cancel_job(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        cancelled_by: str,
+    ) -> AIGenerationJobRecord:
+        """Request cancellation for an AI job."""
+
+    def list_job_events(self, session: Session, job_id: UUID) -> list[AIJobEventRecord]:
+        """List events for an AI job."""
+
+    def get_queue_health(
+        self,
+        session: Session,
+        *,
+        stale_after_seconds: int,
+    ) -> AIJobQueueHealthRecord:
+        """Return queue health counters."""
 
 
 class PostgresAIJobRepository:
@@ -133,6 +166,37 @@ class PostgresAIJobRepository:
             message=message,
             metadata=metadata,
         )
+
+    def cancel_job(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        cancelled_by: str,
+    ) -> AIGenerationJobRecord:
+        record = get_job(session, job_id)
+        if record is None:
+            raise ApplicationError(
+                code=ErrorCode.AI_JOB_NOT_FOUND,
+                message="AI job was not found",
+                details={"job_id": str(job_id)},
+            )
+        if record.status == "queued":
+            return cancel_queued_job(session, job_id, cancelled_by=cancelled_by)
+        if record.status == "running":
+            return request_running_job_cancel(session, job_id, cancelled_by=cancelled_by)
+        return record
+
+    def list_job_events(self, session: Session, job_id: UUID) -> list[AIJobEventRecord]:
+        return list_job_events(session, job_id)
+
+    def get_queue_health(
+        self,
+        session: Session,
+        *,
+        stale_after_seconds: int,
+    ) -> AIJobQueueHealthRecord:
+        return get_job_queue_health(session, stale_after_seconds=stale_after_seconds)
 
 
 class AIJobsService:
@@ -258,6 +322,77 @@ class AIJobsService:
             limit=limit,
         )
 
+    def cancel_job(self, job_id: UUID, *, cancelled_by: str) -> AiJobResponse:
+        record = self._repository.get_job(self._session, job_id)
+        if record is None:
+            raise ApplicationError(
+                code=ErrorCode.AI_JOB_NOT_FOUND,
+                message="AI job was not found",
+                details={"job_id": str(job_id)},
+            )
+        cancelled = self._repository.cancel_job(
+            self._session,
+            job_id,
+            cancelled_by=cancelled_by,
+        )
+        self._repository.record_event(
+            self._session,
+            job_id=job_id,
+            event_type="cancel_requested",
+            actor=cancelled_by,
+            metadata={"previous_status": record.status, "new_status": cancelled.status},
+        )
+        self._commit_if_supported()
+        return self._job(cancelled)
+
+    def retry_job(self, job_id: UUID, *, created_by: str) -> AiJobResponse:
+        record = self._repository.get_job(self._session, job_id)
+        if record is None:
+            raise ApplicationError(
+                code=ErrorCode.AI_JOB_NOT_FOUND,
+                message="AI job was not found",
+                details={"job_id": str(job_id)},
+            )
+        return self.create_job(
+            AiJobCreateRequest(
+                job_type=record.job_type,
+                target_type=record.target_type,
+                target_kind=record.target_kind,
+                target_id=record.target_id,
+                created_by=created_by,
+                params={**record.params, "retry_of_job_id": str(record.id)},
+            )
+        )
+
+    def list_job_events(self, job_id: UUID) -> AiJobEventListResponse:
+        if self._repository.get_job(self._session, job_id) is None:
+            raise ApplicationError(
+                code=ErrorCode.AI_JOB_NOT_FOUND,
+                message="AI job was not found",
+                details={"job_id": str(job_id)},
+            )
+        events = self._repository.list_job_events(self._session, job_id)
+        return AiJobEventListResponse(
+            items=[self._event(event) for event in events],
+            count=len(events),
+        )
+
+    def get_queue_health(self, *, stale_after_seconds: int = 300) -> AiJobHealthResponse:
+        health = self._repository.get_queue_health(
+            self._session,
+            stale_after_seconds=stale_after_seconds,
+        )
+        return AiJobHealthResponse(
+            status_counts=health.status_counts,
+            queued_count=health.queued_count,
+            running_count=health.running_count,
+            succeeded_count=health.succeeded_count,
+            failed_count=health.failed_count,
+            cancelled_count=health.cancelled_count,
+            stale_running_count=health.stale_running_count,
+            oldest_queued_at=health.oldest_queued_at,
+        )
+
     def _validate_job_type(self, job_type: str) -> None:
         if job_type != SUPPORTED_JOB_TYPE:
             raise ApplicationError(
@@ -312,4 +447,15 @@ class AIJobsService:
             finished_at=record.finished_at,
             created_at=record.created_at,
             updated_at=record.updated_at,
+        )
+
+    def _event(self, record: AIJobEventRecord) -> AiJobEventResponse:
+        return AiJobEventResponse(
+            id=record.id,
+            job_id=record.job_id,
+            event_type=record.event_type,
+            actor=record.actor,
+            message=record.message,
+            metadata=record.metadata,
+            created_at=record.created_at,
         )
