@@ -352,6 +352,16 @@ class AiJobResponse(BaseModel):
     result_ref_id: UUID | None
     error_code: str | None
     error_message: str | None
+    queue_backend: str
+    queue_name: str | None
+    queue_job_id: str | None
+    enqueued_at: datetime | None
+    attempt_count: int
+    max_attempts: int
+    next_run_at: datetime | None
+    cancel_requested_at: datetime | None
+    worker_id: str | None
+    heartbeat_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None
     created_at: datetime

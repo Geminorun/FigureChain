@@ -125,7 +125,10 @@ def test_get_ai_job_returns_job() -> None:
         response = client.get(f"/api/v1/ai/jobs/{JOB_ID}")
 
     assert response.status_code == 200
-    assert response.json()["id"] == str(JOB_ID)
+    body = response.json()
+    assert body["id"] == str(JOB_ID)
+    assert body["queue_backend"] == "database"
+    assert body["attempt_count"] == 0
 
 
 def test_list_ai_jobs_returns_target_history() -> None:
@@ -235,6 +238,16 @@ def _job(*, status: str = "queued") -> AiJobResponse:
         result_ref_id=None,
         error_code=None,
         error_message=None,
+        queue_backend="database",
+        queue_name=None,
+        queue_job_id=None,
+        enqueued_at=None,
+        attempt_count=0,
+        max_attempts=3,
+        next_run_at=None,
+        cancel_requested_at=None,
+        worker_id=None,
+        heartbeat_at=None,
         started_at=None,
         finished_at=None,
         created_at=now,

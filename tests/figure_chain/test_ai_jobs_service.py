@@ -158,6 +158,9 @@ def test_ai_jobs_service_gets_job() -> None:
 
     assert response.id == JOB_ID
     assert response.target_kind == "relationship"
+    assert response.queue_backend == "database"
+    assert response.attempt_count == 0
+    assert response.worker_id is None
 
 
 def test_ai_jobs_service_enqueues_after_creating_job() -> None:
