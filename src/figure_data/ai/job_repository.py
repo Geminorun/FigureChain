@@ -161,6 +161,35 @@ def list_jobs_for_target(
     return [_record_from_row(cast(Mapping[str, Any], row)) for row in rows]
 
 
+def list_requeueable_jobs(
+    session: Session,
+    *,
+    limit: int,
+) -> list[AIGenerationJobRecord]:
+    rows = (
+        session.execute(
+            text(
+                f"""
+                select {_select_columns()}
+                from figure_data.ai_generation_jobs
+                where status = :queued_status
+                  and (next_run_at is null or next_run_at <= :now)
+                order by created_at, id
+                limit :limit
+                """
+            ),
+            {
+                "queued_status": AIJobStatus.QUEUED.value,
+                "now": datetime.now(UTC),
+                "limit": limit,
+            },
+        )
+        .mappings()
+        .all()
+    )
+    return [_record_from_row(cast(Mapping[str, Any], row)) for row in rows]
+
+
 def claim_queued_jobs(
     session: Session,
     *,

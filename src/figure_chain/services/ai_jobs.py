@@ -14,7 +14,10 @@ from figure_data.ai.job_repository import (
     create_job,
     get_job,
     list_jobs_for_target,
+    mark_enqueued,
+    record_job_event,
 )
+from figure_data.ai.queue import AIJobQueue
 from figure_data.review.candidate_detail import get_candidate_detail
 from figure_data.review.types import (
     CandidateDetail,
@@ -47,6 +50,29 @@ class AIJobRepository(Protocol):
     ) -> list[AIGenerationJobRecord]:
         """List AI jobs for one target."""
 
+    def mark_enqueued(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        queue_backend: str,
+        queue_name: str,
+        queue_job_id: str,
+    ) -> AIGenerationJobRecord:
+        """Persist queue metadata after enqueue."""
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        """Record an AI job event."""
+
 
 class PostgresAIJobRepository:
     def create_job(self, session: Session, job: NewAIGenerationJob) -> UUID:
@@ -72,6 +98,42 @@ class PostgresAIJobRepository:
             limit=limit,
         )
 
+    def mark_enqueued(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        queue_backend: str,
+        queue_name: str,
+        queue_job_id: str,
+    ) -> AIGenerationJobRecord:
+        return mark_enqueued(
+            session,
+            job_id,
+            queue_backend=queue_backend,
+            queue_name=queue_name,
+            queue_job_id=queue_job_id,
+        )
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        return record_job_event(
+            session,
+            job_id=job_id,
+            event_type=event_type,
+            actor=actor,
+            message=message,
+            metadata=metadata,
+        )
+
 
 class AIJobsService:
     def __init__(
@@ -79,10 +141,16 @@ class AIJobsService:
         session: Session,
         *,
         repository: AIJobRepository | None = None,
+        queue: AIJobQueue | None = None,
+        queue_name: str = "figure-ai",
+        job_timeout_seconds: int = 120,
         get_candidate_detail_fn: GetCandidateDetailFn = get_candidate_detail,
     ) -> None:
         self._session = session
         self._repository = repository or PostgresAIJobRepository()
+        self._queue = queue
+        self._queue_name = queue_name
+        self._job_timeout_seconds = job_timeout_seconds
         self._get_candidate_detail_fn = get_candidate_detail_fn
 
     def create_job(self, request: AiJobCreateRequest) -> AiJobResponse:
@@ -101,6 +169,48 @@ class AIJobsService:
                 params=request.params,
             ),
         )
+        self._repository.record_event(
+            self._session,
+            job_id=job_id,
+            event_type="created",
+            actor="api",
+            message="AI job created",
+            metadata={"job_type": request.job_type},
+        )
+        self._commit_if_supported()
+        if self._queue is not None:
+            try:
+                enqueued = self._queue.enqueue(
+                    job_id,
+                    queue_name=self._queue_name,
+                    timeout_seconds=self._job_timeout_seconds,
+                )
+                if enqueued.queue_job_id is not None:
+                    self._repository.mark_enqueued(
+                        self._session,
+                        job_id,
+                        queue_backend=enqueued.queue_backend,
+                        queue_name=enqueued.queue_name,
+                        queue_job_id=enqueued.queue_job_id,
+                    )
+                self._repository.record_event(
+                    self._session,
+                    job_id=job_id,
+                    event_type="enqueued",
+                    actor="api",
+                    message="AI job enqueued",
+                    metadata={"queue_backend": enqueued.queue_backend},
+                )
+            except Exception as exc:
+                self._repository.record_event(
+                    self._session,
+                    job_id=job_id,
+                    event_type="enqueue_failed",
+                    actor="api",
+                    message=str(exc)[:200],
+                    metadata={"queue_name": self._queue_name},
+                )
+        self._commit_if_supported()
         record = self._repository.get_job(self._session, job_id)
         if record is None:
             raise ApplicationError(
@@ -109,6 +219,11 @@ class AIJobsService:
                 details={"job_id": str(job_id)},
             )
         return self._job(record)
+
+    def _commit_if_supported(self) -> None:
+        commit = getattr(self._session, "commit", None)
+        if callable(commit):
+            commit()
 
     def get_job(self, job_id: UUID) -> AiJobResponse:
         record = self._repository.get_job(self._session, job_id)

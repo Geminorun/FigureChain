@@ -17,6 +17,7 @@ from figure_chain.services.people import PeopleService
 from figure_chain.services.review import ReviewService
 from figure_chain.services.sharing import SharingService
 from figure_chain.services.sources import SourceService
+from figure_data.ai.queue import create_ai_job_queue
 from figure_data.graph.neo4j_client import graph_session
 
 
@@ -96,9 +97,17 @@ def get_ai_service(
 
 
 def get_ai_jobs_service(
+    request: Request,
     pg_session: Annotated[Session, Depends(get_pg_session)],
 ) -> AIJobsService:
-    return AIJobsService(pg_session)
+    settings = getattr(request.app.state, "settings", None)
+    queue = None if settings is None else create_ai_job_queue(settings)
+    return AIJobsService(
+        pg_session,
+        queue=queue,
+        queue_name=getattr(settings, "ai_queue_name", "figure-ai"),
+        job_timeout_seconds=getattr(settings, "ai_job_timeout_seconds", 120),
+    )
 
 
 def get_review_service(

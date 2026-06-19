@@ -37,6 +37,13 @@ def test_run_ai_jobs_help_is_registered() -> None:
     assert "--job-type" in result.output
 
 
+def test_requeue_ai_jobs_help() -> None:
+    result = runner.invoke(app, ["requeue-ai-jobs", "--help"])
+
+    assert result.exit_code == 0
+    assert "--limit" in result.stdout
+
+
 def test_run_ai_jobs_command_outputs_summary(monkeypatch: MonkeyPatch) -> None:
     patch_session(monkeypatch)
     calls: list[tuple[int, str | None]] = []

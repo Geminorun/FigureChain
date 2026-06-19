@@ -42,10 +42,12 @@ from figure_data.ai.evaluation_scoring import (
 )
 from figure_data.ai.evaluation_types import EvaluationReport
 from figure_data.ai.formatting import format_ai_run_detail
+from figure_data.ai.job_repository import list_requeueable_jobs, mark_enqueued, record_job_event
 from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
 from figure_data.ai.no_path_service import generate_no_path_exploration
+from figure_data.ai.queue import create_ai_job_queue
 from figure_data.ai.repository import get_ai_run
 from figure_data.ai.retrieval_formatting import (
     format_build_rag_index_result,
@@ -602,6 +604,46 @@ def run_ai_jobs_command(
         _echo_cli_line(
             f"failed_job\t{failure.job_id}\t{failure.error_code}\t{failure.error_message}"
         )
+
+
+@app.command("requeue-ai-jobs")
+def requeue_ai_jobs_command(
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 50,
+) -> None:
+    """List queued AI jobs that can be enqueued by the RQ backend."""
+    settings = load_settings()
+    if settings.ai_queue_backend != "rq":
+        _echo_cli_line("ai_jobs_requeue\tbackend=database\trequeued=0")
+        return
+    queue = create_ai_job_queue(settings)
+    factory = create_session_factory(settings)
+    with session_scope(factory) as session:
+        jobs = list_requeueable_jobs(session, limit=limit)
+        for job in jobs:
+            enqueued = queue.enqueue(
+                job.id,
+                queue_name=settings.ai_queue_name,
+                timeout_seconds=settings.ai_job_timeout_seconds,
+            )
+            if enqueued.queue_job_id is not None:
+                mark_enqueued(
+                    session,
+                    job.id,
+                    queue_backend=enqueued.queue_backend,
+                    queue_name=enqueued.queue_name,
+                    queue_job_id=enqueued.queue_job_id,
+                )
+                record_job_event(
+                    session,
+                    job_id=job.id,
+                    event_type="requeued",
+                    actor="cli",
+                    metadata={
+                        "queue_name": enqueued.queue_name,
+                        "dedupe_job_id": f"figurechain-ai-job:{job.id}",
+                    },
+                )
+    _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")
 
 
 @app.command("generate-chain-explanation")

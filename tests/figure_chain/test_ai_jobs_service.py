@@ -9,6 +9,7 @@ from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.schemas import AiJobCreateRequest
 from figure_chain.services.ai_jobs import AIJobsService
 from figure_data.ai.job_repository import AIGenerationJobRecord, NewAIGenerationJob
+from figure_data.ai.queue import EnqueuedAIJob
 from figure_data.review.types import CandidateDetail, CandidateKind, CandidateReviewError
 
 JOB_ID = UUID("00000000-0000-0000-0000-000000000501")
@@ -18,6 +19,8 @@ class FakeJobRepository:
     def __init__(self) -> None:
         self.created: list[NewAIGenerationJob] = []
         self.records: dict[UUID, AIGenerationJobRecord] = {JOB_ID: _job_record()}
+        self.enqueued: list[tuple[UUID, str, str, str]] = []
+        self.events: list[tuple[UUID, str]] = []
 
     def create_job(self, session: Session, job: NewAIGenerationJob) -> UUID:
         self.created.append(job)
@@ -40,6 +43,40 @@ class FakeJobRepository:
         assert target_id == 960698
         assert limit == 10
         return list(self.records.values())
+
+    def mark_enqueued(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        queue_backend: str,
+        queue_name: str,
+        queue_job_id: str,
+    ) -> AIGenerationJobRecord:
+        self.enqueued.append((job_id, queue_backend, queue_name, queue_job_id))
+        return self.records[job_id]
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        self.events.append((job_id, event_type))
+        return job_id
+
+
+class FakeQueue:
+    def enqueue(self, job_id: UUID, *, queue_name: str, timeout_seconds: int) -> EnqueuedAIJob:
+        return EnqueuedAIJob(
+            queue_backend="rq",
+            queue_name=queue_name,
+            queue_job_id="rq-job-501",
+        )
 
 
 def test_ai_jobs_service_creates_queued_job_without_running_model() -> None:
@@ -81,6 +118,34 @@ def test_ai_jobs_service_gets_job() -> None:
 
     assert response.id == JOB_ID
     assert response.target_kind == "relationship"
+
+
+def test_ai_jobs_service_enqueues_after_creating_job() -> None:
+    repository = FakeJobRepository()
+    session = cast(Session, object())
+    service = AIJobsService(
+        session,
+        repository=repository,
+        queue=FakeQueue(),
+        queue_name="figure-ai",
+        job_timeout_seconds=120,
+        get_candidate_detail_fn=lambda session, kind, candidate_id: cast(CandidateDetail, object()),
+    )
+
+    response = service.create_job(
+        AiJobCreateRequest(
+            job_type="candidate_review_suggestion",
+            target_type="candidate",
+            target_kind="relationship",
+            target_id=960698,
+            created_by="lyl",
+            params={"retrieval_limit": 3},
+        )
+    )
+
+    assert response.status == "queued"
+    assert repository.enqueued == [(JOB_ID, "rq", "figure-ai", "rq-job-501")]
+    assert repository.events[-1] == (JOB_ID, "enqueued")
 
 
 def test_ai_jobs_service_lists_target_jobs() -> None:
@@ -169,6 +234,16 @@ def _job_record() -> AIGenerationJobRecord:
         error_message=None,
         started_at=None,
         finished_at=None,
+        queue_backend="database",
+        queue_name=None,
+        queue_job_id=None,
+        enqueued_at=None,
+        attempt_count=0,
+        max_attempts=3,
+        next_run_at=None,
+        cancel_requested_at=None,
+        worker_id=None,
+        heartbeat_at=None,
         created_at=now,
         updated_at=now,
     )

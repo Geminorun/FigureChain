@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
-
 
 RQ_WORKER_TARGET = "figure_data.ai.rq_worker.execute_ai_job_task"
 
@@ -26,11 +25,6 @@ class AIJobQueue(Protocol):
         """Enqueue a persisted AI job by id."""
 
 
-class _RQQueueLike(Protocol):
-    def enqueue_call(self, **kwargs: object) -> object:
-        """Subset of rq.Queue used by the adapter."""
-
-
 class DatabaseAIJobQueue:
     def enqueue(
         self,
@@ -47,7 +41,7 @@ class DatabaseAIJobQueue:
 
 
 class RQAIJobQueue:
-    def __init__(self, queue: _RQQueueLike) -> None:
+    def __init__(self, queue: Any) -> None:
         self._queue = queue
 
     def enqueue(
@@ -69,7 +63,7 @@ class RQAIJobQueue:
         return EnqueuedAIJob(
             queue_backend="rq",
             queue_name=queue_name,
-            queue_job_id=str(getattr(rq_job, "id")),
+            queue_job_id=str(rq_job.id),
         )
 
 
