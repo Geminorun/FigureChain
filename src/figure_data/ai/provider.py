@@ -4,6 +4,7 @@ import json
 from typing import Protocol
 
 from figure_data.ai.errors import AIProviderConfigurationError, AIProviderError
+from figure_data.ai.openai_compatible_provider import OpenAICompatibleProvider
 from figure_data.ai.types import AIProviderRequest, AIProviderResponse
 from figure_data.config import Settings
 
@@ -42,6 +43,18 @@ def create_ai_provider(settings: Settings) -> AIProvider:
         return DisabledAIProvider()
     if settings.ai_provider == "fake":
         return FakeAIProvider()
+    if settings.ai_provider == "openai_compatible":
+        if not settings.ai_allow_real_provider:
+            raise AIProviderConfigurationError("real AI provider is not explicitly allowed")
+        if settings.ai_api_key is None:
+            raise AIProviderConfigurationError("FIGURE_AI_API_KEY is required")
+        if settings.ai_base_url is None:
+            raise AIProviderConfigurationError("FIGURE_AI_BASE_URL is required")
+        return OpenAICompatibleProvider(
+            api_key=settings.ai_api_key,
+            base_url=settings.ai_base_url,
+            timeout_seconds=settings.ai_timeout_seconds,
+        )
     provider_name = settings.ai_provider or "missing"
     raise AIProviderConfigurationError(f"unsupported AI provider: {provider_name}")
 
