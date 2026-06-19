@@ -44,7 +44,14 @@ from figure_data.ai.evaluation_scoring import (
 )
 from figure_data.ai.evaluation_types import EvaluationReport
 from figure_data.ai.formatting import format_ai_run_detail
-from figure_data.ai.job_repository import list_requeueable_jobs, mark_enqueued, record_job_event
+from figure_data.ai.job_repository import (
+    cancel_queued_job,
+    get_job,
+    list_requeueable_jobs,
+    mark_enqueued,
+    record_job_event,
+    request_running_job_cancel,
+)
 from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
@@ -646,6 +653,35 @@ def requeue_ai_jobs_command(
                     },
                 )
     _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")
+
+
+@app.command("cancel-ai-job")
+def cancel_ai_job_command(
+    job_id: Annotated[UUID, typer.Option("--job-id")],
+    cancelled_by: Annotated[str, typer.Option("--cancelled-by")],
+) -> None:
+    """Request cancellation for an AI generation job."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with session_scope(factory) as session:
+        job = get_job(session, job_id)
+        if job is None:
+            typer.echo(f"AI job not found: {job_id}", err=True)
+            raise typer.Exit(code=1)
+        if job.status == "queued":
+            record = cancel_queued_job(session, job_id, cancelled_by=cancelled_by)
+        elif job.status == "running":
+            record = request_running_job_cancel(session, job_id, cancelled_by=cancelled_by)
+        else:
+            record = job
+        record_job_event(
+            session,
+            job_id=job_id,
+            event_type="cancel_requested",
+            actor=cancelled_by,
+            metadata={"previous_status": job.status, "new_status": record.status},
+        )
+    _echo_cli_line(f"ai_job_cancel\t{job_id}\tstatus={record.status}")
 
 
 @app.command("run-ai-worker")

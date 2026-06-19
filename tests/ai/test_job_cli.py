@@ -51,6 +51,14 @@ def test_run_ai_worker_help() -> None:
     assert "--queue" in result.stdout
 
 
+def test_cancel_ai_job_help() -> None:
+    result = runner.invoke(app, ["cancel-ai-job", "--help"])
+
+    assert result.exit_code == 0
+    assert "--job-id" in result.stdout
+    assert "--cancelled-by" in result.stdout
+
+
 def test_run_ai_worker_requires_rq_backend(monkeypatch: MonkeyPatch) -> None:
     settings = type(
         "Settings",
