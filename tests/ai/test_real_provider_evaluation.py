@@ -160,6 +160,10 @@ def test_evaluate_real_provider_cli_runs_fixture(monkeypatch: Any, tmp_path: Pat
     assert result.exit_code == 0
     assert "samples\t1" in result.output
     assert "real_provider_used\tFalse" in result.output
+    assert f"evaluation_report\t{output}" in result.output
+    assert output.read_text(encoding="utf-8").startswith(
+        "# 阶段 5D 真实 Provider 评测报告"
+    )
 
 
 def fixture_with_one_candidate_sample(

@@ -61,6 +61,7 @@ from figure_data.ai.real_provider_evaluation import (
     load_stage5d_evaluation_fixture,
     run_stage5d_evaluation,
 )
+from figure_data.ai.real_provider_reporting import write_stage5d_evaluation_report
 from figure_data.ai.repository import get_ai_run
 from figure_data.ai.retrieval_formatting import (
     format_build_rag_index_result,
@@ -569,6 +570,7 @@ def evaluate_real_provider_command(
                 session=session,
                 allow_real_provider=allow_real_provider,
             )
+        report_path = write_stage5d_evaluation_report(result, output)
     except (ValueError, AIProviderConfigurationError, AIProviderError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -579,7 +581,7 @@ def evaluate_real_provider_command(
     _echo_cli_line(f"provider\t{result.provider}")
     _echo_cli_line(f"model\t{result.model_name}")
     _echo_cli_line(f"real_provider_used\t{result.real_provider_used}")
-    _echo_cli_line(f"evaluation_output\t{output}")
+    _echo_cli_line(f"evaluation_report\t{report_path}")
 
 
 @app.command("suggest-candidate-review")
