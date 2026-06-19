@@ -14,6 +14,10 @@ class DummyDriver:
 
 
 class DummySession:
+    commit_count = 0
+    rollback_count = 0
+    close_count = 0
+
     def __enter__(self) -> object:
         return object()
 
@@ -25,8 +29,20 @@ class DummySession:
     ) -> None:
         return None
 
+    def commit(self) -> None:
+        type(self).commit_count += 1
+
+    def rollback(self) -> None:
+        type(self).rollback_count += 1
+
+    def close(self) -> None:
+        type(self).close_count += 1
+
 
 def patch_graph_cli(monkeypatch: MonkeyPatch, checks: list[ValidationCheck]) -> None:
+    DummySession.commit_count = 0
+    DummySession.rollback_count = 0
+    DummySession.close_count = 0
     monkeypatch.setattr("figure_data.cli.load_settings", lambda: object())
     monkeypatch.setattr("figure_data.cli.create_session_factory", lambda settings: DummySession)
     monkeypatch.setattr("figure_data.cli.create_neo4j_driver", lambda settings: DummyDriver())
@@ -51,6 +67,9 @@ def test_validate_graph_command_outputs_checks(monkeypatch: MonkeyPatch) -> None
 
     assert result.exit_code == 0
     assert "PASS\tgraph:relationship_count\tpostgres=1 neo4j=1" in result.output
+    assert DummySession.commit_count == 1
+    assert DummySession.rollback_count == 0
+    assert DummySession.close_count == 1
 
 
 def test_validate_graph_exits_nonzero_on_failure(monkeypatch: MonkeyPatch) -> None:

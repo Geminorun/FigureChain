@@ -290,7 +290,10 @@ def validate_graph_command() -> None:
         factory = create_session_factory(settings)
         driver = create_neo4j_driver(settings)
         config = get_neo4j_config(settings)
-        with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
+        with (
+            session_scope(factory) as pg_session,
+            graph_session(driver, config.database) as neo4j_session,
+        ):
             checks = validate_graph(pg_session, neo4j_session)
     except (GraphOperationError, DriverError, Neo4jError) as exc:
         _exit_graph_error(exc)
