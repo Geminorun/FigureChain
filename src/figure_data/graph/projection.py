@@ -16,9 +16,9 @@ from figure_data.graph.batches import (
 )
 from figure_data.graph.types import (
     GraphEncounter,
-    IncrementalProjectionStats,
     GraphPerson,
     GraphProjectionError,
+    IncrementalProjectionStats,
     ProjectionDataset,
     ProjectionStats,
 )

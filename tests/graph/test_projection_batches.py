@@ -29,7 +29,7 @@ class ScalarResult:
 class MappingResult:
     rows: list[dict[str, Any]]
 
-    def mappings(self) -> "MappingResult":
+    def mappings(self) -> MappingResult:
         return self
 
     def one_or_none(self) -> dict[str, Any] | None:

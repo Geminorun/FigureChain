@@ -115,7 +115,7 @@ from figure_data.graph.formatting import (
 from figure_data.graph.neo4j_client import create_neo4j_driver, get_neo4j_config, graph_session
 from figure_data.graph.pathfinding import ChainEndpointInput, find_chain
 from figure_data.graph.projection import sync_graph_incremental, sync_graph_rebuild
-from figure_data.graph.types import GraphOperationError
+from figure_data.graph.types import GraphOperationError, IncrementalProjectionStats, ProjectionStats
 from figure_data.graph.validation import validate_graph
 from figure_data.importing.orchestrator import import_cbdb
 from figure_data.review.candidate_detail import get_candidate_detail
@@ -257,10 +257,16 @@ def sync_graph_command(
         driver = create_neo4j_driver(settings)
         config = get_neo4j_config(settings)
         with factory() as pg_session, graph_session(driver, config.database) as neo4j_session:
-            if rebuild:
-                stats = sync_graph_rebuild(pg_session, neo4j_session)
-            else:
-                stats = sync_graph_incremental(pg_session, neo4j_session)
+            stats: ProjectionStats | IncrementalProjectionStats
+            try:
+                if rebuild:
+                    stats = sync_graph_rebuild(pg_session, neo4j_session)
+                else:
+                    stats = sync_graph_incremental(pg_session, neo4j_session)
+            except Exception:
+                pg_session.commit()
+                raise
+            pg_session.commit()
     except (GraphOperationError, DriverError, Neo4jError) as exc:
         _exit_graph_error(exc)
     finally:

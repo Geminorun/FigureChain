@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 MIGRATION = Path("alembic/versions/20260619_0004_create_graph_projection_batches.py")
 
 

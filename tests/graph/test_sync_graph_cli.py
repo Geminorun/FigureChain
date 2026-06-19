@@ -5,7 +5,7 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from figure_data.cli import app
-from figure_data.graph.types import IncrementalProjectionStats, ProjectionStats
+from figure_data.graph.types import GraphOperationError, IncrementalProjectionStats, ProjectionStats
 
 
 class DummyDriver:
@@ -14,8 +14,11 @@ class DummyDriver:
 
 
 class DummyPgSession:
+    def __init__(self) -> None:
+        self.commits = 0
+
     def __enter__(self) -> object:
-        return object()
+        return self
 
     def __exit__(
         self,
@@ -24,6 +27,9 @@ class DummyPgSession:
         traceback: TracebackType | None,
     ) -> None:
         return None
+
+    def commit(self) -> None:
+        self.commits += 1
 
 
 class DummyGraphSession(DummyPgSession):
@@ -79,6 +85,68 @@ def test_sync_graph_outputs_projection_stats(monkeypatch: MonkeyPatch) -> None:
     assert result.exit_code == 0
     assert "persons_projected=2" in result.output
     assert "relationships_projected=1" in result.output
+
+
+def test_sync_graph_commits_projection_batch(monkeypatch: MonkeyPatch) -> None:
+    pg_session = DummyPgSession()
+    monkeypatch.setattr("figure_data.cli.load_settings", lambda: object())
+    monkeypatch.setattr(
+        "figure_data.cli.create_session_factory",
+        lambda settings: lambda: pg_session,
+    )
+    monkeypatch.setattr("figure_data.cli.create_neo4j_driver", lambda settings: DummyDriver())
+    monkeypatch.setattr(
+        "figure_data.cli.get_neo4j_config",
+        lambda settings: type("C", (), {"database": "neo4j"})(),
+    )
+    monkeypatch.setattr(
+        "figure_data.cli.graph_session",
+        lambda driver, database: DummyGraphSession(),
+    )
+    monkeypatch.setattr(
+        "figure_data.cli.sync_graph_rebuild",
+        lambda pg_session, neo4j_session: ProjectionStats(
+            persons_projected=2,
+            encounters_projected=1,
+            relationships_projected=1,
+            started_at=datetime(2026, 6, 9),
+            finished_at=datetime(2026, 6, 9),
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["sync-graph", "--rebuild"])
+
+    assert result.exit_code == 0
+    assert pg_session.commits == 1
+
+
+def test_sync_graph_commits_failed_projection_batch(monkeypatch: MonkeyPatch) -> None:
+    pg_session = DummyPgSession()
+    monkeypatch.setattr("figure_data.cli.load_settings", lambda: object())
+    monkeypatch.setattr(
+        "figure_data.cli.create_session_factory",
+        lambda settings: lambda: pg_session,
+    )
+    monkeypatch.setattr("figure_data.cli.create_neo4j_driver", lambda settings: DummyDriver())
+    monkeypatch.setattr(
+        "figure_data.cli.get_neo4j_config",
+        lambda settings: type("C", (), {"database": "neo4j"})(),
+    )
+    monkeypatch.setattr(
+        "figure_data.cli.graph_session",
+        lambda driver, database: DummyGraphSession(),
+    )
+    monkeypatch.setattr(
+        "figure_data.cli.sync_graph_rebuild",
+        lambda pg_session, neo4j_session: (_ for _ in ()).throw(
+            GraphOperationError("projection failed")
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["sync-graph", "--rebuild"])
+
+    assert result.exit_code == 1
+    assert pg_session.commits == 1
 
 
 def test_sync_graph_outputs_incremental_projection_stats(monkeypatch: MonkeyPatch) -> None:

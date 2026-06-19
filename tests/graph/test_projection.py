@@ -3,7 +3,6 @@ from typing import Any
 
 from pytest import MonkeyPatch
 
-from figure_data.graph.types import GraphProjectionError
 from figure_data.graph.projection import (
     CLEAR_GRAPH_CYPHER,
     CONSTRAINT_CYPHER,
@@ -15,7 +14,12 @@ from figure_data.graph.projection import (
     load_projection_dataset,
     sync_graph_rebuild,
 )
-from figure_data.graph.types import GraphEncounter, GraphPerson, ProjectionDataset
+from figure_data.graph.types import (
+    GraphEncounter,
+    GraphPerson,
+    GraphProjectionError,
+    ProjectionDataset,
+)
 
 BATCH_ID = "00000000-0000-0000-0000-000000000501"
 
