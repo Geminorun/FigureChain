@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 
 class ErrorCode(StrEnum):
+    ACCESS_DENIED = "access_denied"
     INVALID_REQUEST = "invalid_request"
     PERSON_NOT_FOUND = "person_not_found"
     ENCOUNTER_NOT_FOUND = "encounter_not_found"
@@ -36,6 +37,7 @@ class ErrorCode(StrEnum):
 
 
 ERROR_STATUS: dict[ErrorCode, int] = {
+    ErrorCode.ACCESS_DENIED: status.HTTP_403_FORBIDDEN,
     ErrorCode.INVALID_REQUEST: status.HTTP_400_BAD_REQUEST,
     ErrorCode.PERSON_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.ENCOUNTER_NOT_FOUND: status.HTTP_404_NOT_FOUND,

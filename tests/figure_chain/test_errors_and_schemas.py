@@ -112,3 +112,8 @@ def test_multipath_error_codes_have_status_mapping() -> None:
     assert ErrorCode.PATH_QUERY_TOO_BROAD.value == "path_query_too_broad"
     assert ERROR_STATUS[ErrorCode.PATH_FILTER_INVALID] == 400
     assert ERROR_STATUS[ErrorCode.PATH_QUERY_TOO_BROAD] == 400
+
+
+def test_access_denied_maps_to_403() -> None:
+    assert ErrorCode.ACCESS_DENIED.value == "access_denied"
+    assert ERROR_STATUS[ErrorCode.ACCESS_DENIED] == 403
