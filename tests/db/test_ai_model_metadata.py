@@ -48,3 +48,20 @@ def test_ai_runs_link_prompt_version_and_declare_indexes() -> None:
         "ix_figure_data_ai_runs_prompt_version_id",
         "ix_figure_data_ai_runs_input_hash",
     }.issubset(index_names)
+
+
+def test_ai_runs_has_provider_observability_columns() -> None:
+    table = Base.metadata.tables["figure_data.ai_runs"]
+
+    for column_name in [
+        "provider_request_id",
+        "latency_ms",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "estimated_cost",
+        "cost_currency",
+        "retry_count",
+        "provider_metadata",
+    ]:
+        assert column_name in table.c
