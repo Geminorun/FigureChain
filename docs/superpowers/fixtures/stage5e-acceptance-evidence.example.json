@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-06-19T12:00:00+08:00",
+  "environment": "local",
+  "command_results": [
+    {
+      "command": "uv run --no-sync alembic upgrade head",
+      "status": "pass",
+      "summary": "migration reached head"
+    },
+    {
+      "command": "uv run --no-sync figure-data validate-graph",
+      "status": "pass",
+      "summary": "postgres and neo4j graph counts match"
+    }
+  ],
+  "smoke_results": [
+    {
+      "name": "health_ready",
+      "status": "pass",
+      "summary": "FastAPI readiness returned ready"
+    }
+  ],
+  "security_scan": {
+    "status": "pass",
+    "summary": "report scan found no secrets or local absolute paths"
+  },
+  "known_limits": [
+    "真实 provider 默认关闭",
+    "第一版权限边界不是完整账号系统"
+  ],
+  "recommendation": "ready_for_stage5_closeout"
+}

@@ -127,6 +127,7 @@ from figure_data.review.formatting import (
     format_status_change,
 )
 from figure_data.review.types import CandidateKind, CandidateReviewError
+from figure_data.runtime.acceptance import Stage5EAcceptanceEvidence, render_stage5e_report
 from figure_data.runtime.diagnostics import (
     RuntimeDiagnostics,
     dependency_status,
@@ -335,6 +336,20 @@ def doctor_command() -> None:
     for item in diagnostics.dependencies:
         message = "" if item.message is None else f"\t{item.message}"
         typer.echo(f"dependency\t{item.name}\t{item.status}{message}")
+
+
+@app.command("render-stage5e-acceptance-report")
+def render_stage5e_acceptance_report_command(
+    evidence_json: Annotated[Path, typer.Option("--evidence-json")],
+    output: Annotated[Path, typer.Option("--output")],
+) -> None:
+    """Render the Stage 5E acceptance report from structured evidence."""
+    evidence = Stage5EAcceptanceEvidence.model_validate_json(
+        evidence_json.read_text(encoding="utf-8")
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(render_stage5e_report(evidence), encoding="utf-8")
+    typer.echo(f"stage5e_acceptance_report\toutput={output}")
 
 
 @app.command("find-chain")
