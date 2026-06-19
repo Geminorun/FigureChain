@@ -1,4 +1,20 @@
 services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: figurechain-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - figurechain-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   neo4j:
     image: neo4j:2026.05.0
     container_name: figurechain-neo4j
@@ -24,5 +40,6 @@ services:
       start_period: 30s
 
 volumes:
+  figurechain-redis-data:
   figurechain-neo4j-data:
   figurechain-neo4j-logs:

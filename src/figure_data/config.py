@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     ai_base_url: str | None = Field(default=None, alias="FIGURE_AI_BASE_URL")
     ai_timeout_seconds: float = Field(default=30.0, alias="FIGURE_AI_TIMEOUT_SECONDS")
     ai_max_output_tokens: int = Field(default=1200, alias="FIGURE_AI_MAX_OUTPUT_TOKENS")
+    redis_url: str | None = Field(default=None, alias="REDIS_URL")
+    ai_queue_backend: str = Field(default="database", alias="FIGURE_AI_QUEUE_BACKEND")
+    ai_queue_name: str = Field(default="figure-ai", alias="FIGURE_AI_QUEUE_NAME")
+    ai_job_timeout_seconds: int = Field(default=120, alias="FIGURE_AI_JOB_TIMEOUT_SECONDS")
+    ai_job_max_retries: int = Field(default=2, alias="FIGURE_AI_JOB_MAX_RETRIES")
+    ai_job_retry_base_seconds: int = Field(default=10, alias="FIGURE_AI_JOB_RETRY_BASE_SECONDS")
+    ai_rate_limit_per_minute: int = Field(default=20, alias="FIGURE_AI_RATE_LIMIT_PER_MINUTE")
     embedding_provider: str = Field(default="fake", alias="FIGURE_EMBEDDING_PROVIDER")
     embedding_model: str = Field(
         default="fake-hash-embedding",
@@ -54,6 +61,23 @@ class Settings(BaseSettings):
             stripped = value.strip()
             return stripped or None
         return value
+
+    @field_validator("redis_url", mode="before")
+    @classmethod
+    def normalize_optional_redis_url(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
+
+    @field_validator("ai_queue_backend", mode="before")
+    @classmethod
+    def normalize_ai_queue_backend(cls, value: object) -> object:
+        if isinstance(value, str):
+            backend = value.strip().lower()
+            if backend in {"database", "rq"}:
+                return backend
+        raise ValueError("FIGURE_AI_QUEUE_BACKEND must be 'database' or 'rq'")
 
     @field_validator("embedding_provider", "embedding_model", mode="before")
     @classmethod
