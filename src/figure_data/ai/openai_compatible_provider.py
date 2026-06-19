@@ -47,7 +47,10 @@ class OpenAICompatibleProvider:
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
-        self._http_client = http_client or httpx.Client(timeout=timeout_seconds)
+        self._http_client: HTTPClient = http_client or cast(
+            HTTPClient,
+            httpx.Client(timeout=timeout_seconds),
+        )
 
     def generate(self, request: AIProviderRequest) -> AIProviderResponse:
         started = time.monotonic()

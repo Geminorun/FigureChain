@@ -3,12 +3,12 @@ import json
 from pytest import raises
 
 from figure_data.ai.errors import AIProviderConfigurationError, AIProviderError
+from figure_data.ai.openai_compatible_provider import OpenAICompatibleProvider
 from figure_data.ai.provider import (
     DisabledAIProvider,
     FakeAIProvider,
     create_ai_provider,
 )
-from figure_data.ai.openai_compatible_provider import OpenAICompatibleProvider
 from figure_data.ai.types import AIProviderRequest, AIProviderResponse, TokenUsage
 from figure_data.config import Settings
 from figure_data.db.enums import AIErrorCode, AIPromptStatus, AIRunStatus
