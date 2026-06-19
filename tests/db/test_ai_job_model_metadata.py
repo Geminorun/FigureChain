@@ -56,3 +56,29 @@ def test_ai_generation_job_model_declares_worker_and_target_indexes() -> None:
         "ix_figure_data_ai_generation_jobs_target",
         "ix_figure_data_ai_generation_jobs_job_type_created_at",
     }.issubset(index_names)
+
+
+def test_ai_generation_jobs_has_queue_columns() -> None:
+    table = Base.metadata.tables["figure_data.ai_generation_jobs"]
+
+    for column_name in [
+        "queue_backend",
+        "queue_name",
+        "queue_job_id",
+        "enqueued_at",
+        "attempt_count",
+        "max_attempts",
+        "next_run_at",
+        "cancel_requested_at",
+        "worker_id",
+        "heartbeat_at",
+    ]:
+        assert column_name in table.c
+
+
+def test_ai_generation_jobs_has_queue_indexes() -> None:
+    table = Base.metadata.tables["figure_data.ai_generation_jobs"]
+    index_names = {index.name for index in table.indexes}
+
+    assert "ix_figure_data_ai_generation_jobs_queue_backend_status" in index_names
+    assert "ix_figure_data_ai_generation_jobs_next_run_at" in index_names

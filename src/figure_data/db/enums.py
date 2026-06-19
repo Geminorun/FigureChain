@@ -102,9 +102,27 @@ class AIJobTargetKind(StrEnum):
     KINSHIP = "kinship"
 
 
+class AIJobQueueBackend(StrEnum):
+    DATABASE = "database"
+    RQ = "rq"
+
+
 class AIJobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+
+class AIJobEventType(StrEnum):
+    CREATED = "created"
+    ENQUEUED = "enqueued"
+    ENQUEUE_FAILED = "enqueue_failed"
+    STARTED = "started"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    RETRY_SCHEDULED = "retry_scheduled"
+    CANCEL_REQUESTED = "cancel_requested"
+    CANCELLED = "cancelled"
+    REQUEUED = "requeued"

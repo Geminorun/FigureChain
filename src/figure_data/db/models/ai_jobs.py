@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, Index, Text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -30,6 +30,18 @@ class AIGenerationJob(Base):
             "status in ('queued', 'running', 'succeeded', 'failed', 'cancelled')",
             name=conv("ck_ai_generation_jobs_status"),
         ),
+        CheckConstraint(
+            "queue_backend in ('database', 'rq')",
+            name=conv("ck_ai_generation_jobs_queue_backend"),
+        ),
+        CheckConstraint(
+            "attempt_count >= 0",
+            name=conv("ck_ai_generation_jobs_attempt_count"),
+        ),
+        CheckConstraint(
+            "max_attempts >= 1",
+            name=conv("ck_ai_generation_jobs_max_attempts"),
+        ),
         Index(
             "ix_figure_data_ai_generation_jobs_status_created_at",
             "status",
@@ -46,6 +58,17 @@ class AIGenerationJob(Base):
             "ix_figure_data_ai_generation_jobs_job_type_created_at",
             "job_type",
             "created_at",
+        ),
+        Index(
+            "ix_figure_data_ai_generation_jobs_queue_backend_status",
+            "queue_backend",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ix_figure_data_ai_generation_jobs_next_run_at",
+            "status",
+            "next_run_at",
         ),
         {"schema": "figure_data"},
     )
@@ -64,5 +87,15 @@ class AIGenerationJob(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    queue_backend: Mapped[str] = mapped_column(Text, nullable=False, default="database")
+    queue_name: Mapped[str | None] = mapped_column(Text)
+    queue_job_id: Mapped[str | None] = mapped_column(Text)
+    enqueued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    worker_id: Mapped[str | None] = mapped_column(Text)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
