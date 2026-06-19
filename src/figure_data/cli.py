@@ -6,6 +6,8 @@ from uuid import UUID
 
 import typer
 from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
+from redis import Redis
+from rq import Queue, Worker
 
 from figure_data.ai.candidate_formatting import (
     format_candidate_suggestion_detail,
@@ -644,6 +646,26 @@ def requeue_ai_jobs_command(
                     },
                 )
     _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")
+
+
+@app.command("run-ai-worker")
+def run_ai_worker_command(
+    queue_name: Annotated[str | None, typer.Option("--queue")] = None,
+) -> None:
+    """Run an RQ worker for AI generation jobs."""
+    settings = load_settings()
+    if settings.ai_queue_backend != "rq":
+        typer.echo("FIGURE_AI_QUEUE_BACKEND must be 'rq' to run RQ worker", err=True)
+        raise typer.Exit(code=1)
+    if settings.redis_url is None:
+        typer.echo("REDIS_URL is required to run RQ worker", err=True)
+        raise typer.Exit(code=1)
+
+    resolved_queue_name = queue_name or settings.ai_queue_name
+    redis_connection = Redis.from_url(settings.redis_url)
+    queue = Queue(name=resolved_queue_name, connection=redis_connection)
+    worker = Worker([queue], connection=redis_connection)
+    worker.work()
 
 
 @app.command("generate-chain-explanation")

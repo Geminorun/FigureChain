@@ -44,6 +44,31 @@ def test_requeue_ai_jobs_help() -> None:
     assert "--limit" in result.stdout
 
 
+def test_run_ai_worker_help() -> None:
+    result = runner.invoke(app, ["run-ai-worker", "--help"])
+
+    assert result.exit_code == 0
+    assert "--queue" in result.stdout
+
+
+def test_run_ai_worker_requires_rq_backend(monkeypatch: MonkeyPatch) -> None:
+    settings = type(
+        "Settings",
+        (),
+        {
+            "ai_queue_backend": "database",
+            "redis_url": None,
+            "ai_queue_name": "figure-ai",
+        },
+    )()
+    monkeypatch.setattr("figure_data.cli.load_settings", lambda: settings)
+
+    result = runner.invoke(app, ["run-ai-worker"])
+
+    assert result.exit_code == 1
+    assert "FIGURE_AI_QUEUE_BACKEND must be 'rq'" in result.stderr
+
+
 def test_run_ai_jobs_command_outputs_summary(monkeypatch: MonkeyPatch) -> None:
     patch_session(monkeypatch)
     calls: list[tuple[int, str | None]] = []
