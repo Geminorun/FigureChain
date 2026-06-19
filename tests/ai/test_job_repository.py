@@ -212,6 +212,36 @@ def test_record_job_event_inserts_redacted_metadata() -> None:
     assert session.params[0]["metadata_json"] == '{"queue_name": "figure-ai"}'
 
 
+def test_claim_queued_job_by_id_marks_worker_metadata() -> None:
+    session = FakeSession()
+
+    record = job_repository.claim_queued_job_by_id(
+        session,  # type: ignore[arg-type]
+        JOB_ID,
+        worker_id="worker-1",
+    )
+
+    assert record is not None
+    assert record.status == "running"
+    statement = session.statements[0].lower()
+    assert "where id = :job_id" in statement
+    assert "status = :queued_status" in statement
+    assert session.params[0]["worker_id"] == "worker-1"
+
+
+def test_touch_job_heartbeat_updates_worker_timestamp() -> None:
+    session = FakeSession()
+
+    job_repository.touch_job_heartbeat(
+        session,  # type: ignore[arg-type]
+        JOB_ID,
+        worker_id="worker-1",
+    )
+
+    assert "heartbeat_at = :now" in session.statements[0]
+    assert session.params[0]["worker_id"] == "worker-1"
+
+
 def test_illegal_transition_raises_clear_error() -> None:
     session = FakeSession(transition_succeeds=False)
 

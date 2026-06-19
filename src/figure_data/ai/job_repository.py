@@ -232,6 +232,70 @@ def claim_queued_jobs(
     return [_record_from_row(cast(Mapping[str, Any], row)) for row in rows]
 
 
+def claim_queued_job_by_id(
+    session: Session,
+    job_id: UUID,
+    *,
+    worker_id: str,
+) -> AIGenerationJobRecord | None:
+    row = (
+        session.execute(
+            text(
+                f"""
+                update figure_data.ai_generation_jobs
+                set status = :running_status,
+                    started_at = coalesce(started_at, :now),
+                    worker_id = :worker_id,
+                    heartbeat_at = :now,
+                    attempt_count = attempt_count + 1,
+                    updated_at = :now
+                where id = :job_id
+                  and status = :queued_status
+                  and (next_run_at is null or next_run_at <= :now)
+                  and cancel_requested_at is null
+                returning {_select_columns()}
+                """
+            ),
+            {
+                "job_id": job_id,
+                "queued_status": AIJobStatus.QUEUED.value,
+                "running_status": AIJobStatus.RUNNING.value,
+                "worker_id": worker_id,
+                "now": datetime.now(UTC),
+            },
+        )
+        .mappings()
+        .one_or_none()
+    )
+    return _record_from_row(cast(Mapping[str, Any], row)) if row is not None else None
+
+
+def touch_job_heartbeat(
+    session: Session,
+    job_id: UUID,
+    *,
+    worker_id: str,
+) -> None:
+    session.execute(
+        text(
+            """
+            update figure_data.ai_generation_jobs
+            set worker_id = :worker_id,
+                heartbeat_at = :now,
+                updated_at = :now
+            where id = :job_id
+              and status = :running_status
+            """
+        ),
+        {
+            "job_id": job_id,
+            "worker_id": worker_id,
+            "running_status": AIJobStatus.RUNNING.value,
+            "now": datetime.now(UTC),
+        },
+    )
+
+
 def mark_running(session: Session, job_id: UUID) -> AIGenerationJobRecord:
     return _transition(
         session,
