@@ -22,6 +22,7 @@ class FakeJobRepository:
         self.jobs = jobs
         self.succeeded: list[tuple[UUID, str, UUID]] = []
         self.failed: list[tuple[UUID, str, str]] = []
+        self.scheduled_retries: list[tuple[UUID, str, str, int]] = []
         self.claimed_limit: int | None = None
         self.claimed_job_type: str | None = None
 
@@ -65,6 +66,18 @@ class FakeJobRepository:
         error_message: str,
     ) -> AIGenerationJobRecord:
         self.failed.append((job_id, error_code, error_message))
+        return self.jobs[0]
+
+    def schedule_job_retry(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        error_code: str,
+        error_message: str,
+        delay_seconds: int,
+    ) -> AIGenerationJobRecord:
+        self.scheduled_retries.append((job_id, error_code, error_message, delay_seconds))
         return self.jobs[0]
 
     def record_event(
@@ -259,7 +272,30 @@ def test_execute_ai_job_skips_when_claim_returns_none() -> None:
     assert repository.failed == []
 
 
-def _job() -> AIGenerationJobRecord:
+def test_execute_ai_job_schedules_retry_for_provider_timeout() -> None:
+    repository = FakeSingleJobRepository(_job(attempt_count=1, max_attempts=3))
+
+    def generate(**kwargs: object) -> CandidateReviewSuggestionResult:
+        raise RuntimeError("provider_timeout: request timed out")
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, object()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+        generate_candidate_review_suggestion_fn=generate,
+    )
+
+    assert result.status == "retry_scheduled"
+    assert repository.scheduled_retries == [
+        (JOB_ID, "provider_timeout", "provider_timeout: request timed out", 10)
+    ]
+    assert repository.failed == []
+    assert "retry_scheduled" in repository.events
+
+
+def _job(*, attempt_count: int = 0, max_attempts: int = 3) -> AIGenerationJobRecord:
     now = datetime(2026, 6, 18, tzinfo=UTC)
     return AIGenerationJobRecord(
         id=JOB_ID,
@@ -280,8 +316,8 @@ def _job() -> AIGenerationJobRecord:
         queue_name=None,
         queue_job_id=None,
         enqueued_at=None,
-        attempt_count=0,
-        max_attempts=3,
+        attempt_count=attempt_count,
+        max_attempts=max_attempts,
         next_run_at=None,
         cancel_requested_at=None,
         worker_id=None,

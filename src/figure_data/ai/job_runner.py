@@ -17,11 +17,17 @@ from figure_data.ai.job_repository import (
     mark_failed,
     mark_succeeded,
     record_job_event,
+    schedule_job_retry,
 )
 from figure_data.config import Settings
 from figure_data.review.types import CandidateKind, CandidateReviewError
 
 ERROR_MESSAGE_LIMIT = 500
+RETRYABLE_ERROR_CODES = {
+    "provider_timeout",
+    "provider_rate_limited",
+    "provider_unavailable",
+}
 
 
 class AIGenerationJobRepository(Protocol):
@@ -62,6 +68,17 @@ class AIGenerationJobRepository(Protocol):
         error_message: str,
     ) -> AIGenerationJobRecord:
         """Mark a running job as failed."""
+
+    def schedule_job_retry(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        error_code: str,
+        error_message: str,
+        delay_seconds: int,
+    ) -> AIGenerationJobRecord:
+        """Schedule a running job for retry."""
 
     def record_event(
         self,
@@ -139,6 +156,23 @@ class PostgresAIGenerationJobRepository:
             error_message=error_message,
         )
 
+    def schedule_job_retry(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        error_code: str,
+        error_message: str,
+        delay_seconds: int,
+    ) -> AIGenerationJobRecord:
+        return schedule_job_retry(
+            session,
+            job_id,
+            error_code=error_code,
+            error_message=error_message,
+            delay_seconds=delay_seconds,
+        )
+
     def record_event(
         self,
         session: Session,
@@ -180,6 +214,15 @@ class AIGenerationJobExecutionResult:
     status: str
     error_code: str | None = None
     error_message: str | None = None
+
+
+@dataclass(frozen=True)
+class AIJobRetryPolicy:
+    max_attempts: int = 3
+    base_delay_seconds: int = 10
+
+    def delay_for_attempt(self, attempt_count: int) -> int:
+        return self.base_delay_seconds * (2 ** max(attempt_count - 1, 0))
 
 
 def run_ai_jobs(
@@ -289,6 +332,31 @@ def execute_ai_job(
     except Exception as exc:
         error_code = _error_code(exc)
         error_message = _error_message(exc)
+        if _is_retryable(error_code) and job.attempt_count < job.max_attempts:
+            delay_seconds = AIJobRetryPolicy(
+                max_attempts=job.max_attempts,
+            ).delay_for_attempt(job.attempt_count)
+            resolved_repository.schedule_job_retry(
+                session,
+                job.id,
+                error_code=error_code,
+                error_message=error_message,
+                delay_seconds=delay_seconds,
+            )
+            resolved_repository.record_event(
+                session,
+                job_id=job.id,
+                event_type="retry_scheduled",
+                actor="worker",
+                message=error_message,
+                metadata={"delay_seconds": delay_seconds, "error_code": error_code},
+            )
+            return AIGenerationJobExecutionResult(
+                job_id=job.id,
+                status="retry_scheduled",
+                error_code=error_code,
+                error_message=error_message,
+            )
         resolved_repository.mark_failed(
             session,
             job.id,
@@ -347,7 +415,18 @@ def _error_code(exc: Exception) -> str:
         return "candidate_not_found"
     if isinstance(exc, ValueError) and str(exc).startswith("unsupported AI job"):
         return "ai_job_invalid_type"
+    message = str(exc).lower()
+    if "provider_timeout" in message or "timeout" in message:
+        return "provider_timeout"
+    if "provider_rate_limited" in message or "rate limit" in message:
+        return "provider_rate_limited"
+    if "provider_unavailable" in message or "unavailable" in message:
+        return "provider_unavailable"
     return "ai_job_execution_failed"
+
+
+def _is_retryable(error_code: str) -> bool:
+    return error_code in RETRYABLE_ERROR_CODES
 
 
 def _error_message(exc: Exception) -> str:
