@@ -81,12 +81,7 @@ class ChainService:
         try:
             source_endpoint = self._resolve_endpoint_fn(self._pg_session, source)
             target_endpoint = self._resolve_endpoint_fn(self._pg_session, target)
-            if source_endpoint.person_id == target_endpoint.person_id:
-                raise ApplicationError(
-                    code=ErrorCode.SAME_PERSON_ENDPOINT,
-                    message="source and target resolved to the same person",
-                    details={"person_id": source_endpoint.person_id},
-                )
+            self._require_distinct_endpoints(source_endpoint.person_id, target_endpoint.person_id)
             result = self._find_chain_fn(
                 self._pg_session,
                 self._neo4j_session,
@@ -104,6 +99,14 @@ class ChainService:
         source = self._to_endpoint("source", request.source)
         target = self._to_endpoint("target", request.target)
         try:
+            source_endpoint = self._resolve_endpoint_fn(self._pg_session, source)
+            target_endpoint = self._resolve_endpoint_fn(self._pg_session, target)
+            self._require_distinct_endpoints(source_endpoint.person_id, target_endpoint.person_id)
+            self._validate_multipath_endpoint_filters(
+                request.filters,
+                source_endpoint.person_id,
+                target_endpoint.person_id,
+            )
             result = self._find_multipath_fn(
                 self._pg_session,
                 self._neo4j_session,
@@ -127,6 +130,34 @@ class ChainService:
             cbdb_id=request.cbdb_id,
             query=request.query,
         )
+
+    def _require_distinct_endpoints(self, source_person_id: str, target_person_id: str) -> None:
+        if source_person_id == target_person_id:
+            raise ApplicationError(
+                code=ErrorCode.SAME_PERSON_ENDPOINT,
+                message="source and target resolved to the same person",
+                details={"person_id": source_person_id},
+            )
+
+    def _validate_multipath_endpoint_filters(
+        self,
+        filters: MultiPathFiltersRequest,
+        source_person_id: str,
+        target_person_id: str,
+    ) -> None:
+        excluded_endpoint_ids = sorted(
+            {
+                str(person_id)
+                for person_id in filters.exclude_person_ids
+                if str(person_id) in {source_person_id, target_person_id}
+            }
+        )
+        if excluded_endpoint_ids:
+            raise ApplicationError(
+                code=ErrorCode.PATH_FILTER_INVALID,
+                message="exclude_person_ids cannot contain source or target person",
+                details={"excluded_endpoint_person_ids": excluded_endpoint_ids},
+            )
 
     def _to_response(self, result: ChainLookupResult) -> ShortestChainResponse:
         if result.path is None:

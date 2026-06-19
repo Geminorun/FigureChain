@@ -102,6 +102,34 @@ def test_rank_paths_orders_by_length_score_and_hash() -> None:
     assert ranked[0].path_id == "path-1"
 
 
+def test_rank_paths_prefers_more_high_certainty_edges_when_length_and_score_tie(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    high_heavy = ChainPath(
+        people=(_person("a"), _person("c"), _person("b")),
+        edges=(_edge("e1", "high"), _edge("e2", "medium")),
+    )
+    medium_only = ChainPath(
+        people=(_person("a"), _person("d"), _person("b")),
+        edges=(_edge("e3", "medium"), _edge("e4", "medium")),
+    )
+    monkeypatch.setattr("figure_data.graph.multipath.quality_score_for_path", lambda path: 1.0)
+    monkeypatch.setattr(
+        "figure_data.graph.multipath._chain_hash_for_path",
+        lambda **kwargs: "z" if kwargs["path"] is high_heavy else "a",
+    )
+
+    ranked = rank_paths(
+        source_person_id="a",
+        target_person_id="b",
+        max_depth=12,
+        paths=[medium_only, high_heavy],
+        max_paths=5,
+    )
+
+    assert ranked[0].path is high_heavy
+
+
 class FakeResult:
     def __init__(self, rows: list[Mapping[str, object]]) -> None:
         self.rows = rows

@@ -21,8 +21,8 @@ export function getChainValidationMessage(
   if (source.person_id === target.person_id) {
     return "起点和终点不能是同一人";
   }
-  if (!Number.isInteger(maxDepth) || maxDepth < 1 || maxDepth > 30) {
-    return "max_depth 必须在 1 到 30 之间";
+  if (!Number.isInteger(maxDepth) || maxDepth < 1 || maxDepth > 20) {
+    return "max_depth 必须在 1 到 20 之间";
   }
   return null;
 }
