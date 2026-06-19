@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from figure_chain.app import create_app
 from figure_chain.errors import register_error_handlers
 from figure_chain.routers.system import router
 from figure_chain.schemas import (
@@ -63,3 +64,15 @@ def test_system_diagnostics_returns_redacted_summary_for_operator() -> None:
     assert body["config"]["database_url"] == "[REDACTED]"
     assert "postgresql://" not in response.text
     assert "secret" not in response.text
+
+
+def test_system_diagnostics_without_lifespan_does_not_report_empty_ok() -> None:
+    response = TestClient(create_app(lifespan_enabled=False)).get(
+        "/api/v1/system/diagnostics",
+        headers={"x-figure-actor": "ops", "x-figure-role": "operator"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["dependencies"]

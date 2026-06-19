@@ -5,6 +5,8 @@ from typing import Annotated, cast
 
 from fastapi import Depends, Request
 from neo4j import Driver as Neo4jDriver
+from redis import Redis
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from figure_chain.access import OperationContext, OperationRole, require_any_role
@@ -20,8 +22,14 @@ from figure_chain.services.sharing import SharingService
 from figure_chain.services.sources import SourceService
 from figure_chain.services.system import SystemService
 from figure_data.ai.queue import create_ai_job_queue
+from figure_data.graph.batches import get_latest_projection_batch
 from figure_data.graph.neo4j_client import graph_session
-from figure_data.runtime.diagnostics import RuntimeDiagnostics
+from figure_data.runtime.diagnostics import (
+    DependencyDiagnostic,
+    RuntimeDiagnostics,
+    collect_runtime_diagnostics,
+    projection_batch_status,
+)
 
 
 def get_operation_context(request: Request) -> OperationContext:
@@ -152,5 +160,57 @@ def get_sharing_service(
 def get_system_service(request: Request) -> SystemService:
     diagnostics = getattr(request.app.state, "runtime_diagnostics", None)
     if diagnostics is None:
-        diagnostics = RuntimeDiagnostics(config={}, dependencies=[])
+        diagnostics = _collect_system_diagnostics_from_app(request)
     return SystemService(diagnostics)
+
+
+def _collect_system_diagnostics_from_app(request: Request) -> RuntimeDiagnostics:
+    settings = getattr(request.app.state, "settings", None)
+    factory = getattr(request.app.state, "pg_session_factory", None)
+    if settings is None or factory is None:
+        return RuntimeDiagnostics(
+            config={},
+            dependencies=[
+                DependencyDiagnostic(
+                    name="app_state",
+                    status="error",
+                    message="runtime settings and session factory are not initialized",
+                )
+            ],
+        )
+
+    def check_postgresql() -> None:
+        with factory() as session:
+            session.execute(text("select 1"))
+
+    def check_neo4j() -> None:
+        config_error = getattr(request.app.state, "neo4j_config_error", None)
+        if config_error is not None:
+            raise config_error
+        driver = getattr(request.app.state, "neo4j_driver", None)
+        if driver is None:
+            raise RuntimeError("Neo4j driver is not initialized")
+        database = getattr(request.app.state, "neo4j_database", "neo4j")
+        with graph_session(cast(Neo4jDriver, driver), str(database)) as session:
+            session.run("return 1 as ok").single()
+
+    def check_redis() -> None:
+        redis_url = getattr(settings, "redis_url", None)
+        if redis_url is None:
+            return
+        Redis.from_url(str(redis_url)).ping()
+
+    def check_graph_batch() -> DependencyDiagnostic:
+        with factory() as session:
+            return projection_batch_status(
+                latest_success=get_latest_projection_batch(session, status="succeeded"),
+                latest_failed=get_latest_projection_batch(session, status="failed"),
+            )
+
+    return collect_runtime_diagnostics(
+        settings=settings,
+        postgresql_check=check_postgresql,
+        neo4j_check=check_neo4j,
+        redis_check=check_redis,
+        graph_batch_check=check_graph_batch,
+    )

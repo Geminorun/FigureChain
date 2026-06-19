@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from figure_data.runtime.diagnostics import (
     DependencyDiagnostic,
     RuntimeDiagnostics,
+    collect_runtime_diagnostics,
     dependency_status,
     runtime_config_summary,
 )
@@ -58,3 +59,31 @@ def test_runtime_diagnostics_overall_status() -> None:
     )
 
     assert diagnostics.status == "degraded"
+
+
+def test_runtime_diagnostics_empty_dependencies_are_degraded() -> None:
+    diagnostics = RuntimeDiagnostics(config={}, dependencies=[])
+
+    assert diagnostics.status == "degraded"
+
+
+def test_collect_runtime_diagnostics_includes_stage5e_dependencies() -> None:
+    diagnostics = collect_runtime_diagnostics(
+        settings=FakeSettings(redis_url=None),
+        postgresql_check=lambda: None,
+        neo4j_check=lambda: None,
+        graph_batch_check=lambda: DependencyDiagnostic(
+            name="graph_projection_batch",
+            status="ok",
+            message="latest_success=batch-1",
+        ),
+    )
+
+    assert diagnostics.status == "ok"
+    assert {item.name for item in diagnostics.dependencies} == {
+        "postgresql",
+        "neo4j",
+        "redis_rq",
+        "ai_provider",
+        "graph_projection_batch",
+    }

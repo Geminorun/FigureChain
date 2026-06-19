@@ -107,6 +107,7 @@ from figure_data.expansion.reporting import (
     export_encounter_expansion_report,
 )
 from figure_data.expansion.sample_chains import ChainSampleFilters, list_chain_samples
+from figure_data.graph.batches import get_latest_projection_batch
 from figure_data.graph.formatting import (
     format_chain_result,
     format_projection_stats,
@@ -129,9 +130,12 @@ from figure_data.review.formatting import (
 from figure_data.review.types import CandidateKind, CandidateReviewError
 from figure_data.runtime.acceptance import Stage5EAcceptanceEvidence, render_stage5e_report
 from figure_data.runtime.diagnostics import (
+    DependencyDiagnostic,
     RuntimeDiagnostics,
-    dependency_status,
-    runtime_config_summary,
+    projection_batch_status,
+)
+from figure_data.runtime.diagnostics import (
+    collect_runtime_diagnostics as collect_runtime_diagnostics_summary,
 )
 from figure_data.search.person_search import search_people
 from figure_data.validation.report import ValidationReport
@@ -317,12 +321,24 @@ def collect_runtime_diagnostics() -> RuntimeDiagnostics:
         finally:
             driver.close()
 
-    return RuntimeDiagnostics(
-        config=runtime_config_summary(settings),
-        dependencies=[
-            dependency_status("postgresql", check_postgresql),
-            dependency_status("neo4j", check_neo4j),
-        ],
+    def check_redis() -> None:
+        if settings.redis_url is None:
+            return
+        Redis.from_url(settings.redis_url).ping()
+
+    def check_graph_batch() -> DependencyDiagnostic:
+        with factory() as session:
+            return projection_batch_status(
+                latest_success=get_latest_projection_batch(session, status="succeeded"),
+                latest_failed=get_latest_projection_batch(session, status="failed"),
+            )
+
+    return collect_runtime_diagnostics_summary(
+        settings=settings,
+        postgresql_check=check_postgresql,
+        neo4j_check=check_neo4j,
+        redis_check=check_redis,
+        graph_batch_check=check_graph_batch,
     )
 
 
