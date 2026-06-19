@@ -2,11 +2,25 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from figure_data.graph.types import ChainLookupResult, ChainPath, ProjectionStats
+from figure_data.graph.types import (
+    ChainLookupResult,
+    ChainPath,
+    IncrementalProjectionStats,
+    ProjectionStats,
+)
 from figure_data.validation.report import ValidationCheck
 
 
-def format_projection_stats(stats: ProjectionStats) -> list[str]:
+def format_projection_stats(stats: ProjectionStats | IncrementalProjectionStats) -> list[str]:
+    if isinstance(stats, IncrementalProjectionStats):
+        return [
+            f"persons_written={stats.persons_written}",
+            f"encounters_seen={stats.encounters_seen}",
+            f"relationships_written={stats.relationships_written}",
+            f"relationships_deleted={stats.relationships_deleted}",
+            f"started_at={stats.started_at.isoformat()}",
+            f"finished_at={stats.finished_at.isoformat()}",
+        ]
     return [
         f"persons_projected={stats.persons_projected}",
         f"encounters_projected={stats.encounters_projected}",

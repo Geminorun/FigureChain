@@ -6,7 +6,9 @@ from typing import Protocol, cast
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from figure_data.graph.batches import get_latest_projection_batch
 from figure_data.graph.projection import PATH_ENCOUNTER_WHERE
+from figure_data.graph.types import GraphProjectionBatchRecord
 from figure_data.validation.report import ValidationCheck
 
 POSTGRES_RELATIONSHIP_COUNT_SQL = f"""
@@ -157,6 +159,7 @@ def validate_graph(
     )
 
     checks.append(_check_encounter_ids_resolve(pg_session, graph_session, neo4j_relationship_count))
+    checks.append(_check_last_successful_projection_batch(pg_session))
     return checks
 
 
@@ -217,3 +220,37 @@ def _postgres_path_encounter_ids(pg_session: Session) -> set[str]:
 def _neo4j_encounter_ids(neo4j_session: GraphReadSession) -> set[str]:
     rows = neo4j_session.run(NEO4J_ENCOUNTER_IDS_CYPHER)
     return {str(row["encounter_id"]) for row in rows}
+
+
+def _check_last_successful_projection_batch(pg_session: Session) -> ValidationCheck:
+    latest_success = get_latest_projection_batch(pg_session, status="succeeded")
+    latest_failed = get_latest_projection_batch(pg_session, status="failed")
+    if latest_success is None:
+        if latest_failed is None:
+            return ValidationCheck("graph:last_successful_batch", True, "batch=none")
+        return ValidationCheck(
+            "graph:last_successful_batch",
+            False,
+            _format_batch_detail(latest_success=latest_success, latest_failed=latest_failed),
+        )
+    if latest_failed is not None and latest_failed.started_at > latest_success.started_at:
+        return ValidationCheck(
+            "graph:last_successful_batch",
+            False,
+            _format_batch_detail(latest_success=latest_success, latest_failed=latest_failed),
+        )
+    return ValidationCheck(
+        "graph:last_successful_batch",
+        True,
+        _format_batch_detail(latest_success=latest_success, latest_failed=latest_failed),
+    )
+
+
+def _format_batch_detail(
+    *,
+    latest_success: GraphProjectionBatchRecord | None,
+    latest_failed: GraphProjectionBatchRecord | None,
+) -> str:
+    success = "none" if latest_success is None else latest_success.id
+    failed = "none" if latest_failed is None else latest_failed.id
+    return f"latest_success={success} latest_failed={failed}"
