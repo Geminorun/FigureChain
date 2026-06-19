@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-19T20:19:54+08:00",
+  "generated_at": "2026-06-19T20:48:24+08:00",
   "environment": "local",
   "command_results": [
     {
@@ -20,17 +20,27 @@
     {
       "command": ".\\.venv\\Scripts\\figure-data.exe validate-graph",
       "status": "pass",
-      "summary": "postgres=10 neo4j=10; latest_success batch recorded"
+      "summary": "postgres=10 neo4j=10; latest_success batch validation_status=passed"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\figure-data.exe sync-graph --incremental",
+      "status": "pass",
+      "summary": "stable source watermark window completed with 0 changed encounters and no graph drift"
+    },
+    {
+      "command": ".\\.venv\\Scripts\\figure-data.exe validate-graph",
+      "status": "pass",
+      "summary": "post-incremental graph remained consistent; latest incremental batch validation_status=passed"
     },
     {
       "command": ".\\.venv\\Scripts\\figure-data.exe doctor",
       "status": "pass",
-      "summary": "runtime_status=ok; PostgreSQL and Neo4j dependencies ok"
+      "summary": "runtime_status=ok; PostgreSQL, Neo4j, Redis/RQ database fallback, disabled AI provider, and graph_projection_batch dependencies ok"
     },
     {
-      "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\graph tests\\figure_chain tests\\ai tests\\runtime -q",
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest -q",
       "status": "pass",
-      "summary": "411 passed, 2 skipped"
+      "summary": "621 passed, 2 skipped"
     },
     {
       "command": ".\\.venv\\Scripts\\python.exe -m ruff check .",
@@ -40,7 +50,7 @@
     {
       "command": ".\\.venv\\Scripts\\python.exe -m mypy src tests",
       "status": "pass",
-      "summary": "Success: no issues found in 325 source files"
+      "summary": "Success: no issues found in 326 source files"
     },
     {
       "command": "pnpm --dir frontend test",
@@ -62,12 +72,17 @@
     {
       "name": "graph_rebuild_validate",
       "status": "pass",
-      "summary": "rebuild followed by validate-graph produced matching PostgreSQL and Neo4j counts"
+      "summary": "rebuild followed by validate-graph produced matching PostgreSQL and Neo4j counts and wrote validation_status=passed"
+    },
+    {
+      "name": "graph_incremental_watermark",
+      "status": "pass",
+      "summary": "incremental sync uses a stable database source watermark upper bound; post-incremental validate-graph stayed consistent"
     },
     {
       "name": "runtime_doctor",
       "status": "pass",
-      "summary": "doctor reported PostgreSQL and Neo4j ok under network-enabled execution"
+      "summary": "doctor reported PostgreSQL, Neo4j, Redis/RQ database fallback, disabled AI provider, and graph projection batch ok under network-enabled execution"
     }
   ],
   "security_scan": {
