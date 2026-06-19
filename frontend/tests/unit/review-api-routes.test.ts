@@ -140,4 +140,57 @@ describe("review workspace API routes", () => {
       expect.any(Object),
     );
   });
+
+  it("forwards AI job cancel requests with the raw JSON body", async () => {
+    const fetchMock = stubJsonFetch();
+    const { POST } = await import("../../app/api/figure-chain/ai/jobs/[jobId]/cancel/route");
+    const body = JSON.stringify({ cancelled_by: "lyl" });
+
+    await POST(
+      new Request("http://localhost/api/figure-chain/ai/jobs/job-1/cancel", {
+        method: "POST",
+        body,
+      }),
+      { params: Promise.resolve({ jobId: "job-1" }) },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/api/v1/ai/jobs/job-1/cancel",
+      expect.objectContaining({ method: "POST", body }),
+    );
+  });
+
+  it("forwards AI job retry requests with the raw JSON body", async () => {
+    const fetchMock = stubJsonFetch();
+    const { POST } = await import("../../app/api/figure-chain/ai/jobs/[jobId]/retry/route");
+    const body = JSON.stringify({ created_by: "lyl" });
+
+    await POST(
+      new Request("http://localhost/api/figure-chain/ai/jobs/job-1/retry", {
+        method: "POST",
+        body,
+      }),
+      { params: Promise.resolve({ jobId: "job-1" }) },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/api/v1/ai/jobs/job-1/retry",
+      expect.objectContaining({ method: "POST", body }),
+    );
+  });
+
+  it("forwards AI job events requests with encoded job ids", async () => {
+    const fetchMock = stubJsonFetch();
+    const { GET } = await import("../../app/api/figure-chain/ai/jobs/[jobId]/events/route");
+
+    await GET(
+      new Request("http://localhost/api/figure-chain/ai/jobs/job id/events"),
+      { params: Promise.resolve({ jobId: "job id" }) },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/api/v1/ai/jobs/job%20id/events",
+      expect.any(Object),
+    );
+  });
 });
