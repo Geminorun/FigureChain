@@ -43,8 +43,29 @@ class AIGenerationJobRecord:
     error_message: str | None
     started_at: datetime | None
     finished_at: datetime | None
+    queue_backend: str
+    queue_name: str | None
+    queue_job_id: str | None
+    enqueued_at: datetime | None
+    attempt_count: int
+    max_attempts: int
+    next_run_at: datetime | None
+    cancel_requested_at: datetime | None
+    worker_id: str | None
+    heartbeat_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True)
+class AIJobEventRecord:
+    id: UUID
+    job_id: UUID
+    event_type: str
+    actor: str
+    message: str | None
+    metadata: dict[str, Any]
+    created_at: datetime
 
 
 def create_job(session: Session, job: NewAIGenerationJob) -> UUID:
@@ -55,11 +76,18 @@ def create_job(session: Session, job: NewAIGenerationJob) -> UUID:
               id, job_type, target_type, target_kind, target_id,
               status, created_by, params, result_ref_type, result_ref_id,
               error_code, error_message, started_at, finished_at,
+              queue_backend, queue_name, queue_job_id, enqueued_at,
+              attempt_count, max_attempts, next_run_at, cancel_requested_at,
+              worker_id, heartbeat_at,
               created_at, updated_at
             ) values (
               gen_random_uuid(), :job_type, :target_type, :target_kind, :target_id,
               :status, :created_by, cast(:params as jsonb), null, null,
-              null, null, null, null, :now, :now
+              null, null, null, null,
+              :queue_backend, null, null, null,
+              :attempt_count, :max_attempts, null, null,
+              null, null,
+              :now, :now
             )
             returning id
             """
@@ -72,6 +100,9 @@ def create_job(session: Session, job: NewAIGenerationJob) -> UUID:
             "status": AIJobStatus.QUEUED.value,
             "created_by": job.created_by,
             "params": json.dumps(job.params, ensure_ascii=False),
+            "queue_backend": "database",
+            "attempt_count": 0,
+            "max_attempts": 3,
             "now": datetime.now(UTC),
         },
     ).scalar_one()
@@ -223,6 +254,62 @@ def mark_failed(
     )
 
 
+def record_job_event(
+    session: Session,
+    *,
+    job_id: UUID,
+    event_type: str,
+    actor: str,
+    message: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> UUID:
+    value = session.execute(
+        text(
+            """
+            insert into figure_data.ai_job_events (
+              id, job_id, event_type, actor, message, metadata_json, created_at
+            ) values (
+              gen_random_uuid(), :job_id, :event_type, :actor, :message,
+              cast(:metadata_json as jsonb), :created_at
+            )
+            returning id
+            """
+        ),
+        {
+            "job_id": job_id,
+            "event_type": event_type,
+            "actor": actor,
+            "message": message,
+            "metadata_json": json.dumps(metadata or {}, ensure_ascii=False),
+            "created_at": datetime.now(UTC),
+        },
+    ).scalar_one()
+    return _uuid(value)
+
+
+def mark_enqueued(
+    session: Session,
+    job_id: UUID,
+    *,
+    queue_backend: str,
+    queue_name: str,
+    queue_job_id: str,
+) -> AIGenerationJobRecord:
+    return _transition_any_status(
+        session,
+        job_id=job_id,
+        assignments=(
+            "queue_backend = :queue_backend, queue_name = :queue_name, "
+            "queue_job_id = :queue_job_id, enqueued_at = :now, updated_at = :now"
+        ),
+        extra_params={
+            "queue_backend": queue_backend,
+            "queue_name": queue_name,
+            "queue_job_id": queue_job_id,
+        },
+    )
+
+
 def _transition(
     session: Session,
     *,
@@ -263,10 +350,44 @@ def _transition(
     return _record_from_row(cast(Mapping[str, Any], row))
 
 
+def _transition_any_status(
+    session: Session,
+    *,
+    job_id: UUID,
+    assignments: str,
+    extra_params: dict[str, Any],
+) -> AIGenerationJobRecord:
+    params = {
+        "job_id": job_id,
+        "now": datetime.now(UTC),
+        **extra_params,
+    }
+    row = (
+        session.execute(
+            text(
+                f"""
+                update figure_data.ai_generation_jobs
+                set {assignments}
+                where id = :job_id
+                returning {_select_columns()}
+                """
+            ),
+            params,
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if row is None:
+        raise AIGenerationJobTransitionError(f"AI generation job {job_id} was not found")
+    return _record_from_row(cast(Mapping[str, Any], row))
+
+
 def _select_columns() -> str:
     return (
         "id, job_type, target_type, target_kind, target_id, status, created_by, params, "
         "result_ref_type, result_ref_id, error_code, error_message, started_at, finished_at, "
+        "queue_backend, queue_name, queue_job_id, enqueued_at, attempt_count, max_attempts, "
+        "next_run_at, cancel_requested_at, worker_id, heartbeat_at, "
         "created_at, updated_at"
     )
 
@@ -291,6 +412,16 @@ def _record_from_row(row: Mapping[str, Any]) -> AIGenerationJobRecord:
         error_message=row["error_message"],
         started_at=row["started_at"],
         finished_at=row["finished_at"],
+        queue_backend=str(row["queue_backend"]),
+        queue_name=row["queue_name"],
+        queue_job_id=row["queue_job_id"],
+        enqueued_at=row["enqueued_at"],
+        attempt_count=int(row["attempt_count"]),
+        max_attempts=int(row["max_attempts"]),
+        next_run_at=row["next_run_at"],
+        cancel_requested_at=row["cancel_requested_at"],
+        worker_id=row["worker_id"],
+        heartbeat_at=row["heartbeat_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

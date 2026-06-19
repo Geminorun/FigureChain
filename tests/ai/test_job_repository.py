@@ -5,6 +5,7 @@ from uuid import UUID
 
 import pytest
 
+from figure_data.ai import job_repository
 from figure_data.ai.job_repository import (
     AIGenerationJobTransitionError,
     NewAIGenerationJob,
@@ -55,10 +56,22 @@ class FakeSession:
         self.params.append(params or {})
         if "insert into figure_data.ai_generation_jobs" in sql:
             return ScalarResult(JOB_ID)
+        if "insert into figure_data.ai_job_events" in sql:
+            return ScalarResult(JOB_ID)
         if "update figure_data.ai_generation_jobs" in sql and not self.transition_succeeds:
             return MappingResult([])
-        status = (params or {}).get("status") or (params or {}).get("running_status") or "queued"
-        return MappingResult([_row(status=str(status))])
+        call_params = params or {}
+        status = call_params.get("status") or call_params.get("running_status") or "queued"
+        return MappingResult(
+            [
+                _row(
+                    status=str(status),
+                    queue_backend=str(call_params.get("queue_backend", "database")),
+                    queue_name=call_params.get("queue_name"),
+                    queue_job_id=call_params.get("queue_job_id"),
+                )
+            ]
+        )
 
 
 def test_create_job_inserts_queued_record() -> None:
@@ -166,6 +179,39 @@ def test_mark_failed_requires_running_job() -> None:
     assert session.params[0]["error_code"] == "provider_unavailable"
 
 
+def test_mark_enqueued_updates_queue_metadata() -> None:
+    session = FakeSession()
+
+    record = job_repository.mark_enqueued(
+        session,  # type: ignore[arg-type]
+        JOB_ID,
+        queue_backend="rq",
+        queue_name="figure-ai",
+        queue_job_id="rq-job-1",
+    )
+
+    assert record.queue_backend == "rq"
+    assert session.params[0]["queue_job_id"] == "rq-job-1"
+    assert "enqueued_at = :now" in session.statements[0]
+
+
+def test_record_job_event_inserts_redacted_metadata() -> None:
+    session = FakeSession()
+
+    event_id = job_repository.record_job_event(
+        session,  # type: ignore[arg-type]
+        job_id=JOB_ID,
+        event_type="enqueued",
+        actor="api",
+        message="queued in RQ",
+        metadata={"queue_name": "figure-ai"},
+    )
+
+    assert event_id == JOB_ID
+    assert "insert into figure_data.ai_job_events" in session.statements[0]
+    assert session.params[0]["metadata_json"] == '{"queue_name": "figure-ai"}'
+
+
 def test_illegal_transition_raises_clear_error() -> None:
     session = FakeSession(transition_succeeds=False)
 
@@ -178,7 +224,13 @@ def test_illegal_transition_raises_clear_error() -> None:
         )
 
 
-def _row(*, status: str = "queued") -> dict[str, Any]:
+def _row(
+    *,
+    status: str = "queued",
+    queue_backend: str = "database",
+    queue_name: object = None,
+    queue_job_id: object = None,
+) -> dict[str, Any]:
     now = datetime(2026, 6, 18, tzinfo=UTC)
     return {
         "id": JOB_ID,
@@ -195,6 +247,16 @@ def _row(*, status: str = "queued") -> dict[str, Any]:
         "error_message": None,
         "started_at": None,
         "finished_at": None,
+        "queue_backend": queue_backend,
+        "queue_name": queue_name,
+        "queue_job_id": queue_job_id,
+        "enqueued_at": None,
+        "attempt_count": 0,
+        "max_attempts": 3,
+        "next_run_at": None,
+        "cancel_requested_at": None,
+        "worker_id": None,
+        "heartbeat_at": None,
         "created_at": now,
         "updated_at": now,
     }
