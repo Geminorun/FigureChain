@@ -8,6 +8,7 @@ import typer
 from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 from redis import Redis
 from rq import Queue, Worker
+from sqlalchemy import text
 
 from figure_data.ai.candidate_formatting import (
     format_candidate_suggestion_detail,
@@ -126,6 +127,11 @@ from figure_data.review.formatting import (
     format_status_change,
 )
 from figure_data.review.types import CandidateKind, CandidateReviewError
+from figure_data.runtime.diagnostics import (
+    RuntimeDiagnostics,
+    dependency_status,
+    runtime_config_summary,
+)
 from figure_data.search.person_search import search_people
 from figure_data.validation.report import ValidationReport
 from figure_data.validation.row_counts import (
@@ -278,6 +284,44 @@ def validate_graph_command() -> None:
         typer.echo(line)
     if not report.passed:
         raise typer.Exit(code=1)
+
+
+def collect_runtime_diagnostics() -> RuntimeDiagnostics:
+    settings = load_settings()
+    factory = create_session_factory(settings)
+
+    def check_postgresql() -> None:
+        with factory() as session:
+            session.execute(text("select 1"))
+
+    def check_neo4j() -> None:
+        driver = create_neo4j_driver(settings)
+        config = get_neo4j_config(settings)
+        try:
+            with graph_session(driver, config.database) as session:
+                session.run("return 1 as ok").single()
+        finally:
+            driver.close()
+
+    return RuntimeDiagnostics(
+        config=runtime_config_summary(settings),
+        dependencies=[
+            dependency_status("postgresql", check_postgresql),
+            dependency_status("neo4j", check_neo4j),
+        ],
+    )
+
+
+@app.command("doctor")
+def doctor_command() -> None:
+    """Inspect runtime configuration and dependency connectivity."""
+    diagnostics = collect_runtime_diagnostics()
+    typer.echo(f"runtime_status\t{diagnostics.status}")
+    for key, value in diagnostics.config.items():
+        typer.echo(f"config\t{key}\t{value}")
+    for item in diagnostics.dependencies:
+        message = "" if item.message is None else f"\t{item.message}"
+        typer.echo(f"dependency\t{item.name}\t{item.status}{message}")
 
 
 @app.command("find-chain")
