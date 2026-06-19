@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
@@ -66,6 +66,18 @@ class AIJobEventRecord:
     message: str | None
     metadata: dict[str, Any]
     created_at: datetime
+
+
+@dataclass(frozen=True)
+class AIJobQueueHealthRecord:
+    status_counts: dict[str, int]
+    queued_count: int
+    running_count: int
+    succeeded_count: int
+    failed_count: int
+    cancelled_count: int
+    stale_running_count: int
+    oldest_queued_at: datetime | None
 
 
 def create_job(session: Session, job: NewAIGenerationJob) -> UUID:
@@ -296,6 +308,38 @@ def touch_job_heartbeat(
     )
 
 
+def cancel_queued_job(
+    session: Session,
+    job_id: UUID,
+    *,
+    cancelled_by: str,
+) -> AIGenerationJobRecord:
+    return _transition(
+        session,
+        job_id=job_id,
+        expected_status=AIJobStatus.QUEUED.value,
+        new_status=AIJobStatus.CANCELLED.value,
+        assignments="cancel_requested_at = :now, finished_at = :now, updated_at = :now",
+        extra_params={"cancelled_by": cancelled_by},
+    )
+
+
+def request_running_job_cancel(
+    session: Session,
+    job_id: UUID,
+    *,
+    cancelled_by: str,
+) -> AIGenerationJobRecord:
+    return _transition(
+        session,
+        job_id=job_id,
+        expected_status=AIJobStatus.RUNNING.value,
+        new_status=AIJobStatus.RUNNING.value,
+        assignments="cancel_requested_at = :now, updated_at = :now",
+        extra_params={"cancelled_by": cancelled_by},
+    )
+
+
 def mark_running(session: Session, job_id: UUID) -> AIGenerationJobRecord:
     return _transition(
         session,
@@ -347,6 +391,32 @@ def mark_failed(
     )
 
 
+def schedule_job_retry(
+    session: Session,
+    job_id: UUID,
+    *,
+    error_code: str,
+    error_message: str,
+    delay_seconds: int,
+) -> AIGenerationJobRecord:
+    next_run_at = datetime.now(UTC) + timedelta(seconds=delay_seconds)
+    return _transition(
+        session,
+        job_id=job_id,
+        expected_status=AIJobStatus.RUNNING.value,
+        new_status=AIJobStatus.QUEUED.value,
+        assignments=(
+            "error_code = :error_code, error_message = :error_message, "
+            "next_run_at = :next_run_at, worker_id = null, heartbeat_at = null, updated_at = :now"
+        ),
+        extra_params={
+            "error_code": error_code,
+            "error_message": error_message,
+            "next_run_at": next_run_at,
+        },
+    )
+
+
 def record_job_event(
     session: Session,
     *,
@@ -378,6 +448,78 @@ def record_job_event(
         },
     ).scalar_one()
     return _uuid(value)
+
+
+def list_job_events(session: Session, job_id: UUID) -> list[AIJobEventRecord]:
+    rows = (
+        session.execute(
+            text(
+                """
+                select id, job_id, event_type, actor, message, metadata_json, created_at
+                from figure_data.ai_job_events
+                where job_id = :job_id
+                order by created_at, id
+                """
+            ),
+            {"job_id": job_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [_event_from_row(cast(Mapping[str, Any], row)) for row in rows]
+
+
+def get_job_queue_health(
+    session: Session,
+    *,
+    stale_after_seconds: int,
+) -> AIJobQueueHealthRecord:
+    stale_cutoff = datetime.now(UTC) - timedelta(seconds=stale_after_seconds)
+    row = (
+        session.execute(
+            text(
+                """
+                select
+                  count(*) filter (where status = 'queued') as queued_count,
+                  count(*) filter (where status = 'running') as running_count,
+                  count(*) filter (where status = 'succeeded') as succeeded_count,
+                  count(*) filter (where status = 'failed') as failed_count,
+                  count(*) filter (where status = 'cancelled') as cancelled_count,
+                  count(*) filter (
+                    where status = 'running'
+                      and (heartbeat_at is null or heartbeat_at < :stale_cutoff)
+                  ) as stale_running_count,
+                  min(created_at) filter (where status = 'queued') as oldest_queued_at
+                from figure_data.ai_generation_jobs
+                """
+            ),
+            {"stale_cutoff": stale_cutoff},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    values = cast(Mapping[str, Any], row) if row is not None else {}
+    queued_count = int(values.get("queued_count") or 0)
+    running_count = int(values.get("running_count") or 0)
+    succeeded_count = int(values.get("succeeded_count") or 0)
+    failed_count = int(values.get("failed_count") or 0)
+    cancelled_count = int(values.get("cancelled_count") or 0)
+    return AIJobQueueHealthRecord(
+        status_counts={
+            AIJobStatus.QUEUED.value: queued_count,
+            AIJobStatus.RUNNING.value: running_count,
+            AIJobStatus.SUCCEEDED.value: succeeded_count,
+            AIJobStatus.FAILED.value: failed_count,
+            AIJobStatus.CANCELLED.value: cancelled_count,
+        },
+        queued_count=queued_count,
+        running_count=running_count,
+        succeeded_count=succeeded_count,
+        failed_count=failed_count,
+        cancelled_count=cancelled_count,
+        stale_running_count=int(values.get("stale_running_count") or 0),
+        oldest_queued_at=values.get("oldest_queued_at"),
+    )
 
 
 def mark_enqueued(
@@ -517,6 +659,18 @@ def _record_from_row(row: Mapping[str, Any]) -> AIGenerationJobRecord:
         heartbeat_at=row["heartbeat_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+    )
+
+
+def _event_from_row(row: Mapping[str, Any]) -> AIJobEventRecord:
+    return AIJobEventRecord(
+        id=_uuid(row["id"]),
+        job_id=_uuid(row["job_id"]),
+        event_type=str(row["event_type"]),
+        actor=str(row["actor"]),
+        message=row["message"],
+        metadata=_json_object(row["metadata_json"]),
+        created_at=row["created_at"],
     )
 
 
