@@ -16,6 +16,7 @@ from figure_data.ai.errors import (
 )
 from figure_data.ai.prompts import get_prompt_definition
 from figure_data.ai.provider import AIProvider, FakeAIProvider, create_ai_provider
+from figure_data.ai.redaction import redact_sensitive_text
 from figure_data.ai.repository import AIRunRepository
 from figure_data.ai.schemas import (
     CandidateReviewSuggestionOutput,
@@ -190,13 +191,13 @@ def _evaluate_sample(
         status = "failed" if errors else "passed"
     except AIOutputValidationError as exc:
         status = "failed"
-        errors.append(f"schema_invalid: {exc}")
+        errors.append(_safe_error(f"schema_invalid: {exc}"))
     except AIOutputPolicyViolation as exc:
         status = "failed"
-        errors.append(f"policy_violation: {exc}")
+        errors.append(_safe_error(f"policy_violation: {exc}"))
     except AIProviderError as exc:
         status = "error"
-        errors.append(f"provider_error: {exc}")
+        errors.append(_safe_error(f"provider_error: {exc}"))
 
     return Stage5DEvaluationItemResult(
         sample_id=sample.sample_id,
@@ -330,3 +331,7 @@ def _scores_for_errors(errors: list[str]) -> dict[str, int]:
         elif "schema_invalid" in error:
             scores = dict.fromkeys(scores, 0)
     return scores
+
+
+def _safe_error(value: str) -> str:
+    return redact_sensitive_text(value)

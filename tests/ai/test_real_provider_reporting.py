@@ -27,6 +27,29 @@ def test_stage5d_report_does_not_include_secret_like_values() -> None:
     assert "sk-" not in markdown
 
 
+def test_stage5d_report_redacts_item_errors() -> None:
+    result = example_result().model_copy(
+        update={
+            "items": [
+                example_result().items[0].model_copy(
+                    update={
+                        "status": "error",
+                        "errors": [
+                            "provider failed with redis://:pass@example/0 and Bearer token"
+                        ],
+                    }
+                )
+            ]
+        }
+    )
+
+    markdown = render_stage5d_evaluation_report(result)
+
+    assert "redis://" not in markdown
+    assert "Bearer token" not in markdown
+    assert "[REDACTED]" in markdown
+
+
 def example_result() -> Stage5DEvaluationResult:
     return Stage5DEvaluationResult(
         sample_count=1,

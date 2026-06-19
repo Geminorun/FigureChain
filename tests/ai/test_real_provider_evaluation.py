@@ -5,6 +5,7 @@ from uuid import UUID
 from pytest import raises
 from typer.testing import CliRunner
 
+from figure_data.ai.errors import AIProviderError
 from figure_data.ai.provider import FakeAIProvider
 from figure_data.ai.real_provider_evaluation import (
     Stage5DEvaluationFixture,
@@ -132,6 +133,21 @@ def test_evaluation_runner_fails_traceability_for_ids_outside_allowed_set() -> N
     assert "source_ref_ids outside allowed set" in result.items[0].errors[0]
 
 
+def test_evaluation_runner_redacts_provider_errors() -> None:
+    result = run_stage5d_evaluation(
+        fixture=fixture_with_one_candidate_sample(),
+        settings=fake_settings(ai_provider="fake"),
+        provider=SecretFailingProvider(),
+        session=object(),
+        repository=FakeRunRepository(),
+    )
+
+    assert result.error_count == 1
+    assert "postgresql://" not in result.items[0].errors[0]
+    assert "Bearer secret-token" not in result.items[0].errors[0]
+    assert "[REDACTED]" in result.items[0].errors[0]
+
+
 def test_evaluate_real_provider_cli_runs_fixture(monkeypatch: Any, tmp_path: Path) -> None:
     output = tmp_path / "stage5d.md"
 
@@ -236,6 +252,15 @@ class RealishProvider:
         raise AssertionError("real provider must not be called without opt-in")
 
 
+class SecretFailingProvider:
+    provider_name = "fake"
+
+    def generate(self, request: AIProviderRequest) -> AIProviderResponse:
+        raise AIProviderError(
+            "failed with postgresql://user:pass@example/db and Bearer secret-token"
+        )
+
+
 class FakeRunRepository:
     prompt_version_id = UUID("00000000-0000-0000-0000-000000000002")
     run_id = UUID("00000000-0000-0000-0000-000000000001")
@@ -253,6 +278,15 @@ class FakeRunRepository:
         run_id: UUID,
         output_snapshot: dict[str, Any],
         raw_output: str,
+        provider_request_id: str | None = None,
+        latency_ms: int | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        estimated_cost: object | None = None,
+        cost_currency: str | None = None,
+        retry_count: int = 0,
+        provider_metadata: dict[str, object] | None = None,
     ) -> None:
         pass
 

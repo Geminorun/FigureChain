@@ -6,6 +6,10 @@ class AIPromptError(AIError):
     """Raised when a prompt definition cannot be resolved."""
 
 
+class AIPromptVersionConflictError(AIPromptError):
+    """Raised when an existing prompt key/version has different immutable content."""
+
+
 class AIProviderConfigurationError(AIError):
     """Raised when AI provider configuration is missing or unsupported."""
 

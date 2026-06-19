@@ -18,7 +18,7 @@ AI_FOUNDATION_DIAGNOSTIC_PROMPT = PromptDefinition(
 
 CANDIDATE_REVIEW_SUGGESTION_PROMPT = PromptDefinition(
     prompt_key="candidate_review_suggestion",
-    prompt_version="2026-06-13.1",
+    prompt_version="2026-06-19.1",
     purpose="candidate_review_suggestion",
     system_prompt=(
         "你是 FigureChain 的候选关系审核助手。"
@@ -46,7 +46,7 @@ CANDIDATE_REVIEW_SUGGESTION_PROMPT = PromptDefinition(
 
 CHAIN_EXPLANATION_PROMPT = PromptDefinition(
     prompt_key="chain_explanation",
-    prompt_version="2026-06-13.1",
+    prompt_version="2026-06-19.1",
     purpose="chain_explanation",
     system_prompt=(
         "你是 FigureChain 的人物链解释助手。"
@@ -73,7 +73,7 @@ CHAIN_EXPLANATION_PROMPT = PromptDefinition(
 
 NO_PATH_EXPLORATION_PROMPT = PromptDefinition(
     prompt_key="no_path_exploration",
-    prompt_version="2026-06-14.1",
+    prompt_version="2026-06-19.1",
     purpose="no_path_exploration",
     system_prompt=(
         "You are a FigureChain no_path exploration assistant. "

@@ -13,7 +13,7 @@ from figure_data.ai.prompts import get_prompt_definition
 from figure_data.ai.provider import FakeAIProvider
 from figure_data.ai.schemas import AIFoundationDiagnosticOutput
 from figure_data.ai.service import run_ai_prompt
-from figure_data.ai.types import AIProviderRequest, AIProviderResponse
+from figure_data.ai.types import AIProviderRequest, AIProviderResponse, TokenUsage
 
 
 @dataclass
@@ -38,9 +38,31 @@ class FakeRunRepository:
         run_id: UUID,
         output_snapshot: dict[str, Any],
         raw_output: str,
+        provider_request_id: str | None = None,
+        latency_ms: int | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        estimated_cost: object | None = None,
+        cost_currency: str | None = None,
+        retry_count: int = 0,
+        provider_metadata: dict[str, object] | None = None,
     ) -> None:
         self.succeeded.append(
-            {"run_id": run_id, "output_snapshot": output_snapshot, "raw_output": raw_output}
+            {
+                "run_id": run_id,
+                "output_snapshot": output_snapshot,
+                "raw_output": raw_output,
+                "provider_request_id": provider_request_id,
+                "latency_ms": latency_ms,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "estimated_cost": estimated_cost,
+                "cost_currency": cost_currency,
+                "retry_count": retry_count,
+                "provider_metadata": provider_metadata,
+            }
         )
 
     def mark_failed(
@@ -69,6 +91,28 @@ class FailingProvider:
         raise AIProviderError("provider unavailable")
 
 
+class ObservableProvider:
+    provider_name = "observable"
+
+    def generate(self, request: AIProviderRequest) -> AIProviderResponse:
+        return AIProviderResponse(
+            raw_text='{"message":"ready","echo_id":"abc","warnings":[]}',
+            provider=self.provider_name,
+            model_name=request.model_name,
+            provider_request_id="req-123",
+            latency_ms=250,
+            token_usage=TokenUsage(
+                prompt_tokens=11,
+                completion_tokens=7,
+                total_tokens=18,
+            ),
+            metadata={
+                "region": "test",
+                "authorization": "Bearer secret-token",
+            },
+        )
+
+
 def test_run_ai_prompt_records_success() -> None:
     repository = FakeRunRepository()
     provider = FakeAIProvider(raw_text='{"message":"ready","echo_id":"abc","warnings":[]}')
@@ -92,6 +136,34 @@ def test_run_ai_prompt_records_success() -> None:
     assert repository.created_payloads[0]["input_snapshot"] == {"echo_id": "abc"}
     assert repository.succeeded[0]["output_snapshot"]["echo_id"] == "abc"
     assert repository.failed == []
+
+
+def test_run_ai_prompt_persists_provider_observability_metadata() -> None:
+    repository = FakeRunRepository()
+
+    run_ai_prompt(
+        session=object(),
+        prompt=get_prompt_definition("ai_foundation_diagnostic"),
+        provider=ObservableProvider(),
+        output_schema=AIFoundationDiagnosticOutput,
+        input_variables={"echo_id": "abc"},
+        input_snapshot={"echo_id": "abc"},
+        model_name="fake-model",
+        max_output_tokens=128,
+        created_by="test",
+        repository=repository,
+    )
+
+    success = repository.succeeded[0]
+    assert success["provider_request_id"] == "req-123"
+    assert success["latency_ms"] == 250
+    assert success["prompt_tokens"] == 11
+    assert success["completion_tokens"] == 7
+    assert success["total_tokens"] == 18
+    assert success["provider_metadata"] == {
+        "region": "test",
+        "authorization": "[REDACTED]",
+    }
 
 
 def test_run_ai_prompt_records_schema_failure() -> None:

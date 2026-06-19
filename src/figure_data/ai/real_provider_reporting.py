@@ -4,6 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from figure_data.ai.real_provider_evaluation import Stage5DEvaluationResult
+from figure_data.ai.redaction import redact_sensitive_text
 
 
 def render_stage5d_evaluation_report(result: Stage5DEvaluationResult) -> str:
@@ -41,7 +42,9 @@ def render_stage5d_evaluation_report(result: Stage5DEvaluationResult) -> str:
         score_text = ", ".join(
             f"{name}={score}" for name, score in sorted(item.scores.items())
         )
-        error_text = "; ".join(item.errors) if item.errors else "-"
+        error_text = (
+            redact_sensitive_text("; ".join(item.errors)) if item.errors else "-"
+        )
         lines.append(
             f"| `{item.sample_id}` | `{item.status}` | {score_text} | {error_text} |"
         )

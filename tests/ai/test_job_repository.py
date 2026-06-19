@@ -155,6 +155,8 @@ def test_claim_queued_jobs_uses_skip_locked_and_marks_running() -> None:
     assert records[0].status == "running"
     assert "for update skip locked" in statement
     assert "status = :running_status" in statement
+    assert "next_run_at is null or next_run_at <= :now" in statement
+    assert "attempt_count = attempt_count + 1" in statement
     assert session.params[0]["job_type"] == "candidate_review_suggestion"
 
 

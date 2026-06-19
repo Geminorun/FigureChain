@@ -11,9 +11,9 @@
 
 | Sample | Type | Prompt Version |
 | --- | --- | --- |
-| `candidate-basic-001` | `candidate_review_suggestion` | `2026-06-13.1` |
-| `chain-explanation-basic-001` | `chain_explanation` | `2026-06-13.1` |
-| `no-path-exploration-basic-001` | `no_path_exploration` | `2026-06-14.1` |
+| `candidate-basic-001` | `candidate_review_suggestion` | `2026-06-19.1` |
+| `chain-explanation-basic-001` | `chain_explanation` | `2026-06-19.1` |
+| `no-path-exploration-basic-001` | `no_path_exploration` | `2026-06-19.1` |
 
 ## 样本结果
 

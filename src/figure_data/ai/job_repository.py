@@ -217,6 +217,7 @@ def claim_queued_jobs(
                   from figure_data.ai_generation_jobs
                   where status = :queued_status
                     and (:job_type is null or job_type = :job_type)
+                    and (next_run_at is null or next_run_at <= :now)
                   order by created_at, id
                   limit :limit
                   for update skip locked
@@ -224,6 +225,7 @@ def claim_queued_jobs(
                 update figure_data.ai_generation_jobs jobs
                 set status = :running_status,
                     started_at = :now,
+                    attempt_count = attempt_count + 1,
                     updated_at = :now
                 from claimed
                 where jobs.id = claimed.id
