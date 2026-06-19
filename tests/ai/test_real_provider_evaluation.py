@@ -45,6 +45,24 @@ def test_evaluation_runner_uses_fake_provider_by_default() -> None:
     assert result.items[0].status in {"passed", "failed"}
 
 
+def test_stage5d_fixture_passes_with_fake_provider() -> None:
+    fixture = load_stage5d_evaluation_fixture(
+        Path("docs/superpowers/fixtures/stage5d-real-provider-eval-small.json")
+    )
+
+    result = run_stage5d_evaluation(
+        fixture=fixture,
+        settings=fake_settings(ai_provider="fake"),
+        provider=FakeAIProvider(),
+        session=object(),
+        repository=FakeRunRepository(),
+    )
+
+    assert result.sample_count == 3
+    assert result.failed_count == 0
+    assert result.error_count == 0
+
+
 def test_evaluation_runner_rejects_real_provider_without_explicit_flag() -> None:
     with raises(ValueError, match="explicitly enabled"):
         run_stage5d_evaluation(

@@ -6,7 +6,12 @@
       "input": {
         "candidate_kind": "relationship",
         "candidate_id": 960698,
-        "summary": "Synthetic review sample for evaluating provider traceability."
+        "summary": "Synthetic review sample for evaluating provider traceability.",
+        "source_refs": [
+          {
+            "source_ref_id": 3853784
+          }
+        ]
       },
       "allowed_ids": {
         "candidate_ids": [960698],
