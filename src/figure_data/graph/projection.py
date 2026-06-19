@@ -9,12 +9,14 @@ from sqlalchemy.orm import Session
 
 from figure_data.encounters.validation import validate_encounters
 from figure_data.graph.batches import (
+    get_latest_projection_batch,
     mark_projection_batch_failed,
     mark_projection_batch_succeeded,
     start_projection_batch,
 )
 from figure_data.graph.types import (
     GraphEncounter,
+    IncrementalProjectionStats,
     GraphPerson,
     GraphProjectionError,
     ProjectionDataset,
@@ -46,6 +48,33 @@ select
     e.updated_at
 from figure_data.encounters e
 where {PATH_ENCOUNTER_WHERE}
+order by e.id
+"""
+
+CHANGED_ENCOUNTER_SQL = """
+select e.id::text as encounter_id
+from figure_data.encounters e
+where :source_watermark is null or e.updated_at >= :source_watermark
+order by e.updated_at, e.id
+"""
+
+PATH_ENCOUNTER_BY_IDS_SQL = f"""
+select
+    e.id::text as encounter_id,
+    e.person_a_id::text as person_a_id,
+    e.person_b_id::text as person_b_id,
+    e.encounter_kind,
+    e.certainty_level,
+    e.source_work_id,
+    e.pages,
+    e.evidence_summary,
+    e.reviewed_by,
+    e.reviewed_at,
+    e.created_at,
+    e.updated_at
+from figure_data.encounters e
+where {PATH_ENCOUNTER_WHERE}
+and e.id = any(:encounter_ids)
 order by e.id
 """
 
@@ -113,6 +142,11 @@ set r.encounter_kind = row.encounter_kind,
     r.reviewed_at = row.reviewed_at,
     r.created_at = row.created_at,
     r.updated_at = row.updated_at
+"""
+
+DELETE_ENCOUNTER_CYPHER = """
+match ()-[r:ENCOUNTERED {encounter_id: $encounter_id}]->()
+delete r
 """
 
 
@@ -195,6 +229,71 @@ def sync_graph_rebuild(
         raise
 
 
+def sync_graph_incremental(
+    pg_session: Session,
+    neo4j_session: GraphWriteSession,
+    *,
+    triggered_by: str = "cli",
+) -> IncrementalProjectionStats:
+    latest_success = get_latest_projection_batch(pg_session, status="succeeded")
+    source_watermark = None if latest_success is None else latest_success.finished_at
+    started_at = datetime.now(UTC)
+    batch_id = start_projection_batch(
+        pg_session,
+        mode="incremental",
+        triggered_by=triggered_by,
+        source_watermark=source_watermark,
+    )
+    try:
+        changed_ids = _changed_encounter_ids(pg_session, source_watermark)
+        for encounter_id in changed_ids:
+            neo4j_session.run(DELETE_ENCOUNTER_CYPHER, {"encounter_id": encounter_id})
+
+        dataset = load_projection_dataset_for_encounters(pg_session, changed_ids)
+        if dataset.encounters:
+            projection_time = started_at.isoformat()
+            neo4j_session.run(
+                PERSON_BATCH_CYPHER,
+                {
+                    "rows": [
+                        _person_to_neo4j_row(person, projection_time)
+                        for person in dataset.people
+                    ]
+                },
+            )
+            neo4j_session.run(
+                ENCOUNTER_BATCH_CYPHER,
+                {"rows": [_encounter_to_neo4j_row(encounter) for encounter in dataset.encounters]},
+            )
+
+        finished_at = datetime.now(UTC)
+        stats = IncrementalProjectionStats(
+            persons_written=len(dataset.people),
+            encounters_seen=len(changed_ids),
+            relationships_written=len(dataset.encounters),
+            relationships_deleted=len(changed_ids),
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        mark_projection_batch_succeeded(
+            pg_session,
+            batch_id=batch_id,
+            encounters_seen=stats.encounters_seen,
+            persons_written=stats.persons_written,
+            relationships_written=stats.relationships_written,
+            relationships_deleted=stats.relationships_deleted,
+        )
+        return stats
+    except Exception as exc:
+        mark_projection_batch_failed(
+            pg_session,
+            batch_id=batch_id,
+            error_code="graph_projection_failed",
+            error_message=str(exc),
+        )
+        raise
+
+
 def load_projection_dataset(session: Session) -> ProjectionDataset:
     encounter_rows = session.execute(text(PATH_ENCOUNTER_SQL)).mappings().all()
     encounters = tuple(
@@ -212,6 +311,52 @@ def load_projection_dataset(session: Session) -> ProjectionDataset:
     ).mappings().all()
     people = tuple(graph_person_from_row(cast(Mapping[str, Any], row)) for row in person_rows)
     return ProjectionDataset(people=people, encounters=encounters)
+
+
+def load_projection_dataset_for_encounters(
+    session: Session,
+    encounter_ids: list[str],
+) -> ProjectionDataset:
+    if not encounter_ids:
+        return ProjectionDataset(people=(), encounters=())
+    encounter_rows = (
+        session.execute(
+            text(PATH_ENCOUNTER_BY_IDS_SQL),
+            {"encounter_ids": encounter_ids},
+        )
+        .mappings()
+        .all()
+    )
+    encounters = tuple(
+        graph_encounter_from_row(cast(Mapping[str, Any], row)) for row in encounter_rows
+    )
+    person_ids = sorted(
+        {encounter.start_person_id for encounter in encounters}
+        | {encounter.end_person_id for encounter in encounters}
+    )
+    if not person_ids:
+        return ProjectionDataset(people=(), encounters=encounters)
+    person_rows = session.execute(
+        text(GRAPH_PERSON_SQL),
+        {"person_ids": person_ids},
+    ).mappings().all()
+    people = tuple(graph_person_from_row(cast(Mapping[str, Any], row)) for row in person_rows)
+    return ProjectionDataset(people=people, encounters=encounters)
+
+
+def _changed_encounter_ids(
+    session: Session,
+    source_watermark: datetime | None,
+) -> list[str]:
+    rows = (
+        session.execute(
+            text(CHANGED_ENCOUNTER_SQL),
+            {"source_watermark": source_watermark},
+        )
+        .mappings()
+        .all()
+    )
+    return [str(row["encounter_id"]) for row in rows]
 
 
 def graph_person_from_row(row: Mapping[str, Any]) -> GraphPerson:
