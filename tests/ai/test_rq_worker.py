@@ -1,11 +1,13 @@
 from uuid import UUID
 
+from pytest import MonkeyPatch
+
 from figure_data.ai.rq_worker import execute_ai_job_task
 
 JOB_ID = UUID("00000000-0000-0000-0000-000000000501")
 
 
-def test_execute_ai_job_task_passes_job_id_to_executor(monkeypatch) -> None:
+def test_execute_ai_job_task_passes_job_id_to_executor(monkeypatch: MonkeyPatch) -> None:
     calls: list[UUID] = []
 
     def fake_run(job_id: UUID) -> str:

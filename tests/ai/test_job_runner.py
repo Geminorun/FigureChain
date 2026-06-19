@@ -4,10 +4,10 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from figure_data.ai import job_runner
 from figure_data.ai.candidate_repository import CandidateSuggestionRecord
 from figure_data.ai.candidate_service import CandidateReviewSuggestionResult
 from figure_data.ai.job_repository import AIGenerationJobRecord
-from figure_data.ai import job_runner
 from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.config import Settings
 from figure_data.review.types import CandidateKind, CandidateReviewError
@@ -36,6 +36,15 @@ class FakeJobRepository:
         self.claimed_job_type = job_type
         return self.jobs
 
+    def claim_queued_job_by_id(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        worker_id: str,
+    ) -> AIGenerationJobRecord | None:
+        return self.jobs[0] if self.jobs else None
+
     def mark_succeeded(
         self,
         session: Session,
@@ -57,6 +66,18 @@ class FakeJobRepository:
     ) -> AIGenerationJobRecord:
         self.failed.append((job_id, error_code, error_message))
         return self.jobs[0]
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        return job_id
 
 
 class FakeSingleJobRepository(FakeJobRepository):
