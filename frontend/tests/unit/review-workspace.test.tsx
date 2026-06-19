@@ -82,6 +82,35 @@ const candidateDetail = {
   ai_jobs: [],
 };
 
+const queuedAiJob = {
+  id: "9d6958d5-c0e5-4112-9659-bb47c27cbdb7",
+  job_type: "candidate_review_suggestion",
+  target_type: "candidate",
+  target_kind: "relationship",
+  target_id: 960664,
+  status: "queued",
+  created_by: "lyl",
+  params: {},
+  result_ref_type: null,
+  result_ref_id: null,
+  error_code: null,
+  error_message: null,
+  queue_backend: "rq",
+  queue_name: "figure-ai",
+  queue_job_id: "rq-job-501",
+  enqueued_at: "2026-06-19T00:00:01Z",
+  attempt_count: 1,
+  max_attempts: 3,
+  next_run_at: null,
+  cancel_requested_at: null,
+  worker_id: "worker-1",
+  heartbeat_at: "2026-06-19T00:00:02Z",
+  started_at: null,
+  finished_at: null,
+  created_at: "2026-06-18T00:00:00Z",
+  updated_at: "2026-06-18T00:00:00Z",
+};
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -106,7 +135,7 @@ describe("ReviewWorkspace", () => {
         return Promise.resolve(jsonResponse(candidateDetail));
       }
       if (url.startsWith("/api/figure-chain/ai/jobs?")) {
-        return Promise.resolve(jsonResponse({ items: [], count: 0, limit: 20 }));
+        return Promise.resolve(jsonResponse({ items: [queuedAiJob], count: 1, limit: 20 }));
       }
       return Promise.resolve(jsonResponse({ error: { code: "not_found", message: url, details: {} } }, 404));
     });
@@ -120,6 +149,7 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => expect(screen.getByText("宋史")).toBeInTheDocument());
     expect(screen.getByText("审核动作")).toBeInTheDocument();
     expect(screen.getByText("AI 建议")).toBeInTheDocument();
+    expect(screen.getByText(/queue rq/)).toBeInTheDocument();
   });
 
   it("renders the review page", () => {
