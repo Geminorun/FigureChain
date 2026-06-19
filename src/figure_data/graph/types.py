@@ -91,6 +91,35 @@ class ProjectionStats:
 
 
 @dataclass(frozen=True)
+class IncrementalProjectionStats:
+    persons_written: int
+    encounters_seen: int
+    relationships_written: int
+    relationships_deleted: int
+    started_at: datetime
+    finished_at: datetime
+
+
+@dataclass(frozen=True)
+class GraphProjectionBatchRecord:
+    id: str
+    mode: str
+    status: str
+    triggered_by: str
+    source_watermark: datetime | None
+    encounters_seen: int
+    relationships_written: int
+    relationships_deleted: int
+    persons_written: int
+    validation_status: str
+    validation_summary: dict[str, object]
+    error_code: str | None
+    error_message: str | None
+    started_at: datetime
+    finished_at: datetime | None
+
+
+@dataclass(frozen=True)
 class ChainPerson:
     person_id: str
     display_name: str
