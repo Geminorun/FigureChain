@@ -54,8 +54,13 @@ order by e.id
 CHANGED_ENCOUNTER_SQL = """
 select e.id::text as encounter_id
 from figure_data.encounters e
-where :source_watermark is null or e.updated_at >= :source_watermark
+where (:source_watermark is null or e.updated_at >= :source_watermark)
+and e.updated_at < :source_watermark_upper
 order by e.updated_at, e.id
+"""
+
+SOURCE_WATERMARK_UPPER_SQL = """
+select transaction_timestamp() as source_watermark_upper
 """
 
 PATH_ENCOUNTER_BY_IDS_SQL = f"""
@@ -236,16 +241,23 @@ def sync_graph_incremental(
     triggered_by: str = "cli",
 ) -> IncrementalProjectionStats:
     latest_success = get_latest_projection_batch(pg_session, status="succeeded")
-    source_watermark = None if latest_success is None else latest_success.finished_at
+    source_watermark = None if latest_success is None else latest_success.source_watermark
+    if source_watermark is None and latest_success is not None:
+        source_watermark = latest_success.finished_at
+    source_watermark_upper = _source_watermark_upper(pg_session)
     started_at = datetime.now(UTC)
     batch_id = start_projection_batch(
         pg_session,
         mode="incremental",
         triggered_by=triggered_by,
-        source_watermark=source_watermark,
+        source_watermark=source_watermark_upper,
     )
     try:
-        changed_ids = _changed_encounter_ids(pg_session, source_watermark)
+        changed_ids = _changed_encounter_ids(
+            pg_session,
+            source_watermark,
+            source_watermark_upper,
+        )
         for encounter_id in changed_ids:
             neo4j_session.run(DELETE_ENCOUNTER_CYPHER, {"encounter_id": encounter_id})
 
@@ -347,16 +359,27 @@ def load_projection_dataset_for_encounters(
 def _changed_encounter_ids(
     session: Session,
     source_watermark: datetime | None,
+    source_watermark_upper: datetime,
 ) -> list[str]:
     rows = (
         session.execute(
             text(CHANGED_ENCOUNTER_SQL),
-            {"source_watermark": source_watermark},
+            {
+                "source_watermark": source_watermark,
+                "source_watermark_upper": source_watermark_upper,
+            },
         )
         .mappings()
         .all()
     )
     return [str(row["encounter_id"]) for row in rows]
+
+
+def _source_watermark_upper(session: Session) -> datetime:
+    value = session.execute(text(SOURCE_WATERMARK_UPPER_SQL)).scalar_one()
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))
 
 
 def graph_person_from_row(row: Mapping[str, Any]) -> GraphPerson:

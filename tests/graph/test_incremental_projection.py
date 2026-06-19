@@ -12,6 +12,8 @@ from figure_data.graph.projection import sync_graph_incremental
 from figure_data.graph.types import GraphProjectionError
 
 BATCH_ID = UUID("00000000-0000-0000-0000-000000000501")
+LOWER_WATERMARK = datetime(2026, 6, 19, 12, 0, tzinfo=UTC)
+UPPER_WATERMARK = datetime(2026, 6, 19, 12, 5, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -21,14 +23,23 @@ class GraphCall:
 
 
 class FakeResult:
-    def __init__(self, rows: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        scalar_value: object | None = None,
+    ) -> None:
         self._rows = rows
+        self._scalar_value = scalar_value
 
     def mappings(self) -> FakeResult:
         return self
 
     def all(self) -> list[dict[str, Any]]:
         return self._rows
+
+    def scalar_one(self) -> object:
+        return self._scalar_value
 
 
 class FakeNeo4jSession:
@@ -40,8 +51,14 @@ class FakeNeo4jSession:
 
 
 class FakePgSessionWithChangedPathEncounter:
+    def __init__(self) -> None:
+        self.params_seen: list[dict[str, Any]] = []
+
     def execute(self, statement: Any, params: dict[str, Any] | None = None) -> FakeResult:
+        self.params_seen.append(params or {})
         sql = str(statement)
+        if "select transaction_timestamp()" in sql:
+            return FakeResult([], scalar_value=UPPER_WATERMARK)
         if "select e.id::text as encounter_id" in sql and "where" in sql:
             return FakeResult([{"encounter_id": "encounter-1"}])
         if "from figure_data.encounters" in sql:
@@ -52,6 +69,8 @@ class FakePgSessionWithChangedPathEncounter:
 class FakePgSessionWithDowngradedEncounter:
     def execute(self, statement: Any, params: dict[str, Any] | None = None) -> FakeResult:
         sql = str(statement)
+        if "select transaction_timestamp()" in sql:
+            return FakeResult([], scalar_value=UPPER_WATERMARK)
         if "select e.id::text as encounter_id" in sql and "where" in sql:
             return FakeResult([{"encounter_id": "encounter-1"}])
         if "from figure_data.encounters" in sql:
@@ -61,6 +80,9 @@ class FakePgSessionWithDowngradedEncounter:
 
 class FailingPgSession:
     def execute(self, statement: Any, params: dict[str, Any] | None = None) -> FakeResult:
+        sql = str(statement)
+        if "select transaction_timestamp()" in sql:
+            return FakeResult([], scalar_value=UPPER_WATERMARK)
         raise GraphProjectionError("postgresql://user:secret@localhost/db failed")
 
 
@@ -117,6 +139,48 @@ def test_incremental_sync_records_failed_batch(monkeypatch: MonkeyPatch) -> None
         sync_graph_incremental(FailingPgSession(), FakeNeo4jSession(), triggered_by="cli")  # type: ignore[arg-type]
 
     assert events[0]["error_code"] == "graph_projection_failed"
+
+
+def test_incremental_sync_uses_stable_source_watermark_window(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    events: list[dict[str, object]] = []
+    pg_session = FakePgSessionWithChangedPathEncounter()
+
+    def record_started_batch(*args: object, **kwargs: object) -> UUID:
+        events.append({"event": "start", **kwargs})
+        return BATCH_ID
+
+    monkeypatch.setattr(
+        "figure_data.graph.projection.start_projection_batch",
+        record_started_batch,
+    )
+    monkeypatch.setattr(
+        "figure_data.graph.projection.mark_projection_batch_succeeded",
+        lambda *args, **kwargs: events.append({"event": "success", **kwargs}),
+    )
+    monkeypatch.setattr(
+        "figure_data.graph.projection.get_latest_projection_batch",
+        lambda *args, **kwargs: type(
+            "Batch",
+            (),
+            {"source_watermark": LOWER_WATERMARK, "finished_at": UPPER_WATERMARK},
+        )(),
+    )
+
+    sync_graph_incremental(
+        pg_session,  # type: ignore[arg-type]
+        FakeNeo4jSession(),
+        triggered_by="cli",
+    )
+
+    changed_query_params = next(
+        params for params in pg_session.params_seen if "source_watermark" in params
+    )
+    assert changed_query_params["source_watermark"] == LOWER_WATERMARK
+    assert changed_query_params["source_watermark_upper"] == UPPER_WATERMARK
+    start_event = next(event for event in events if event["event"] == "start")
+    assert start_event["source_watermark"] == UPPER_WATERMARK
 
 
 def _patch_projection_batch(monkeypatch: MonkeyPatch) -> None:
