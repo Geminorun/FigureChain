@@ -25,7 +25,17 @@
       "sample_type": "chain_explanation",
       "input": {
         "chain_hash": "stage5d-fixture-chain",
-        "summary": "Synthetic chain explanation sample with reviewed encounter ids only."
+        "summary": "Synthetic chain explanation sample with reviewed encounter ids only.",
+        "encounters": [
+          {
+            "encounter_id": "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f",
+            "source_refs": [
+              {
+                "source_ref_id": 3853784
+              }
+            ]
+          }
+        ]
       },
       "allowed_ids": {
         "candidate_ids": [],
@@ -45,7 +55,14 @@
       "input": {
         "source_person_id": 780,
         "target_person_id": 21204,
-        "summary": "Synthetic no-path sample for review target suggestions."
+        "summary": "Synthetic no-path sample for review target suggestions.",
+        "candidate_summaries": [
+          {
+            "candidate_kind": "relationship",
+            "candidate_id": 961538,
+            "source_ref_id": 3854446
+          }
+        ]
       },
       "allowed_ids": {
         "candidate_ids": [961538],

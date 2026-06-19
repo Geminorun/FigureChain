@@ -57,6 +57,10 @@ from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
 from figure_data.ai.no_path_service import generate_no_path_exploration
 from figure_data.ai.queue import create_ai_job_queue
+from figure_data.ai.real_provider_evaluation import (
+    load_stage5d_evaluation_fixture,
+    run_stage5d_evaluation,
+)
 from figure_data.ai.repository import get_ai_run
 from figure_data.ai.retrieval_formatting import (
     format_build_rag_index_result,
@@ -539,6 +543,43 @@ def evaluate_ai_samples_command(
     _echo_cli_line(f"evaluation_report\t{report_path}")
     _echo_cli_line(f"samples\t{len(fixture_model.samples)}")
     _echo_cli_line(f"recommendation\t{recommendation}")
+
+
+@app.command("evaluate-real-provider")
+def evaluate_real_provider_command(
+    fixture: Annotated[
+        Path,
+        typer.Option("--fixture", exists=True, file_okay=True, dir_okay=False),
+    ] = Path("docs/superpowers/fixtures/stage5d-real-provider-eval-small.json"),
+    output: Annotated[
+        Path,
+        typer.Option("--output", file_okay=True, dir_okay=False),
+    ] = Path("docs/superpowers/reports/2026-06-19-stage5d-real-provider-acceptance.md"),
+    allow_real_provider: Annotated[bool, typer.Option("--allow-real-provider")] = False,
+) -> None:
+    """Run the Stage 5D real-provider acceptance evaluation."""
+    try:
+        settings = load_settings()
+        fixture_model = load_stage5d_evaluation_fixture(fixture)
+        factory = create_session_factory(settings)
+        with factory() as session:
+            result = run_stage5d_evaluation(
+                fixture=fixture_model,
+                settings=settings,
+                session=session,
+                allow_real_provider=allow_real_provider,
+            )
+    except (ValueError, AIProviderConfigurationError, AIProviderError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _echo_cli_line(f"samples\t{result.sample_count}")
+    _echo_cli_line(f"passed\t{result.passed_count}")
+    _echo_cli_line(f"failed\t{result.failed_count}")
+    _echo_cli_line(f"errors\t{result.error_count}")
+    _echo_cli_line(f"provider\t{result.provider}")
+    _echo_cli_line(f"model\t{result.model_name}")
+    _echo_cli_line(f"real_provider_used\t{result.real_provider_used}")
+    _echo_cli_line(f"evaluation_output\t{output}")
 
 
 @app.command("suggest-candidate-review")
