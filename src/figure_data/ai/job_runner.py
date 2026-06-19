@@ -223,7 +223,8 @@ class AIJobRetryPolicy:
     base_delay_seconds: int = 10
 
     def delay_for_attempt(self, attempt_count: int) -> int:
-        return self.base_delay_seconds * (2 ** max(attempt_count - 1, 0))
+        exponent = max(attempt_count - 1, 0)
+        return self.base_delay_seconds * (1 << exponent)
 
 
 def run_ai_jobs(

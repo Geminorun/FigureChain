@@ -10,6 +10,7 @@ from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.schemas import (
     AiJobCreateRequest,
     AiJobEventListResponse,
+    AiJobEventResponse,
     AiJobHealthResponse,
     AiJobListResponse,
     AiJobResponse,
@@ -65,15 +66,15 @@ class FakeAIJobsService:
         now = datetime(2026, 6, 18, tzinfo=UTC)
         return AiJobEventListResponse(
             items=[
-                {
-                    "id": UUID("00000000-0000-0000-0000-000000000601"),
-                    "job_id": JOB_ID,
-                    "event_type": "created",
-                    "actor": "api",
-                    "message": "AI job created",
-                    "metadata": {"job_type": "candidate_review_suggestion"},
-                    "created_at": now,
-                }
+                AiJobEventResponse(
+                    id=UUID("00000000-0000-0000-0000-000000000601"),
+                    job_id=JOB_ID,
+                    event_type="created",
+                    actor="api",
+                    message="AI job created",
+                    metadata={"job_type": "candidate_review_suggestion"},
+                    created_at=now,
+                )
             ],
             count=1,
         )
