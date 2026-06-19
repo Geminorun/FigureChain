@@ -21,6 +21,8 @@ NEO4J_DATABASE=neo4j
 
 ## 阶段 5E 本地运行基线
 
+阶段 5 运行和故障恢复流程见 `docs/operations/stage5-runtime-runbook.md`。
+
 1. Create a private `.env` from `.env.example` and fill real credentials locally.
 2. Start Neo4j and Redis:
 
