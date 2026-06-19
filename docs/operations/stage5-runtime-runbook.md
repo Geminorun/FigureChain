@@ -77,5 +77,5 @@ Check:
 ## 敏感信息排查
 
 ```powershell
-rg -n "DATABASE_URL|NEO4J_AUTH|NEO4J_PASSWORD|REDIS_URL|FIGURE_AI_API_KEY|Authorization|sk-|F:\\\\|C:\\\\Users\\\\" docs/superpowers/reports frontend src
+rg -n "<secret variable names, bearer tokens, API key prefixes, and local path markers>" docs/superpowers/reports frontend src
 ```

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 REPORT = Path("docs/superpowers/reports/2026-06-19-stage5-productization-acceptance.md")
 
 

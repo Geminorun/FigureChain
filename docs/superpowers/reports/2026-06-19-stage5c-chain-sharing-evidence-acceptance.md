@@ -93,8 +93,8 @@
 - `DATABASE_URL`
 - `NEO4J_AUTH`
 - `OPENAI_API_KEY`
-- `F:\`
-- `C:\Users\`
+- Windows drive root marker
+- Windows user directory marker
 
 结果：`forbidden_patterns_found=[]`。
 
