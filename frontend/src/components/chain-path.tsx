@@ -1,4 +1,5 @@
 import { FileSearch } from "lucide-react";
+import Link from "next/link";
 
 import type { ChainPath as ChainPathType } from "@/lib/figure-chain-types";
 import { formatLifeYears, formatMaybeText } from "@/lib/formatters";
@@ -16,9 +17,12 @@ export function ChainPath({ path, onSelectEncounter }: ChainPathProps) {
         return (
           <li key={`${person.person_id}-${index}`} className="space-y-3">
             <div className="rounded border border-stone-200 bg-white p-4 shadow-sm">
-              <p className="text-lg font-semibold text-stone-950">
+              <Link
+                className="text-lg font-semibold text-stone-950 underline-offset-4 hover:underline"
+                href={`/people/${person.person_id}`}
+              >
                 {person.display_name}
-              </p>
+              </Link>
               <p className="text-sm text-stone-600">
                 {formatLifeYears(person.birth_year, person.death_year)}
               </p>
@@ -39,7 +43,13 @@ export function ChainPath({ path, onSelectEncounter }: ChainPathProps) {
                       </p>
                       <p>页码：{formatMaybeText(edge.pages)}</p>
                       <p className="text-xs text-stone-500">
-                        encounter_id: {edge.encounter_id}
+                        encounter_id:{" "}
+                        <Link
+                          className="font-mono text-stone-700 underline-offset-4 hover:underline"
+                          href={`/encounters/${edge.encounter_id}`}
+                        >
+                          {edge.encounter_id}
+                        </Link>
                       </p>
                     </div>
                     <button

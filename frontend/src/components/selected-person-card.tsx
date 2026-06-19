@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import Link from "next/link";
 
 import type { PersonSearchItem } from "@/lib/figure-chain-types";
 import { formatExternalIds, formatLifeYears } from "@/lib/formatters";
@@ -19,9 +20,12 @@ export function SelectedPersonCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-stone-500">{label}</p>
-          <p className="mt-1 text-lg font-semibold text-stone-950">
+          <Link
+            className="mt-1 block text-lg font-semibold text-stone-950 underline-offset-4 hover:underline"
+            href={`/people/${person.person_id}`}
+          >
             {person.display_name}
-          </p>
+          </Link>
           <p className="text-sm text-stone-600">
             {formatLifeYears(person.birth_year, person.death_year)}
           </p>

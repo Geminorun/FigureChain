@@ -15,6 +15,8 @@ from figure_chain.services.encounters import EncounterService
 from figure_chain.services.health import HealthService
 from figure_chain.services.people import PeopleService
 from figure_chain.services.review import ReviewService
+from figure_chain.services.sharing import SharingService
+from figure_chain.services.sources import SourceService
 from figure_data.graph.neo4j_client import graph_session
 
 
@@ -74,6 +76,12 @@ def get_encounter_service(
     return EncounterService(pg_session)
 
 
+def get_source_service(
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> SourceService:
+    return SourceService(pg_session)
+
+
 def get_chain_service(
     pg_session: Annotated[Session, Depends(get_pg_session)],
     neo4j_session: Annotated[object, Depends(get_required_neo4j_session)],
@@ -97,3 +105,9 @@ def get_review_service(
     pg_session: Annotated[Session, Depends(get_pg_session)],
 ) -> ReviewService:
     return ReviewService(pg_session)
+
+
+def get_sharing_service(
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> SharingService:
+    return SharingService(pg_session)

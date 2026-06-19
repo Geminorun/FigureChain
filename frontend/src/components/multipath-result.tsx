@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ChainShareActions } from "@/components/chain-share-actions";
 import { ChainPath } from "@/components/chain-path";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorCallout } from "@/components/error-callout";
@@ -108,6 +109,7 @@ export function MultiPathResult({
         path={toChainPath(selected)}
         onSelectEncounter={onSelectEncounter}
       />
+      <ChainShareActions path={selected} result={result} />
     </section>
   );
 }

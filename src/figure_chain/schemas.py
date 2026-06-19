@@ -46,6 +46,105 @@ class PeopleSearchResponse(BaseModel):
     items: list[PersonSearchItem]
 
 
+class PersonAliasResponse(BaseModel):
+    alias_zh_hant: str | None
+    alias_zh_hans: str | None
+    alias_romanized: str | None
+    alias_type_label_zh: str | None
+    alias_type_label_en: str | None
+
+
+class PersonExternalIdResponse(BaseModel):
+    source_name: str
+    external_id: str
+
+
+class PersonEncounterSummaryCountsResponse(BaseModel):
+    active_count: int
+    path_eligible_count: int
+    high_certainty_count: int
+
+
+class PersonDetailResponse(BaseModel):
+    person_id: UUID
+    display_name: str
+    primary_name_zh_hant: str | None
+    primary_name_zh_hans: str | None
+    primary_name_romanized: str | None
+    birth_year: int | None
+    death_year: int | None
+    index_year: int | None
+    floruit_start_year: int | None
+    floruit_end_year: int | None
+    dynasty_code: int | None
+    dynasty_label_zh: str | None
+    dynasty_label_en: str | None
+    is_female: bool | None
+    notes: str | None
+    aliases: list[PersonAliasResponse]
+    external_ids: list[PersonExternalIdResponse]
+    encounter_summary: PersonEncounterSummaryCountsResponse
+
+
+class PersonEncounterListItemResponse(BaseModel):
+    encounter_id: UUID
+    other_person_id: UUID
+    other_person_name: str | None
+    other_person_birth_year: int | None
+    other_person_death_year: int | None
+    encounter_kind: str
+    certainty_level: str
+    path_eligible: bool
+    source_work_id: int | None
+    source_title: str | None
+    pages: str | None
+    evidence_summary: str
+    status: str
+    reviewed_by: str
+    reviewed_at: datetime
+
+
+class PersonEncounterListResponse(BaseModel):
+    items: list[PersonEncounterListItemResponse]
+    count: int
+    limit: int
+    offset: int
+
+
+class SourceWorkDetailResponse(BaseModel):
+    source_work_id: int
+    text_code: int | None
+    title_zh: str | None
+    title_en: str | None
+    source_name: str
+    source_table: str
+    source_pk: str
+    ref_count: int
+    encounter_count: int
+
+
+class LinkedEncounterEvidenceResponse(BaseModel):
+    evidence_id: int
+    encounter_id: UUID
+    evidence_kind: str
+    evidence_summary: str
+    pages: str | None
+    created_at: datetime
+
+
+class SourceRefDetailResponse(BaseModel):
+    source_ref_id: int
+    source_work: SourceWorkDetailResponse | None
+    ref_source_table: str
+    ref_source_pk: str
+    pages: str | None
+    notes: str | None
+    source_name: str
+    source_table: str
+    source_pk: str
+    linked_encounter_evidence: list[LinkedEncounterEvidenceResponse]
+
+
 class ChainEndpointRequest(BaseModel):
     person_id: UUID | None = None
     cbdb_id: str | None = None
@@ -145,6 +244,50 @@ class MultiPathChainResponse(BaseModel):
     returned_paths: int
     paths: list[MultiPathItemResponse]
     filters_applied: MultiPathFiltersRequest
+
+
+class ChainShareCreateRequest(BaseModel):
+    source_person_id: UUID
+    target_person_id: UUID
+    chain_hash: str = Field(min_length=1)
+    path_payload: dict[str, object]
+    filters_applied: dict[str, object] = Field(default_factory=dict)
+    include_ai_explanation: bool = False
+    include_rag_context: bool = False
+    created_by: str | None = None
+
+
+class ChainShareCreateResponse(BaseModel):
+    share_slug: str
+    url_path: str
+
+
+class ChainShareDetailResponse(BaseModel):
+    id: UUID
+    share_slug: str
+    url_path: str
+    source_person_id: UUID
+    target_person_id: UUID
+    chain_hash: str
+    encounter_ids: list[str]
+    path_payload: dict[str, object]
+    filters_applied: dict[str, object]
+    include_ai_explanation: bool
+    include_rag_context: bool
+    schema_version: str
+    created_by: str | None
+    created_at: datetime
+
+
+class MarkdownExportRequest(BaseModel):
+    share_slug: str = Field(min_length=1)
+    format: str = "markdown"
+
+
+class MarkdownExportResponse(BaseModel):
+    content: str
+    filename: str
+    source_ids: dict[str, list[str]]
 
 
 class AIChainExplanationResponse(BaseModel):

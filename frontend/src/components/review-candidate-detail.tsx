@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { EmptyState } from "@/components/empty-state";
 import { ErrorCallout } from "@/components/error-callout";
 import type { DisplayableError } from "@/lib/api-errors";
@@ -27,7 +29,16 @@ function PersonBlock({ label, person }: { label: string; person: ReviewCandidate
   return (
     <div className="border-t border-stone-200 py-3 first:border-t-0">
       <p className="text-xs font-medium uppercase text-stone-500">{label}</p>
-      <p className="mt-1 text-base font-semibold text-stone-950">{person.display_name}</p>
+      {person.person_id ? (
+        <Link
+          className="mt-1 block text-base font-semibold text-stone-950 underline-offset-4 hover:underline"
+          href={`/people/${person.person_id}`}
+        >
+          {person.display_name}
+        </Link>
+      ) : (
+        <p className="mt-1 text-base font-semibold text-stone-950">{person.display_name}</p>
+      )}
       <p className="mt-1 text-sm text-stone-600">
         CBDB {optional(person.cbdb_id)} / {optional(person.primary_name_romanized)} /{" "}
         {optional(person.birth_year)}-{optional(person.death_year)}
@@ -106,8 +117,24 @@ export function ReviewCandidateDetail({
                         {optional(source.title_zh ?? source.title_en)}
                       </p>
                       <p className="text-stone-600">
-                        source_ref {source.source_ref_id} / work{" "}
-                        {optional(source.source_work_id)} / pages {optional(source.pages)}
+                        <Link
+                          className="text-stone-950 underline-offset-4 hover:underline"
+                          href={`/source-refs/${source.source_ref_id}`}
+                        >
+                          source_ref {source.source_ref_id}
+                        </Link>{" "}
+                        /{" "}
+                        {source.source_work_id ? (
+                          <Link
+                            className="text-stone-950 underline-offset-4 hover:underline"
+                            href={`/source-works/${source.source_work_id}`}
+                          >
+                            work {source.source_work_id}
+                          </Link>
+                        ) : (
+                          `work ${optional(source.source_work_id)}`
+                        )}{" "}
+                        / pages {optional(source.pages)}
                       </p>
                       <p className="mt-1 break-words text-stone-700">{optional(source.notes)}</p>
                     </li>
@@ -126,8 +153,18 @@ export function ReviewCandidateDetail({
                     <li className="py-2" key={`${evidence.evidence_id ?? "none"}:${index}`}>
                       <p className="font-medium text-stone-950">{evidence.evidence_summary}</p>
                       <p className="text-stone-600">
-                        evidence {optional(evidence.evidence_id)} / source_ref{" "}
-                        {optional(evidence.source_ref_id)} / {evidence.evidence_kind} / pages{" "}
+                        evidence {optional(evidence.evidence_id)} /{" "}
+                        {evidence.source_ref_id ? (
+                          <Link
+                            className="text-stone-950 underline-offset-4 hover:underline"
+                            href={`/source-refs/${evidence.source_ref_id}`}
+                          >
+                            source_ref {evidence.source_ref_id}
+                          </Link>
+                        ) : (
+                          `source_ref ${optional(evidence.source_ref_id)}`
+                        )}{" "}
+                        / {evidence.evidence_kind} / pages{" "}
                         {optional(evidence.pages)}
                       </p>
                     </li>
