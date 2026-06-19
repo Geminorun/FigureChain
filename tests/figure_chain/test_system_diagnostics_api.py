@@ -5,7 +5,10 @@ from fastapi.testclient import TestClient
 
 from figure_chain.errors import register_error_handlers
 from figure_chain.routers.system import router
-from figure_chain.schemas import SystemDiagnosticsResponse
+from figure_chain.schemas import (
+    SystemDependencyStatusResponse,
+    SystemDiagnosticsResponse,
+)
 
 
 class FakeSystemService:
@@ -13,8 +16,14 @@ class FakeSystemService:
         return SystemDiagnosticsResponse(
             status="degraded",
             dependencies={
-                "postgresql": {"status": "ok", "message": None},
-                "neo4j": {"status": "error", "message": "Neo4j is unavailable"},
+                "postgresql": SystemDependencyStatusResponse(
+                    status="ok",
+                    message=None,
+                ),
+                "neo4j": SystemDependencyStatusResponse(
+                    status="error",
+                    message="Neo4j is unavailable",
+                ),
             },
             config={
                 "database_url": "[REDACTED]",
