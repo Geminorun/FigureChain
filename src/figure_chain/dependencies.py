@@ -7,6 +7,7 @@ from fastapi import Depends, Request
 from neo4j import Driver as Neo4jDriver
 from sqlalchemy.orm import Session, sessionmaker
 
+from figure_chain.access import OperationContext, OperationRole, require_any_role
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.services.ai import AIService
 from figure_chain.services.ai_jobs import AIJobsService
@@ -19,6 +20,30 @@ from figure_chain.services.sharing import SharingService
 from figure_chain.services.sources import SourceService
 from figure_data.ai.queue import create_ai_job_queue
 from figure_data.graph.neo4j_client import graph_session
+
+
+def get_operation_context(request: Request) -> OperationContext:
+    actor_id = request.headers.get("x-figure-actor", "anonymous").strip() or "anonymous"
+    raw_role = request.headers.get("x-figure-role", OperationRole.EXPLORER.value)
+    try:
+        role = OperationRole(raw_role.strip().lower())
+    except ValueError:
+        role = OperationRole.EXPLORER
+    return OperationContext(actor_id=actor_id, role=role)
+
+
+def require_reviewer_context(
+    context: Annotated[OperationContext, Depends(get_operation_context)],
+) -> OperationContext:
+    require_any_role(context, {OperationRole.REVIEWER, OperationRole.OPERATOR})
+    return context
+
+
+def require_operator_context(
+    context: Annotated[OperationContext, Depends(get_operation_context)],
+) -> OperationContext:
+    require_any_role(context, {OperationRole.OPERATOR})
+    return context
 
 
 def get_pg_session(request: Request) -> Iterator[Session]:
