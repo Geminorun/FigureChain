@@ -43,6 +43,7 @@ def test_dependency_status_maps_exceptions_to_error() -> None:
 
     assert result.name == "postgresql"
     assert result.status == "error"
+    assert result.message is not None
     assert "secret" not in result.message
     assert "[REDACTED]" in result.message
 

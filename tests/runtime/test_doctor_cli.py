@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from figure_data.cli import app
 from figure_data.runtime.diagnostics import DependencyDiagnostic, RuntimeDiagnostics
 
 
-def test_doctor_command_outputs_redacted_runtime_summary(monkeypatch) -> None:
+def test_doctor_command_outputs_redacted_runtime_summary(
+    monkeypatch: MonkeyPatch,
+) -> None:
     diagnostics = RuntimeDiagnostics(
         config={
             "database_url": "[REDACTED]",
@@ -36,7 +39,7 @@ def test_doctor_command_outputs_redacted_runtime_summary(monkeypatch) -> None:
     assert "dependency\tneo4j\terror\tNeo4j is unavailable" in result.output
 
 
-def test_doctor_command_does_not_print_secret_text(monkeypatch) -> None:
+def test_doctor_command_does_not_print_secret_text(monkeypatch: MonkeyPatch) -> None:
     diagnostics = RuntimeDiagnostics(
         config={"database_url": "[REDACTED]"},
         dependencies=[
