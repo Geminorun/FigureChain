@@ -125,6 +125,20 @@ class FakeSingleJobRepository(FakeJobRepository):
         return job_id
 
 
+class DenyRateLimiter:
+    def allow(self, provider: str, model_name: str, *, limit_per_minute: int) -> bool:
+        assert provider == "fake-provider"
+        assert model_name == "fake-model"
+        assert limit_per_minute == 1
+        return False
+
+
+class FakeSettings:
+    ai_provider = "fake-provider"
+    ai_model = "fake-model"
+    ai_rate_limit_per_minute = 1
+
+
 def test_run_ai_jobs_executes_candidate_review_job_and_marks_success() -> None:
     repository = FakeJobRepository([_job()])
     calls: list[tuple[CandidateKind, int, str, int]] = []
@@ -293,6 +307,31 @@ def test_execute_ai_job_schedules_retry_for_provider_timeout() -> None:
     ]
     assert repository.failed == []
     assert "retry_scheduled" in repository.events
+
+
+def test_execute_ai_job_rate_limit_schedules_retry_without_provider_call() -> None:
+    repository = FakeSingleJobRepository(_job(attempt_count=1, max_attempts=3))
+    calls: list[str] = []
+
+    def generate(**kwargs: object) -> CandidateReviewSuggestionResult:
+        calls.append("called")
+        raise AssertionError("provider should not be called when rate limited")
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, FakeSettings()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+        generate_candidate_review_suggestion_fn=generate,
+        rate_limiter=DenyRateLimiter(),
+    )
+
+    assert result.status == "retry_scheduled"
+    assert calls == []
+    assert repository.scheduled_retries == [
+        (JOB_ID, "provider_rate_limited", "provider rate limit reached", 10)
+    ]
 
 
 def _job(*, attempt_count: int = 0, max_attempts: int = 3) -> AIGenerationJobRecord:

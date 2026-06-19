@@ -10,6 +10,7 @@ from figure_data.ai.candidate_service import (
     CandidateReviewSuggestionResult,
     generate_candidate_review_suggestion,
 )
+from figure_data.ai.job_rate_limit import AIJobRateLimiter
 from figure_data.ai.job_repository import (
     AIGenerationJobRecord,
     claim_queued_job_by_id,
@@ -291,6 +292,7 @@ def execute_ai_job(
     generate_candidate_review_suggestion_fn: GenerateCandidateReviewSuggestionFn = (
         generate_candidate_review_suggestion
     ),
+    rate_limiter: AIJobRateLimiter | None = None,
 ) -> AIGenerationJobExecutionResult:
     resolved_repository = repository or PostgresAIGenerationJobRepository()
     job = resolved_repository.claim_queued_job_by_id(
@@ -308,6 +310,16 @@ def execute_ai_job(
         actor="worker",
         metadata={"worker_id": worker_id},
     )
+    rate_limit_result = _check_rate_limit(
+        session=session,
+        settings=settings,
+        job=job,
+        repository=resolved_repository,
+        rate_limiter=rate_limiter,
+    )
+    if rate_limit_result is not None:
+        return rate_limit_result
+
     try:
         result = _run_job(
             session=session,
@@ -332,28 +344,12 @@ def execute_ai_job(
     except Exception as exc:
         error_code = _error_code(exc)
         error_message = _error_message(exc)
-        if _is_retryable(error_code) and job.attempt_count < job.max_attempts:
-            delay_seconds = AIJobRetryPolicy(
-                max_attempts=job.max_attempts,
-            ).delay_for_attempt(job.attempt_count)
-            resolved_repository.schedule_job_retry(
+        if _is_retryable(error_code) and _can_retry(job):
+            return _schedule_retry(
                 session,
-                job.id,
-                error_code=error_code,
-                error_message=error_message,
-                delay_seconds=delay_seconds,
-            )
-            resolved_repository.record_event(
-                session,
-                job_id=job.id,
-                event_type="retry_scheduled",
-                actor="worker",
-                message=error_message,
-                metadata={"delay_seconds": delay_seconds, "error_code": error_code},
-            )
-            return AIGenerationJobExecutionResult(
-                job_id=job.id,
-                status="retry_scheduled",
+                settings=settings,
+                job=job,
+                repository=resolved_repository,
                 error_code=error_code,
                 error_message=error_message,
             )
@@ -376,7 +372,97 @@ def execute_ai_job(
             status="failed",
             error_code=error_code,
             error_message=error_message,
+    )
+
+
+def _check_rate_limit(
+    *,
+    session: Session,
+    settings: Settings,
+    job: AIGenerationJobRecord,
+    repository: AIGenerationJobRepository,
+    rate_limiter: AIJobRateLimiter | None,
+) -> AIGenerationJobExecutionResult | None:
+    if rate_limiter is None:
+        return None
+
+    provider_name = str(getattr(settings, "ai_provider", None) or "unknown")
+    model_name = str(getattr(settings, "ai_model", None) or "unknown")
+    limit_per_minute = int(getattr(settings, "ai_rate_limit_per_minute", 20))
+    if rate_limiter.allow(provider_name, model_name, limit_per_minute=limit_per_minute):
+        return None
+
+    error_code = "provider_rate_limited"
+    error_message = "provider rate limit reached"
+    if _can_retry(job):
+        return _schedule_retry(
+            session,
+            settings=settings,
+            job=job,
+            repository=repository,
+            error_code=error_code,
+            error_message=error_message,
         )
+    repository.mark_failed(
+        session,
+        job.id,
+        error_code=error_code,
+        error_message=error_message,
+    )
+    repository.record_event(
+        session,
+        job_id=job.id,
+        event_type="failed",
+        actor="worker",
+        message=error_message,
+        metadata={"error_code": error_code},
+    )
+    return AIGenerationJobExecutionResult(
+        job_id=job.id,
+        status="failed",
+        error_code=error_code,
+        error_message=error_message,
+    )
+
+
+def _schedule_retry(
+    session: Session,
+    *,
+    settings: Settings,
+    job: AIGenerationJobRecord,
+    repository: AIGenerationJobRepository,
+    error_code: str,
+    error_message: str,
+) -> AIGenerationJobExecutionResult:
+    delay_seconds = AIJobRetryPolicy(
+        max_attempts=job.max_attempts,
+        base_delay_seconds=int(getattr(settings, "ai_job_retry_base_seconds", 10)),
+    ).delay_for_attempt(job.attempt_count)
+    repository.schedule_job_retry(
+        session,
+        job.id,
+        error_code=error_code,
+        error_message=error_message,
+        delay_seconds=delay_seconds,
+    )
+    repository.record_event(
+        session,
+        job_id=job.id,
+        event_type="retry_scheduled",
+        actor="worker",
+        message=error_message,
+        metadata={"delay_seconds": delay_seconds, "error_code": error_code},
+    )
+    return AIGenerationJobExecutionResult(
+        job_id=job.id,
+        status="retry_scheduled",
+        error_code=error_code,
+        error_message=error_message,
+    )
+
+
+def _can_retry(job: AIGenerationJobRecord) -> bool:
+    return job.attempt_count < job.max_attempts
 
 
 def _run_job(
