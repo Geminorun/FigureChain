@@ -744,7 +744,7 @@ def run_ai_worker_command(
     redis_connection = Redis.from_url(settings.redis_url)
     queue = Queue(name=resolved_queue_name, connection=redis_connection)
     worker = Worker([queue], connection=redis_connection)
-    worker.work()
+    worker.work(with_scheduler=True)
 
 
 @app.command("generate-chain-explanation")

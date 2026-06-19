@@ -77,6 +77,47 @@ def test_run_ai_worker_requires_rq_backend(monkeypatch: MonkeyPatch) -> None:
     assert "FIGURE_AI_QUEUE_BACKEND must be 'rq'" in result.stderr
 
 
+def test_run_ai_worker_enables_rq_scheduler(monkeypatch: MonkeyPatch) -> None:
+    settings = type(
+        "Settings",
+        (),
+        {
+            "ai_queue_backend": "rq",
+            "redis_url": "redis://localhost:6379/0",
+            "ai_queue_name": "figure-ai",
+        },
+    )()
+    calls: list[tuple[str, object]] = []
+
+    class FakeRedis:
+        @classmethod
+        def from_url(cls, redis_url: str) -> str:
+            calls.append(("redis", redis_url))
+            return "redis-connection"
+
+    class FakeQueue:
+        def __init__(self, *, name: str, connection: object) -> None:
+            calls.append(("queue", (name, connection)))
+
+    class FakeWorker:
+        def __init__(self, queues: list[FakeQueue], *, connection: object) -> None:
+            calls.append(("worker", (queues, connection)))
+
+        def work(self, *, with_scheduler: bool = False) -> bool:
+            calls.append(("work", with_scheduler))
+            return True
+
+    monkeypatch.setattr("figure_data.cli.load_settings", lambda: settings)
+    monkeypatch.setattr("figure_data.cli.Redis", FakeRedis)
+    monkeypatch.setattr("figure_data.cli.Queue", FakeQueue)
+    monkeypatch.setattr("figure_data.cli.Worker", FakeWorker)
+
+    result = runner.invoke(app, ["run-ai-worker"])
+
+    assert result.exit_code == 0
+    assert ("work", True) in calls
+
+
 def test_run_ai_jobs_command_outputs_summary(monkeypatch: MonkeyPatch) -> None:
     patch_session(monkeypatch)
     calls: list[tuple[int, str | None]] = []
