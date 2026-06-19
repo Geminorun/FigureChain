@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.worktrees/
 *.py[cod]
 figure-data/*.sqlite3
 figure-data/*.zip
