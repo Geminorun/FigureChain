@@ -8,7 +8,7 @@ from figure_data.ai.provider import (
     FakeAIProvider,
     create_ai_provider,
 )
-from figure_data.ai.types import AIProviderRequest
+from figure_data.ai.types import AIProviderRequest, AIProviderResponse, TokenUsage
 from figure_data.config import Settings
 from figure_data.db.enums import AIErrorCode, AIPromptStatus, AIRunStatus
 
@@ -226,3 +226,19 @@ def test_create_ai_provider_rejects_unknown_provider_without_leaking_key() -> No
     message = str(exc_info.value)
     assert "unsupported AI provider" in message
     assert "secret-value" not in message
+
+
+def test_ai_provider_response_accepts_optional_metadata() -> None:
+    response = AIProviderResponse(
+        raw_text='{"ok":true}',
+        provider="fake",
+        model_name="fake-model",
+        provider_request_id="req-1",
+        latency_ms=25,
+        token_usage=TokenUsage(prompt_tokens=3, completion_tokens=4, total_tokens=7),
+        metadata={"safe": "value"},
+    )
+
+    assert response.provider_request_id == "req-1"
+    assert response.token_usage is not None
+    assert response.token_usage.total_tokens == 7

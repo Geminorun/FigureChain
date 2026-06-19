@@ -26,10 +26,21 @@ class AIProviderRequest:
 
 
 @dataclass(frozen=True)
+class TokenUsage:
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+
+
+@dataclass(frozen=True)
 class AIProviderResponse:
     raw_text: str
     provider: str
     model_name: str
+    provider_request_id: str | None = None
+    latency_ms: int | None = None
+    token_usage: TokenUsage | None = None
+    metadata: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
