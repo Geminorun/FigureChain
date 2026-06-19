@@ -78,6 +78,38 @@ async function flushPromises(): Promise<void> {
   });
 }
 
+function aiJob(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "9d6958d5-c0e5-4112-9659-bb47c27cbdb7",
+    job_type: "candidate_review_suggestion",
+    target_type: "candidate",
+    target_kind: "relationship",
+    target_id: 960664,
+    status: "queued",
+    created_by: "lyl",
+    params: {},
+    result_ref_type: null,
+    result_ref_id: null,
+    error_code: null,
+    error_message: null,
+    queue_backend: "rq",
+    queue_name: "figure-ai",
+    queue_job_id: "rq-job-501",
+    enqueued_at: "2026-06-19T00:00:01Z",
+    attempt_count: 1,
+    max_attempts: 3,
+    next_run_at: null,
+    cancel_requested_at: null,
+    worker_id: "worker-1",
+    heartbeat_at: "2026-06-19T00:00:02Z",
+    started_at: null,
+    finished_at: null,
+    created_at: "2026-06-18T00:00:00Z",
+    updated_at: "2026-06-18T00:00:00Z",
+    ...overrides,
+  };
+}
+
 describe("review workspace hooks", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -256,5 +288,106 @@ describe("review workspace hooks", () => {
       ([url]) => url === oldJobUrl,
     ).length;
     expect(oldJobCallsAfterSwitch).toBe(oldJobCallsBeforeSwitch);
+  });
+
+  it("cancels the active AI job", async () => {
+    const activeJob = aiJob();
+    const cancelledJob = aiJob({
+      status: "cancelled",
+      cancel_requested_at: "2026-06-19T00:00:03Z",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ items: [activeJob], count: 1, limit: 20 }))
+      .mockResolvedValueOnce(jsonResponse(cancelledJob));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useAiJob({
+        targetType: "candidate",
+        targetKind: "relationship",
+        targetId: 960664,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.jobs).toHaveLength(1));
+    await act(async () => {
+      await result.current.cancelJob(activeJob.id, { cancelledBy: "lyl" });
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/figure-chain/ai/jobs/${activeJob.id}/cancel`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ cancelled_by: "lyl" }),
+      }),
+    );
+    expect(result.current.jobs[0]?.status).toBe("cancelled");
+  });
+
+  it("retries failed AI jobs", async () => {
+    const failedJob = aiJob({ status: "failed", error_message: "timeout" });
+    const retryJob = aiJob({ id: "new-job-id", status: "queued" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ items: [failedJob], count: 1, limit: 20 }))
+      .mockResolvedValueOnce(jsonResponse(retryJob));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useAiJob({
+        targetType: "candidate",
+        targetKind: "relationship",
+        targetId: 960664,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.jobs).toHaveLength(1));
+    await act(async () => {
+      await result.current.retryJob(failedJob.id, { createdBy: "lyl" });
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/figure-chain/ai/jobs/${failedJob.id}/retry`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ created_by: "lyl" }),
+      }),
+    );
+    expect(result.current.activeJob?.id).toBe("new-job-id");
+  });
+
+  it("loads AI job events", async () => {
+    const activeJob = aiJob();
+    const event = {
+      id: "event-1",
+      job_id: activeJob.id,
+      event_type: "retry_scheduled",
+      actor: "worker",
+      message: "provider timeout",
+      metadata: { delay_seconds: 10 },
+      created_at: "2026-06-19T00:00:04Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ items: [activeJob], count: 1, limit: 20 }))
+      .mockResolvedValueOnce(jsonResponse({ items: [event], count: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useAiJob({
+        targetType: "candidate",
+        targetKind: "relationship",
+        targetId: 960664,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.jobs).toHaveLength(1));
+    await act(async () => {
+      await result.current.loadEvents(activeJob.id);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(`/api/figure-chain/ai/jobs/${activeJob.id}/events`);
+    expect(result.current.eventsByJobId[activeJob.id]).toEqual([event]);
   });
 });

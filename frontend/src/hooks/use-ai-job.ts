@@ -4,9 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { parseErrorResponse, type DisplayableError } from "@/lib/api-errors";
 import type {
+  AiJobCancelRequest,
   AiJobCreateRequest,
+  AiJobEvent,
+  AiJobEventListResponse,
   AiJobListResponse,
   AiJobResponse,
+  AiJobRetryRequest,
 } from "@/lib/figure-chain-types";
 
 const POLLABLE_STATUSES = new Set(["queued", "running"]);
@@ -27,6 +31,7 @@ export type CreateAiJobOptions = {
 type AiJobState = {
   jobs: AiJobResponse[];
   activeJob: AiJobResponse | null;
+  eventsByJobId: Record<string, AiJobEvent[]>;
   isLoading: boolean;
   isCreating: boolean;
   error: DisplayableError | null;
@@ -35,6 +40,15 @@ type AiJobState = {
 export type UseAiJobResult = AiJobState & {
   refresh: () => void;
   createJob: (options: CreateAiJobOptions) => Promise<AiJobResponse | null>;
+  cancelJob: (
+    jobId: string,
+    options: { cancelledBy: string },
+  ) => Promise<AiJobResponse | null>;
+  retryJob: (
+    jobId: string,
+    options: { createdBy: string },
+  ) => Promise<AiJobResponse | null>;
+  loadEvents: (jobId: string) => Promise<AiJobEvent[]>;
 };
 
 function isPollable(job: AiJobResponse | null): job is AiJobResponse {
@@ -49,6 +63,25 @@ function replaceJob(jobs: AiJobResponse[], job: AiJobResponse): AiJobResponse[] 
   return jobs.map((item) => (item.id === job.id ? job : item));
 }
 
+async function postJobAction(
+  jobId: string,
+  action: "cancel" | "retry",
+  body: AiJobCancelRequest | AiJobRetryRequest,
+): Promise<AiJobResponse> {
+  const response = await fetch(
+    `/api/figure-chain/ai/jobs/${encodeURIComponent(jobId)}/${action}`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+  const payload = (await response.json()) as unknown;
+  if (!response.ok) {
+    throw parseErrorResponse(payload);
+  }
+  return payload as AiJobResponse;
+}
+
 export function useAiJob({
   targetType,
   targetKind,
@@ -59,6 +92,7 @@ export function useAiJob({
   const [state, setState] = useState<AiJobState>({
     jobs: [],
     activeJob: null,
+    eventsByJobId: {},
     isLoading: targetId !== null,
     isCreating: false,
     error: null,
@@ -82,6 +116,7 @@ export function useAiJob({
       setState({
         jobs: [],
         activeJob: null,
+        eventsByJobId: {},
         isLoading: false,
         isCreating: false,
         error: null,
@@ -93,6 +128,7 @@ export function useAiJob({
     setState((current) => ({
       ...current,
       activeJob: null,
+      eventsByJobId: {},
       isLoading: true,
       error: null,
     }));
@@ -120,6 +156,7 @@ export function useAiJob({
           ...current,
           jobs: [],
           activeJob: null,
+          eventsByJobId: {},
           isLoading: false,
           error: parseErrorResponse(error),
         }));
@@ -221,5 +258,74 @@ export function useAiJob({
     [targetId, targetKind, targetType],
   );
 
-  return { ...state, refresh, createJob };
+  const cancelJob = useCallback(
+    async (
+      jobId: string,
+      { cancelledBy }: { cancelledBy: string },
+    ): Promise<AiJobResponse | null> => {
+      try {
+        const job = await postJobAction(jobId, "cancel", { cancelled_by: cancelledBy });
+        setState((current) => ({
+          ...current,
+          jobs: replaceJob(current.jobs, job),
+          activeJob: isPollable(job) ? job : null,
+          error: null,
+        }));
+        return job;
+      } catch (error: unknown) {
+        setState((current) => ({ ...current, error: parseErrorResponse(error) }));
+        return null;
+      }
+    },
+    [],
+  );
+
+  const retryJob = useCallback(
+    async (
+      jobId: string,
+      { createdBy }: { createdBy: string },
+    ): Promise<AiJobResponse | null> => {
+      try {
+        const job = await postJobAction(jobId, "retry", { created_by: createdBy });
+        setState((current) => ({
+          ...current,
+          jobs: replaceJob(current.jobs, job),
+          activeJob: isPollable(job) ? job : null,
+          error: null,
+        }));
+        return job;
+      } catch (error: unknown) {
+        setState((current) => ({ ...current, error: parseErrorResponse(error) }));
+        return null;
+      }
+    },
+    [],
+  );
+
+  const loadEvents = useCallback(async (jobId: string): Promise<AiJobEvent[]> => {
+    try {
+      const response = await fetch(
+        `/api/figure-chain/ai/jobs/${encodeURIComponent(jobId)}/events`,
+      );
+      const body = (await response.json()) as unknown;
+      if (!response.ok) {
+        throw parseErrorResponse(body);
+      }
+      const payload = body as AiJobEventListResponse;
+      setState((current) => ({
+        ...current,
+        eventsByJobId: {
+          ...current.eventsByJobId,
+          [jobId]: payload.items,
+        },
+        error: null,
+      }));
+      return payload.items;
+    } catch (error: unknown) {
+      setState((current) => ({ ...current, error: parseErrorResponse(error) }));
+      return [];
+    }
+  }, []);
+
+  return { ...state, refresh, createJob, cancelJob, retryJob, loadEvents };
 }
