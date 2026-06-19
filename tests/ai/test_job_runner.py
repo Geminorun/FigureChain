@@ -305,6 +305,8 @@ def test_execute_ai_job_schedules_retry_for_provider_timeout() -> None:
     assert repository.scheduled_retries == [
         (JOB_ID, "provider_timeout", "provider_timeout: request timed out", 10)
     ]
+    assert result.retry_delay_seconds == 10
+    assert result.retry_queue_job_id_suffix == "retry-1"
     assert repository.failed == []
     assert "retry_scheduled" in repository.events
 
@@ -332,6 +334,8 @@ def test_execute_ai_job_rate_limit_schedules_retry_without_provider_call() -> No
     assert repository.scheduled_retries == [
         (JOB_ID, "provider_rate_limited", "provider rate limit reached", 10)
     ]
+    assert result.retry_delay_seconds == 10
+    assert result.retry_queue_job_id_suffix == "retry-1"
 
 
 def _job(*, attempt_count: int = 0, max_attempts: int = 3) -> AIGenerationJobRecord:

@@ -215,6 +215,8 @@ class AIGenerationJobExecutionResult:
     status: str
     error_code: str | None = None
     error_message: str | None = None
+    retry_delay_seconds: int | None = None
+    retry_queue_job_id_suffix: str | None = None
 
 
 @dataclass(frozen=True)
@@ -459,6 +461,8 @@ def _schedule_retry(
         status="retry_scheduled",
         error_code=error_code,
         error_message=error_message,
+        retry_delay_seconds=delay_seconds,
+        retry_queue_job_id_suffix=f"retry-{job.attempt_count}",
     )
 
 

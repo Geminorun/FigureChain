@@ -754,7 +754,7 @@ def test_rq_queue_enqueues_only_job_id() -> None:
     assert result.queue_job_id == "rq-job-501"
     assert fake_queue.calls[0]["args"] == (str(JOB_ID),)
     assert fake_queue.calls[0]["func"] == "figure_data.ai.rq_worker.execute_ai_job_task"
-    assert fake_queue.calls[0]["job_id"] == f"figurechain-ai-job:{JOB_ID}"
+    assert fake_queue.calls[0]["job_id"] == f"figurechain-ai-job-{JOB_ID}"
 ```
 
 - [ ] **Step 2: Run failing queue tests**
@@ -829,11 +829,11 @@ class RQAIJobQueue:
         rq_job = self._queue.enqueue_call(
             func=RQ_WORKER_TARGET,
             args=(str(job_id),),
-            job_id=f"figurechain-ai-job:{job_id}",
+            job_id=f"figurechain-ai-job-{job_id}",
             timeout=timeout_seconds,
             result_ttl=0,
             failure_ttl=86400,
-            description=f"figurechain-ai-job:{job_id}",
+            description=f"figurechain-ai-job-{job_id}",
         )
         return EnqueuedAIJob(
             queue_backend="rq",
@@ -1167,7 +1167,7 @@ def requeue_ai_jobs_command(
                     actor="cli",
                     metadata={
                         "queue_name": enqueued.queue_name,
-                        "dedupe_job_id": f"figurechain-ai-job:{job.id}",
+                        "dedupe_job_id": f"figurechain-ai-job-{job.id}",
                     },
                 )
     _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")

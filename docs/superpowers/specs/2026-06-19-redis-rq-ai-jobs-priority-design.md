@@ -222,7 +222,7 @@ class AIJobQueue(Protocol):
   - 使用 `redis.from_url(settings.redis_url)` 和 `rq.Queue`。
   - enqueue 目标函数只接收 `job_id`。
   - 设置 timeout、确定性 RQ job id、description 和 failure TTL。
-  - RQ job id 使用 `figurechain-ai-job:{job_id}` 这类从 PostgreSQL job id 派生的稳定值，便于 repair/requeue 去重。
+  - RQ job id 使用 `figurechain-ai-job-{job_id}` 这类从 PostgreSQL job id 派生且符合 RQ 校验规则的稳定值，便于 repair/requeue 去重。
 - `DatabaseFallbackQueue`
   - 不连接 Redis，只把 job 留在 `queued` 状态。
   - 用于测试、维护和 Redis 故障降级。

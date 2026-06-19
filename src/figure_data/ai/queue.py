@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -21,8 +22,16 @@ class AIJobQueue(Protocol):
         *,
         queue_name: str,
         timeout_seconds: int,
+        delay_seconds: int = 0,
+        queue_job_id_suffix: str | None = None,
     ) -> EnqueuedAIJob:
         """Enqueue a persisted AI job by id."""
+
+
+def rq_job_id(job_id: UUID, *, suffix: str | None = None) -> str:
+    """Return an RQ-compatible deterministic job id for a persisted AI job."""
+    base = f"figurechain-ai-job-{job_id}"
+    return base if suffix is None else f"{base}-{suffix}"
 
 
 class DatabaseAIJobQueue:
@@ -32,6 +41,8 @@ class DatabaseAIJobQueue:
         *,
         queue_name: str,
         timeout_seconds: int,
+        delay_seconds: int = 0,
+        queue_job_id_suffix: str | None = None,
     ) -> EnqueuedAIJob:
         return EnqueuedAIJob(
             queue_backend="database",
@@ -50,16 +61,29 @@ class RQAIJobQueue:
         *,
         queue_name: str,
         timeout_seconds: int,
+        delay_seconds: int = 0,
+        queue_job_id_suffix: str | None = None,
     ) -> EnqueuedAIJob:
-        rq_job = self._queue.enqueue_call(
-            func=RQ_WORKER_TARGET,
-            args=(str(job_id),),
-            job_id=f"figurechain-ai-job:{job_id}",
-            timeout=timeout_seconds,
-            result_ttl=0,
-            failure_ttl=86400,
-            description=f"figurechain-ai-job:{job_id}",
-        )
+        queue_job_id = rq_job_id(job_id, suffix=queue_job_id_suffix)
+        enqueue_kwargs = {
+            "args": (str(job_id),),
+            "job_id": queue_job_id,
+            "timeout": timeout_seconds,
+            "result_ttl": 0,
+            "failure_ttl": 86400,
+            "description": queue_job_id,
+        }
+        if delay_seconds > 0:
+            rq_job = self._queue.enqueue_in(
+                timedelta(seconds=delay_seconds),
+                RQ_WORKER_TARGET,
+                **enqueue_kwargs,
+            )
+        else:
+            rq_job = self._queue.enqueue_call(
+                func=RQ_WORKER_TARGET,
+                **enqueue_kwargs,
+            )
         return EnqueuedAIJob(
             queue_backend="rq",
             queue_name=queue_name,

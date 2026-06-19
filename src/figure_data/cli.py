@@ -56,7 +56,7 @@ from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
 from figure_data.ai.no_path_service import generate_no_path_exploration
-from figure_data.ai.queue import create_ai_job_queue
+from figure_data.ai.queue import create_ai_job_queue, rq_job_id
 from figure_data.ai.real_provider_evaluation import (
     load_stage5d_evaluation_fixture,
     run_stage5d_evaluation,
@@ -692,7 +692,7 @@ def requeue_ai_jobs_command(
                     actor="cli",
                     metadata={
                         "queue_name": enqueued.queue_name,
-                        "dedupe_job_id": f"figurechain-ai-job:{job.id}",
+                        "dedupe_job_id": rq_job_id(job.id),
                     },
                 )
     _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")
