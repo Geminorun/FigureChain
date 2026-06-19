@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from figure_chain.dependencies import get_review_service
+from figure_chain.dependencies import get_review_service, require_reviewer_context
 from figure_chain.schemas import (
     ReviewActionResponse,
     ReviewCandidateDetailResponse,
@@ -55,6 +55,7 @@ def promote_review_candidate(
     kind: str,
     candidate_id: int,
     request: ReviewPromoteRequest,
+    _context: Annotated[object, Depends(require_reviewer_context)],
     service: Annotated[ReviewService, Depends(get_review_service)],
 ) -> ReviewActionResponse:
     return service.promote_candidate(kind, candidate_id, request)
@@ -65,6 +66,7 @@ def reject_review_candidate(
     kind: str,
     candidate_id: int,
     request: ReviewRejectRequest,
+    _context: Annotated[object, Depends(require_reviewer_context)],
     service: Annotated[ReviewService, Depends(get_review_service)],
 ) -> ReviewActionResponse:
     return service.reject_candidate(kind, candidate_id, request)
@@ -75,6 +77,7 @@ def mark_review_candidate_needs_review(
     kind: str,
     candidate_id: int,
     request: ReviewNeedsReviewRequest,
+    _context: Annotated[object, Depends(require_reviewer_context)],
     service: Annotated[ReviewService, Depends(get_review_service)],
 ) -> ReviewActionResponse:
     return service.mark_candidate_needs_review(kind, candidate_id, request)

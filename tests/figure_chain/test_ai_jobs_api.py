@@ -17,6 +17,7 @@ from figure_chain.schemas import (
 )
 
 JOB_ID = UUID("00000000-0000-0000-0000-000000000501")
+REVIEWER_HEADERS = {"x-figure-actor": "alice", "x-figure-role": "reviewer"}
 
 
 class FakeAIJobsService:
@@ -100,6 +101,7 @@ def test_create_ai_job_returns_queued_job() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/ai/jobs",
+            headers=REVIEWER_HEADERS,
             json={
                 "job_type": "candidate_review_suggestion",
                 "target_type": "candidate",
@@ -116,6 +118,26 @@ def test_create_ai_job_returns_queued_job() -> None:
     assert body["status"] == "queued"
     assert service.created_request is not None
     assert service.created_request.params == {"retrieval_limit": 3}
+
+
+def test_create_ai_job_requires_reviewer_role() -> None:
+    app = _app(FakeAIJobsService())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/ai/jobs",
+            json={
+                "job_type": "candidate_review_suggestion",
+                "target_type": "candidate",
+                "target_kind": "relationship",
+                "target_id": 1,
+                "created_by": "alice",
+                "params": {},
+            },
+        )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "access_denied"
 
 
 def test_get_ai_job_returns_job() -> None:
@@ -156,6 +178,7 @@ def test_cancel_ai_job_endpoint() -> None:
     with TestClient(app) as client:
         response = client.post(
             f"/api/v1/ai/jobs/{JOB_ID}/cancel",
+            headers=REVIEWER_HEADERS,
             json={"cancelled_by": "lyl"},
         )
 
@@ -171,6 +194,7 @@ def test_retry_ai_job_endpoint() -> None:
     with TestClient(app) as client:
         response = client.post(
             f"/api/v1/ai/jobs/{JOB_ID}/retry",
+            headers=REVIEWER_HEADERS,
             json={"created_by": "lyl"},
         )
 
@@ -204,6 +228,7 @@ def test_create_ai_job_returns_stable_invalid_type_error() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/ai/jobs",
+            headers=REVIEWER_HEADERS,
             json={
                 "job_type": "unknown",
                 "target_type": "candidate",

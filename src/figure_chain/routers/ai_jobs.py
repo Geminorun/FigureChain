@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from figure_chain.dependencies import get_ai_jobs_service
+from figure_chain.dependencies import get_ai_jobs_service, require_reviewer_context
 from figure_chain.schemas import (
     AiJobCancelRequest,
     AiJobCreateRequest,
@@ -24,6 +24,7 @@ health_router = APIRouter(prefix="/api/v1/ai", tags=["ai-jobs"])
 @router.post("", response_model=AiJobResponse)
 def create_ai_job(
     request: AiJobCreateRequest,
+    _context: Annotated[object, Depends(require_reviewer_context)],
     service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
 ) -> AiJobResponse:
     return service.create_job(request)
@@ -49,6 +50,7 @@ def list_ai_job_events(
 def cancel_ai_job(
     job_id: UUID,
     request: AiJobCancelRequest,
+    _context: Annotated[object, Depends(require_reviewer_context)],
     service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
 ) -> AiJobResponse:
     return service.cancel_job(job_id, cancelled_by=request.cancelled_by)
@@ -58,6 +60,7 @@ def cancel_ai_job(
 def retry_ai_job(
     job_id: UUID,
     request: AiJobRetryRequest,
+    _context: Annotated[object, Depends(require_reviewer_context)],
     service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
 ) -> AiJobResponse:
     return service.retry_job(job_id, created_by=request.created_by)

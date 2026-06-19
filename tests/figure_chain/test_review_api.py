@@ -24,6 +24,7 @@ from figure_chain.schemas import (
 from figure_chain.services.review import ReviewCandidateFilters
 
 PERSON_ID = UUID("00000000-0000-0000-0000-000000000001")
+REVIEWER_HEADERS = {"x-figure-actor": "alice", "x-figure-role": "reviewer"}
 
 
 class FakeReviewService:
@@ -235,6 +236,7 @@ def test_review_candidate_promote_route_returns_action_response() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/review/candidates/relationship/10/promote",
+            headers=REVIEWER_HEADERS,
             json={
                 "reviewed_by": "lyl",
                 "evidence_summary": "有明确见面证据",
@@ -248,12 +250,26 @@ def test_review_candidate_promote_route_returns_action_response() -> None:
     assert body["encounter"]["status"] == "active"
 
 
+def test_promote_candidate_requires_reviewer_role() -> None:
+    app = _router_app(FakeReviewService())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/review/candidates/relationship/10/promote",
+            json={"reviewed_by": "alice", "evidence_summary": "ok"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "access_denied"
+
+
 def test_review_candidate_reject_route_returns_action_response() -> None:
     app = _router_app(FakeReviewService())
 
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/review/candidates/relationship/10/reject",
+            headers=REVIEWER_HEADERS,
             json={"reviewed_by": "lyl", "reason": "证据不足"},
         )
 
@@ -267,6 +283,7 @@ def test_review_candidate_needs_review_route_returns_action_response() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/review/candidates/relationship/10/needs-review",
+            headers=REVIEWER_HEADERS,
             json={"reviewed_by": "lyl", "note": "稍后复核"},
         )
 
@@ -280,6 +297,7 @@ def test_review_candidate_promote_route_returns_stable_failure() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/review/candidates/relationship/99/promote",
+            headers=REVIEWER_HEADERS,
             json={"reviewed_by": "lyl", "evidence_summary": "证据摘要"},
         )
 
