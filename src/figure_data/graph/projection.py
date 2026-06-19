@@ -8,6 +8,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from figure_data.encounters.validation import validate_encounters
+from figure_data.graph.batches import (
+    mark_projection_batch_failed,
+    mark_projection_batch_succeeded,
+    start_projection_batch,
+)
 from figure_data.graph.types import (
     GraphEncounter,
     GraphPerson,
@@ -111,43 +116,83 @@ set r.encounter_kind = row.encounter_kind,
 """
 
 
-def sync_graph_rebuild(pg_session: Session, neo4j_session: GraphWriteSession) -> ProjectionStats:
-    failed_checks = [check for check in validate_encounters(pg_session) if not check.passed]
-    if failed_checks:
-        names = ",".join(check.name for check in failed_checks)
-        raise GraphProjectionError(f"validate-encounters failed before graph projection: {names}")
-
+def sync_graph_rebuild(
+    pg_session: Session,
+    neo4j_session: GraphWriteSession,
+    *,
+    triggered_by: str = "cli",
+) -> ProjectionStats:
     started_at = datetime.now(UTC)
-    dataset = load_projection_dataset(pg_session)
-    neo4j_session.run(CLEAR_GRAPH_CYPHER)
-    neo4j_session.run(CONSTRAINT_CYPHER)
-    if not dataset.encounters:
+    batch_id = start_projection_batch(
+        pg_session,
+        mode="rebuild",
+        triggered_by=triggered_by,
+        source_watermark=None,
+    )
+    try:
+        failed_checks = [check for check in validate_encounters(pg_session) if not check.passed]
+        if failed_checks:
+            names = ",".join(check.name for check in failed_checks)
+            raise GraphProjectionError(
+                f"validate-encounters failed before graph projection: {names}"
+            )
+
+        dataset = load_projection_dataset(pg_session)
+        neo4j_session.run(CLEAR_GRAPH_CYPHER)
+        neo4j_session.run(CONSTRAINT_CYPHER)
+        if not dataset.encounters:
+            finished_at = datetime.now(UTC)
+            stats = ProjectionStats(
+                persons_projected=0,
+                encounters_projected=0,
+                relationships_projected=0,
+                started_at=started_at,
+                finished_at=finished_at,
+            )
+            mark_projection_batch_succeeded(
+                pg_session,
+                batch_id=batch_id,
+                encounters_seen=0,
+                persons_written=0,
+                relationships_written=0,
+                relationships_deleted=0,
+            )
+            return stats
+
+        projection_time = started_at.isoformat()
+        neo4j_session.run(
+            PERSON_BATCH_CYPHER,
+            {"rows": [_person_to_neo4j_row(person, projection_time) for person in dataset.people]},
+        )
+        neo4j_session.run(
+            ENCOUNTER_BATCH_CYPHER,
+            {"rows": [_encounter_to_neo4j_row(encounter) for encounter in dataset.encounters]},
+        )
         finished_at = datetime.now(UTC)
-        return ProjectionStats(
-            persons_projected=0,
-            encounters_projected=0,
-            relationships_projected=0,
+        stats = ProjectionStats(
+            persons_projected=len(dataset.people),
+            encounters_projected=len(dataset.encounters),
+            relationships_projected=len(dataset.encounters),
             started_at=started_at,
             finished_at=finished_at,
         )
-
-    projection_time = started_at.isoformat()
-    neo4j_session.run(
-        PERSON_BATCH_CYPHER,
-        {"rows": [_person_to_neo4j_row(person, projection_time) for person in dataset.people]},
-    )
-    neo4j_session.run(
-        ENCOUNTER_BATCH_CYPHER,
-        {"rows": [_encounter_to_neo4j_row(encounter) for encounter in dataset.encounters]},
-    )
-    finished_at = datetime.now(UTC)
-    return ProjectionStats(
-        persons_projected=len(dataset.people),
-        encounters_projected=len(dataset.encounters),
-        relationships_projected=len(dataset.encounters),
-        started_at=started_at,
-        finished_at=finished_at,
-    )
+        mark_projection_batch_succeeded(
+            pg_session,
+            batch_id=batch_id,
+            encounters_seen=len(dataset.encounters),
+            persons_written=len(dataset.people),
+            relationships_written=len(dataset.encounters),
+            relationships_deleted=0,
+        )
+        return stats
+    except Exception as exc:
+        mark_projection_batch_failed(
+            pg_session,
+            batch_id=batch_id,
+            error_code="graph_projection_failed",
+            error_message=str(exc),
+        )
+        raise
 
 
 def load_projection_dataset(session: Session) -> ProjectionDataset:

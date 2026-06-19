@@ -3,6 +3,7 @@ from typing import Any
 
 from pytest import MonkeyPatch
 
+from figure_data.graph.types import GraphProjectionError
 from figure_data.graph.projection import (
     CLEAR_GRAPH_CYPHER,
     CONSTRAINT_CYPHER,
@@ -15,6 +16,8 @@ from figure_data.graph.projection import (
     sync_graph_rebuild,
 )
 from figure_data.graph.types import GraphEncounter, GraphPerson, ProjectionDataset
+
+BATCH_ID = "00000000-0000-0000-0000-000000000501"
 
 
 class FakeResult:
@@ -152,6 +155,10 @@ class FakeGraphSession:
         self.queries.append((query, parameters))
 
 
+class FailingSession:
+    pass
+
+
 def test_sync_graph_rebuild_clears_only_figurechain_graph() -> None:
     assert "match (:FigurePerson)-[r:ENCOUNTERED]-(:FigurePerson)" in CLEAR_GRAPH_CYPHER
     assert "delete r" in CLEAR_GRAPH_CYPHER
@@ -199,6 +206,7 @@ def test_sync_graph_rebuild_writes_people_and_relationships(
         lambda session: dataset,
     )
     monkeypatch.setattr("figure_data.graph.projection.validate_encounters", lambda session: [])
+    _patch_projection_batch_success(monkeypatch)
 
     stats = sync_graph_rebuild(object(), graph_session)  # type: ignore[arg-type]
 
@@ -221,6 +229,7 @@ def test_sync_graph_rebuild_clears_graph_when_no_path_encounters(
         lambda session: ProjectionDataset(people=(), encounters=()),
     )
     monkeypatch.setattr("figure_data.graph.projection.validate_encounters", lambda session: [])
+    _patch_projection_batch_success(monkeypatch)
 
     stats = sync_graph_rebuild(object(), graph_session)  # type: ignore[arg-type]
 
@@ -229,3 +238,60 @@ def test_sync_graph_rebuild_clears_graph_when_no_path_encounters(
     assert stats.relationships_projected == 0
     queries = [query for query, _params in graph_session.queries]
     assert queries == [CLEAR_GRAPH_CYPHER, CONSTRAINT_CYPHER]
+
+
+def test_sync_graph_rebuild_records_successful_batch(monkeypatch: MonkeyPatch) -> None:
+    events: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        "figure_data.graph.projection.start_projection_batch",
+        lambda *args, **kwargs: BATCH_ID,
+    )
+    monkeypatch.setattr(
+        "figure_data.graph.projection.mark_projection_batch_succeeded",
+        lambda *args, **kwargs: events.append(("succeeded", kwargs)),
+    )
+    monkeypatch.setattr("figure_data.graph.projection.validate_encounters", lambda session: [])
+
+    stats = sync_graph_rebuild(FakeSession(), FakeGraphSession(), triggered_by="cli")  # type: ignore[arg-type]
+
+    assert stats.relationships_projected == 1
+    assert events[0][0] == "succeeded"
+    assert events[0][1]["relationships_written"] == 1
+    assert events[0][1]["encounters_seen"] == 1
+
+
+def test_sync_graph_rebuild_records_failed_batch(monkeypatch: MonkeyPatch) -> None:
+    events: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        "figure_data.graph.projection.start_projection_batch",
+        lambda *args, **kwargs: BATCH_ID,
+    )
+    monkeypatch.setattr(
+        "figure_data.graph.projection.mark_projection_batch_failed",
+        lambda *args, **kwargs: events.append(("failed", kwargs)),
+    )
+    monkeypatch.setattr(
+        "figure_data.graph.projection.validate_encounters",
+        lambda session: (_ for _ in ()).throw(GraphProjectionError("boom")),
+    )
+
+    try:
+        sync_graph_rebuild(FailingSession(), FakeGraphSession(), triggered_by="cli")  # type: ignore[arg-type]
+    except GraphProjectionError:
+        pass
+    else:
+        raise AssertionError("sync_graph_rebuild should re-raise projection errors")
+
+    assert events[0][0] == "failed"
+    assert events[0][1]["error_code"] == "graph_projection_failed"
+
+
+def _patch_projection_batch_success(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "figure_data.graph.projection.start_projection_batch",
+        lambda *args, **kwargs: BATCH_ID,
+    )
+    monkeypatch.setattr(
+        "figure_data.graph.projection.mark_projection_batch_succeeded",
+        lambda *args, **kwargs: None,
+    )
