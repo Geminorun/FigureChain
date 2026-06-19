@@ -25,6 +25,12 @@ def test_get_prompt_definition_can_select_version() -> None:
     assert prompt.prompt_version == "2026-06-13.1"
 
 
+def test_business_prompt_versions_are_bumped_after_content_changes() -> None:
+    assert get_prompt_definition("candidate_review_suggestion").prompt_version == "2026-06-19.1"
+    assert get_prompt_definition("chain_explanation").prompt_version == "2026-06-19.1"
+    assert get_prompt_definition("no_path_exploration").prompt_version == "2026-06-19.1"
+
+
 def test_get_prompt_definition_raises_for_unknown_prompt() -> None:
     with raises(AIPromptError, match="unknown prompt"):
         get_prompt_definition("missing_prompt")

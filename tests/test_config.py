@@ -58,6 +58,7 @@ def test_settings_ai_defaults_are_disabled() -> None:
 
     assert settings.ai_enabled is False
     assert settings.ai_provider is None
+    assert settings.ai_allow_real_provider is False
     assert settings.ai_model is None
     assert settings.ai_api_key is None
     assert settings.ai_base_url is None
@@ -68,7 +69,8 @@ def test_settings_ai_defaults_are_disabled() -> None:
 def test_settings_reads_ai_environment(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://example.invalid/figure")
     monkeypatch.setenv("FIGURE_AI_ENABLED", "true")
-    monkeypatch.setenv("FIGURE_AI_PROVIDER", "fake")
+    monkeypatch.setenv("FIGURE_AI_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("FIGURE_AI_ALLOW_REAL_PROVIDER", "true")
     monkeypatch.setenv("FIGURE_AI_MODEL", "fake-history-model")
     monkeypatch.setenv("FIGURE_AI_API_KEY", "local-test-key")
     monkeypatch.setenv("FIGURE_AI_BASE_URL", "https://ai.example.test/v1")
@@ -79,7 +81,8 @@ def test_settings_reads_ai_environment(monkeypatch: MonkeyPatch) -> None:
     settings = load_settings()
 
     assert settings.ai_enabled is True
-    assert settings.ai_provider == "fake"
+    assert settings.ai_provider == "openai_compatible"
+    assert settings.ai_allow_real_provider is True
     assert settings.ai_model == "fake-history-model"
     assert settings.ai_api_key == "local-test-key"
     assert settings.ai_base_url == "https://ai.example.test/v1"

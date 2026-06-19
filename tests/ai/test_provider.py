@@ -3,12 +3,13 @@ import json
 from pytest import raises
 
 from figure_data.ai.errors import AIProviderConfigurationError, AIProviderError
+from figure_data.ai.openai_compatible_provider import OpenAICompatibleProvider
 from figure_data.ai.provider import (
     DisabledAIProvider,
     FakeAIProvider,
     create_ai_provider,
 )
-from figure_data.ai.types import AIProviderRequest
+from figure_data.ai.types import AIProviderRequest, AIProviderResponse, TokenUsage
 from figure_data.config import Settings
 from figure_data.db.enums import AIErrorCode, AIPromptStatus, AIRunStatus
 
@@ -226,3 +227,63 @@ def test_create_ai_provider_rejects_unknown_provider_without_leaking_key() -> No
     message = str(exc_info.value)
     assert "unsupported AI provider" in message
     assert "secret-value" not in message
+
+
+def test_real_provider_requires_explicit_allow_flag() -> None:
+    settings = Settings(
+        DATABASE_URL="postgresql://user:pass@localhost:5432/db",
+        FIGURE_AI_ENABLED=True,
+        FIGURE_AI_PROVIDER="openai_compatible",
+        FIGURE_AI_MODEL="gpt-test",
+        FIGURE_AI_API_KEY="test-key",
+        FIGURE_AI_BASE_URL="https://example.test/v1",
+    )
+
+    with raises(AIProviderConfigurationError, match="explicitly allowed"):
+        create_ai_provider(settings)
+
+
+def test_real_provider_requires_api_key() -> None:
+    settings = Settings(
+        DATABASE_URL="postgresql://user:pass@localhost:5432/db",
+        FIGURE_AI_ENABLED=True,
+        FIGURE_AI_PROVIDER="openai_compatible",
+        FIGURE_AI_ALLOW_REAL_PROVIDER=True,
+        FIGURE_AI_MODEL="gpt-test",
+        FIGURE_AI_BASE_URL="https://example.test/v1",
+    )
+
+    with raises(AIProviderConfigurationError, match="FIGURE_AI_API_KEY"):
+        create_ai_provider(settings)
+
+
+def test_create_ai_provider_supports_openai_compatible_when_explicitly_allowed() -> None:
+    settings = Settings(
+        DATABASE_URL="postgresql://user:pass@localhost:5432/db",
+        FIGURE_AI_ENABLED=True,
+        FIGURE_AI_PROVIDER="openai_compatible",
+        FIGURE_AI_ALLOW_REAL_PROVIDER=True,
+        FIGURE_AI_MODEL="gpt-test",
+        FIGURE_AI_API_KEY="test-key",
+        FIGURE_AI_BASE_URL="https://example.test/v1",
+    )
+
+    provider = create_ai_provider(settings)
+
+    assert isinstance(provider, OpenAICompatibleProvider)
+
+
+def test_ai_provider_response_accepts_optional_metadata() -> None:
+    response = AIProviderResponse(
+        raw_text='{"ok":true}',
+        provider="fake",
+        model_name="fake-model",
+        provider_request_id="req-1",
+        latency_ms=25,
+        token_usage=TokenUsage(prompt_tokens=3, completion_tokens=4, total_tokens=7),
+        metadata={"safe": "value"},
+    )
+
+    assert response.provider_request_id == "req-1"
+    assert response.token_usage is not None
+    assert response.token_usage.total_tokens == 7

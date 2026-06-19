@@ -56,7 +56,12 @@ from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
 from figure_data.ai.no_path_service import generate_no_path_exploration
-from figure_data.ai.queue import create_ai_job_queue
+from figure_data.ai.queue import create_ai_job_queue, rq_job_id
+from figure_data.ai.real_provider_evaluation import (
+    load_stage5d_evaluation_fixture,
+    run_stage5d_evaluation,
+)
+from figure_data.ai.real_provider_reporting import write_stage5d_evaluation_report
 from figure_data.ai.repository import get_ai_run
 from figure_data.ai.retrieval_formatting import (
     format_build_rag_index_result,
@@ -541,6 +546,44 @@ def evaluate_ai_samples_command(
     _echo_cli_line(f"recommendation\t{recommendation}")
 
 
+@app.command("evaluate-real-provider")
+def evaluate_real_provider_command(
+    fixture: Annotated[
+        Path,
+        typer.Option("--fixture", exists=True, file_okay=True, dir_okay=False),
+    ] = Path("docs/superpowers/fixtures/stage5d-real-provider-eval-small.json"),
+    output: Annotated[
+        Path,
+        typer.Option("--output", file_okay=True, dir_okay=False),
+    ] = Path("docs/superpowers/reports/2026-06-19-stage5d-real-provider-acceptance.md"),
+    allow_real_provider: Annotated[bool, typer.Option("--allow-real-provider")] = False,
+) -> None:
+    """Run the Stage 5D real-provider acceptance evaluation."""
+    try:
+        settings = load_settings()
+        fixture_model = load_stage5d_evaluation_fixture(fixture)
+        factory = create_session_factory(settings)
+        with factory() as session:
+            result = run_stage5d_evaluation(
+                fixture=fixture_model,
+                settings=settings,
+                session=session,
+                allow_real_provider=allow_real_provider,
+            )
+        report_path = write_stage5d_evaluation_report(result, output)
+    except (ValueError, AIProviderConfigurationError, AIProviderError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _echo_cli_line(f"samples\t{result.sample_count}")
+    _echo_cli_line(f"passed\t{result.passed_count}")
+    _echo_cli_line(f"failed\t{result.failed_count}")
+    _echo_cli_line(f"errors\t{result.error_count}")
+    _echo_cli_line(f"provider\t{result.provider}")
+    _echo_cli_line(f"model\t{result.model_name}")
+    _echo_cli_line(f"real_provider_used\t{result.real_provider_used}")
+    _echo_cli_line(f"evaluation_report\t{report_path}")
+
+
 @app.command("suggest-candidate-review")
 def suggest_candidate_review_command(
     kind: Annotated[CandidateKind, typer.Option("--kind")],
@@ -649,7 +692,7 @@ def requeue_ai_jobs_command(
                     actor="cli",
                     metadata={
                         "queue_name": enqueued.queue_name,
-                        "dedupe_job_id": f"figurechain-ai-job:{job.id}",
+                        "dedupe_job_id": rq_job_id(job.id),
                     },
                 )
     _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")
@@ -701,7 +744,7 @@ def run_ai_worker_command(
     redis_connection = Redis.from_url(settings.redis_url)
     queue = Queue(name=resolved_queue_name, connection=redis_connection)
     worker = Worker([queue], connection=redis_connection)
-    worker.work()
+    worker.work(with_scheduler=True)
 
 
 @app.command("generate-chain-explanation")

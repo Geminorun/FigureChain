@@ -220,6 +220,28 @@ def test_run_ai_jobs_marks_model_exception_failed_without_stack_trace() -> None:
     assert summary.failed_count == 1
 
 
+def test_run_ai_jobs_schedules_retry_for_retryable_provider_error() -> None:
+    repository = FakeJobRepository([_job(attempt_count=1, max_attempts=3)])
+
+    def generate(**kwargs: object) -> CandidateReviewSuggestionResult:
+        raise RuntimeError("provider_timeout: request timed out")
+
+    summary = run_ai_jobs(
+        session=cast(Session, object()),
+        settings=cast(Settings, object()),
+        limit=1,
+        repository=repository,
+        generate_candidate_review_suggestion_fn=generate,
+    )
+
+    assert repository.scheduled_retries == [
+        (JOB_ID, "provider_timeout", "provider_timeout: request timed out", 10)
+    ]
+    assert repository.failed == []
+    assert summary.failed_count == 1
+    assert summary.failures[0].error_code == "provider_timeout"
+
+
 def test_run_ai_jobs_does_not_change_candidate_review_state() -> None:
     repository = FakeJobRepository([_job()])
     candidate_status_calls: list[str] = []
@@ -305,6 +327,8 @@ def test_execute_ai_job_schedules_retry_for_provider_timeout() -> None:
     assert repository.scheduled_retries == [
         (JOB_ID, "provider_timeout", "provider_timeout: request timed out", 10)
     ]
+    assert result.retry_delay_seconds == 10
+    assert result.retry_queue_job_id_suffix == "retry-1"
     assert repository.failed == []
     assert "retry_scheduled" in repository.events
 
@@ -332,6 +356,8 @@ def test_execute_ai_job_rate_limit_schedules_retry_without_provider_call() -> No
     assert repository.scheduled_retries == [
         (JOB_ID, "provider_rate_limited", "provider rate limit reached", 10)
     ]
+    assert result.retry_delay_seconds == 10
+    assert result.retry_queue_job_id_suffix == "retry-1"
 
 
 def _job(*, attempt_count: int = 0, max_attempts: int = 3) -> AIGenerationJobRecord:

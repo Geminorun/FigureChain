@@ -215,6 +215,8 @@ class AIGenerationJobExecutionResult:
     status: str
     error_code: str | None = None
     error_message: str | None = None
+    retry_delay_seconds: int | None = None
+    retry_queue_job_id_suffix: str | None = None
 
 
 @dataclass(frozen=True)
@@ -261,12 +263,26 @@ def run_ai_jobs(
         except Exception as exc:
             error_code = _error_code(exc)
             error_message = _error_message(exc)
-            resolved_repository.mark_failed(
-                session,
-                job.id,
-                error_code=error_code,
-                error_message=error_message,
-            )
+            if _is_retryable(error_code) and _can_retry(job):
+                resolved_repository.schedule_job_retry(
+                    session,
+                    job.id,
+                    error_code=error_code,
+                    error_message=error_message,
+                    delay_seconds=AIJobRetryPolicy(
+                        max_attempts=job.max_attempts,
+                        base_delay_seconds=int(
+                            getattr(settings, "ai_job_retry_base_seconds", 10)
+                        ),
+                    ).delay_for_attempt(job.attempt_count),
+                )
+            else:
+                resolved_repository.mark_failed(
+                    session,
+                    job.id,
+                    error_code=error_code,
+                    error_message=error_message,
+                )
             failures.append(
                 AIGenerationJobFailure(
                     job_id=job.id,
@@ -459,6 +475,8 @@ def _schedule_retry(
         status="retry_scheduled",
         error_code=error_code,
         error_message=error_message,
+        retry_delay_seconds=delay_seconds,
+        retry_queue_job_id_suffix=f"retry-{job.attempt_count}",
     )
 
 

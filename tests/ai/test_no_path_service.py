@@ -58,6 +58,15 @@ class FakeRunRepository:
         run_id: UUID,
         output_snapshot: dict[str, Any],
         raw_output: str,
+        provider_request_id: str | None = None,
+        latency_ms: int | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        estimated_cost: object | None = None,
+        cost_currency: str | None = None,
+        retry_count: int = 0,
+        provider_metadata: dict[str, object] | None = None,
     ) -> None:
         return None
 

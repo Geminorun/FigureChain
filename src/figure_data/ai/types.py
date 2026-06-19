@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -26,10 +27,21 @@ class AIProviderRequest:
 
 
 @dataclass(frozen=True)
+class TokenUsage:
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+
+
+@dataclass(frozen=True)
 class AIProviderResponse:
     raw_text: str
     provider: str
     model_name: str
+    provider_request_id: str | None = None
+    latency_ms: int | None = None
+    token_usage: TokenUsage | None = None
+    metadata: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -63,3 +75,12 @@ class AIRunRecord:
     started_at: datetime
     finished_at: datetime | None
     created_by: str
+    provider_request_id: str | None = None
+    latency_ms: int | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    estimated_cost: Decimal | None = None
+    cost_currency: str | None = None
+    retry_count: int = 0
+    provider_metadata: dict[str, Any] | None = None

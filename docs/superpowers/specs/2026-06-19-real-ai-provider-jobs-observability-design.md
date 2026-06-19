@@ -306,7 +306,7 @@ API 创建 AI job 时：
 `job_id` 回查 PostgreSQL，并通过原子 `queued -> running` 防止重复执行 provider。
 repair/requeue 命令必须能识别这种半成功状态，或使用确定性的 RQ job id 让重复入队
 保持幂等；即使 Redis 中出现重复 job，重复 worker 也必须因为 PostgreSQL 状态迁移失败而跳过。
-RQ job id 统一从 PostgreSQL job id 派生，例如 `figurechain-ai-job:{job_id}`。
+RQ job id 统一从 PostgreSQL job id 派生，例如 `figurechain-ai-job-{job_id}`。
 
 RQ payload 只能包含：
 

@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     neo4j_database: str = Field(default="neo4j", alias="NEO4J_DATABASE")
     ai_enabled: bool = Field(default=False, alias="FIGURE_AI_ENABLED")
     ai_provider: str | None = Field(default=None, alias="FIGURE_AI_PROVIDER")
+    ai_allow_real_provider: bool = Field(
+        default=False,
+        alias="FIGURE_AI_ALLOW_REAL_PROVIDER",
+    )
     ai_model: str | None = Field(default=None, alias="FIGURE_AI_MODEL")
     ai_api_key: str | None = Field(default=None, alias="FIGURE_AI_API_KEY")
     ai_base_url: str | None = Field(default=None, alias="FIGURE_AI_BASE_URL")

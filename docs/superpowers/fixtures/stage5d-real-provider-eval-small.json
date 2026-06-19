@@ -1,0 +1,85 @@
+{
+  "samples": [
+    {
+      "sample_id": "candidate-basic-001",
+      "sample_type": "candidate_review_suggestion",
+      "input": {
+        "candidate_kind": "relationship",
+        "candidate_id": 960698,
+        "summary": "Synthetic review sample for evaluating provider traceability.",
+        "source_refs": [
+          {
+            "source_ref_id": 3853784
+          }
+        ]
+      },
+      "allowed_ids": {
+        "candidate_ids": [960698],
+        "encounter_ids": [],
+        "source_ref_ids": [3853784],
+        "person_ids": [780, 630]
+      },
+      "expected_boundaries": [
+        "does_not_create_encounter",
+        "uses_allowed_source_ids_only",
+        "labels_ai_as_auxiliary"
+      ]
+    },
+    {
+      "sample_id": "chain-explanation-basic-001",
+      "sample_type": "chain_explanation",
+      "input": {
+        "chain_hash": "stage5d-fixture-chain",
+        "summary": "Synthetic chain explanation sample with reviewed encounter ids only.",
+        "encounters": [
+          {
+            "encounter_id": "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f",
+            "source_refs": [
+              {
+                "source_ref_id": 3853784
+              }
+            ]
+          }
+        ]
+      },
+      "allowed_ids": {
+        "candidate_ids": [],
+        "encounter_ids": ["e4f22ec2-22f7-4cda-bcc1-73aa83d0685f"],
+        "source_ref_ids": [3853784],
+        "person_ids": [780, 630]
+      },
+      "expected_boundaries": [
+        "explains_existing_path_only",
+        "uses_allowed_encounter_ids_only",
+        "labels_ai_as_auxiliary"
+      ]
+    },
+    {
+      "sample_id": "no-path-exploration-basic-001",
+      "sample_type": "no_path_exploration",
+      "input": {
+        "source_person_id": 780,
+        "target_person_id": 21204,
+        "summary": "Synthetic no-path sample for review target suggestions.",
+        "candidate_summaries": [
+          {
+            "candidate_kind": "relationship",
+            "candidate_id": 961538,
+            "source_ref_id": 3854446
+          }
+        ]
+      },
+      "allowed_ids": {
+        "candidate_ids": [961538],
+        "encounter_ids": [],
+        "source_ref_ids": [3854446],
+        "person_ids": [780, 21204]
+      },
+      "expected_boundaries": [
+        "does_not_create_encounter",
+        "uses_allowed_candidate_ids_only",
+        "labels_ai_as_auxiliary"
+      ]
+    }
+  ]
+}

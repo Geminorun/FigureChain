@@ -111,7 +111,15 @@ class FakeJobRepository:
 
 
 class FakeQueue:
-    def enqueue(self, job_id: UUID, *, queue_name: str, timeout_seconds: int) -> EnqueuedAIJob:
+    def enqueue(
+        self,
+        job_id: UUID,
+        *,
+        queue_name: str,
+        timeout_seconds: int,
+        delay_seconds: int = 0,
+        queue_job_id_suffix: str | None = None,
+    ) -> EnqueuedAIJob:
         return EnqueuedAIJob(
             queue_backend="rq",
             queue_name=queue_name,

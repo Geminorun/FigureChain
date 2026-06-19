@@ -17,6 +17,7 @@ from figure_data.ai.errors import (
     AIProviderError,
 )
 from figure_data.ai.provider import AIProvider
+from figure_data.ai.redaction import redacted_metadata
 from figure_data.ai.repository import AIRunRepository, PostgresAIRunRepository
 from figure_data.ai.types import AIProviderRequest, NewAIRun, PromptDefinition
 from figure_data.ai.validation import model_to_snapshot, validate_ai_output
@@ -119,6 +120,23 @@ def run_ai_prompt[OutputModel: BaseModel](
         run_id=run_id,
         output_snapshot=model_to_snapshot(output),
         raw_output=response.raw_text,
+        provider_request_id=response.provider_request_id,
+        latency_ms=response.latency_ms,
+        prompt_tokens=(
+            response.token_usage.prompt_tokens if response.token_usage is not None else None
+        ),
+        completion_tokens=(
+            response.token_usage.completion_tokens
+            if response.token_usage is not None
+            else None
+        ),
+        total_tokens=(
+            response.token_usage.total_tokens if response.token_usage is not None else None
+        ),
+        estimated_cost=None,
+        cost_currency=None,
+        retry_count=0,
+        provider_metadata=redacted_metadata(response.metadata or {}),
     )
     return AIRunResult(run_id=run_id, output=output)
 
