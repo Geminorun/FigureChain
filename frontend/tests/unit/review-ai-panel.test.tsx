@@ -85,11 +85,30 @@ const queuedJob: AiJobResponse = {
   result_ref_id: null,
   error_code: null,
   error_message: null,
+  queue_backend: "rq",
+  queue_name: "figure-ai",
+  queue_job_id: "rq-job-501",
+  enqueued_at: "2026-06-19T00:00:01Z",
+  attempt_count: 1,
+  max_attempts: 3,
+  next_run_at: null,
+  cancel_requested_at: null,
+  worker_id: "worker-1",
+  heartbeat_at: "2026-06-19T00:00:02Z",
   started_at: null,
   finished_at: null,
   created_at: "2026-06-18T00:00:00Z",
   updated_at: "2026-06-18T00:00:00Z",
 };
+
+function aiPanelControls() {
+  return {
+    eventsByJobId: {},
+    onCancelJob: vi.fn(),
+    onRetryJob: vi.fn(),
+    onLoadEvents: vi.fn(),
+  };
+}
 
 describe("ReviewAiPanel", () => {
   it("renders latest AI suggestion and job history", () => {
@@ -102,6 +121,7 @@ describe("ReviewAiPanel", () => {
         jobs={[queuedJob]}
         onCreateJob={vi.fn()}
         onRefreshCandidate={vi.fn()}
+        {...aiPanelControls()}
       />,
     );
 
@@ -122,6 +142,7 @@ describe("ReviewAiPanel", () => {
         jobs={[]}
         onCreateJob={onCreateJob}
         onRefreshCandidate={vi.fn()}
+        {...aiPanelControls()}
       />,
     );
 
@@ -142,6 +163,7 @@ describe("ReviewAiPanel", () => {
         jobs={[{ ...queuedJob, status: "succeeded" }]}
         onCreateJob={vi.fn()}
         onRefreshCandidate={onRefreshCandidate}
+        {...aiPanelControls()}
       />,
     );
 
@@ -158,11 +180,112 @@ describe("ReviewAiPanel", () => {
         jobs={[]}
         onCreateJob={vi.fn()}
         onRefreshCandidate={vi.fn()}
+        {...aiPanelControls()}
       />,
     );
 
     expect(screen.getByRole("button", { name: "生成 AI 建议" })).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent("FigureChain API 不可用");
     expect(screen.getByText(/provider unavailable/)).toBeInTheDocument();
+  });
+
+  it("shows queue metadata for a running job", () => {
+    renderUi(
+      <ReviewAiPanel
+        activeJob={{ ...queuedJob, status: "running" }}
+        detail={detail}
+        error={null}
+        isCreating={false}
+        jobs={[{ ...queuedJob, status: "running" }]}
+        onCreateJob={vi.fn()}
+        onRefreshCandidate={vi.fn()}
+        {...aiPanelControls()}
+      />,
+    );
+
+    expect(screen.getByText(/queue rq/)).toBeInTheDocument();
+    expect(screen.getByText(/worker worker-1/)).toBeInTheDocument();
+    expect(screen.getByText(/attempt 1\/3/)).toBeInTheDocument();
+  });
+
+  it("offers cancel for active queued jobs", async () => {
+    const onCancelJob = vi.fn().mockResolvedValue({ ...queuedJob, status: "cancelled" });
+    renderUi(
+      <ReviewAiPanel
+        activeJob={queuedJob}
+        detail={detail}
+        error={null}
+        isCreating={false}
+        jobs={[queuedJob]}
+        onCreateJob={vi.fn()}
+        onRefreshCandidate={vi.fn()}
+        {...aiPanelControls()}
+        onCancelJob={onCancelJob}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText("created_by"), "lyl");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onCancelJob).toHaveBeenCalledWith(queuedJob.id, { cancelledBy: "lyl" });
+  });
+
+  it("offers retry for failed jobs", async () => {
+    const failedJob = { ...queuedJob, status: "failed", error_message: "timeout" };
+    const onRetryJob = vi.fn().mockResolvedValue(queuedJob);
+    renderUi(
+      <ReviewAiPanel
+        activeJob={failedJob}
+        detail={detail}
+        error={null}
+        isCreating={false}
+        jobs={[failedJob]}
+        onCreateJob={vi.fn()}
+        onRefreshCandidate={vi.fn()}
+        {...aiPanelControls()}
+        onRetryJob={onRetryJob}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText("created_by"), "lyl");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onRetryJob).toHaveBeenCalledWith(failedJob.id, { createdBy: "lyl" });
+  });
+
+  it("shows loaded AI job events", async () => {
+    const onLoadEvents = vi.fn().mockResolvedValue([]);
+    renderUi(
+      <ReviewAiPanel
+        activeJob={queuedJob}
+        detail={detail}
+        error={null}
+        isCreating={false}
+        jobs={[queuedJob]}
+        eventsByJobId={{
+          [queuedJob.id]: [
+            {
+              id: "event-1",
+              job_id: queuedJob.id,
+              event_type: "retry_scheduled",
+              actor: "worker",
+              message: "provider timeout",
+              metadata: { delay_seconds: 10 },
+              created_at: "2026-06-19T00:00:04Z",
+            },
+          ],
+        }}
+        onCreateJob={vi.fn()}
+        onRefreshCandidate={vi.fn()}
+        onCancelJob={vi.fn()}
+        onRetryJob={vi.fn()}
+        onLoadEvents={onLoadEvents}
+      />,
+    );
+
+    expect(screen.getByText(/retry_scheduled/)).toBeInTheDocument();
+    expect(screen.getByText(/provider timeout/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Events" }));
+    expect(onLoadEvents).toHaveBeenCalledWith(queuedJob.id);
   });
 });

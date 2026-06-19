@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from figure_data.ai import job_runner
 from figure_data.ai.candidate_repository import CandidateSuggestionRecord
 from figure_data.ai.candidate_service import CandidateReviewSuggestionResult
 from figure_data.ai.job_repository import AIGenerationJobRecord
@@ -21,6 +22,7 @@ class FakeJobRepository:
         self.jobs = jobs
         self.succeeded: list[tuple[UUID, str, UUID]] = []
         self.failed: list[tuple[UUID, str, str]] = []
+        self.scheduled_retries: list[tuple[UUID, str, str, int]] = []
         self.claimed_limit: int | None = None
         self.claimed_job_type: str | None = None
 
@@ -34,6 +36,15 @@ class FakeJobRepository:
         self.claimed_limit = limit
         self.claimed_job_type = job_type
         return self.jobs
+
+    def claim_queued_job_by_id(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        worker_id: str,
+    ) -> AIGenerationJobRecord | None:
+        return self.jobs[0] if self.jobs else None
 
     def mark_succeeded(
         self,
@@ -56,6 +67,76 @@ class FakeJobRepository:
     ) -> AIGenerationJobRecord:
         self.failed.append((job_id, error_code, error_message))
         return self.jobs[0]
+
+    def schedule_job_retry(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        error_code: str,
+        error_message: str,
+        delay_seconds: int,
+    ) -> AIGenerationJobRecord:
+        self.scheduled_retries.append((job_id, error_code, error_message, delay_seconds))
+        return self.jobs[0]
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        return job_id
+
+
+class FakeSingleJobRepository(FakeJobRepository):
+    def __init__(self, job: AIGenerationJobRecord | None) -> None:
+        super().__init__([job] if job is not None else [])
+        self.claimed_job_id: UUID | None = None
+        self.worker_id: str | None = None
+        self.events: list[str] = []
+
+    def claim_queued_job_by_id(
+        self,
+        session: Session,
+        job_id: UUID,
+        *,
+        worker_id: str,
+    ) -> AIGenerationJobRecord | None:
+        self.claimed_job_id = job_id
+        self.worker_id = worker_id
+        return self.jobs[0] if self.jobs else None
+
+    def record_event(
+        self,
+        session: Session,
+        *,
+        job_id: UUID,
+        event_type: str,
+        actor: str,
+        message: str | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> UUID:
+        self.events.append(event_type)
+        return job_id
+
+
+class DenyRateLimiter:
+    def allow(self, provider: str, model_name: str, *, limit_per_minute: int) -> bool:
+        assert provider == "fake-provider"
+        assert model_name == "fake-model"
+        assert limit_per_minute == 1
+        return False
+
+
+class FakeSettings:
+    ai_provider = "fake-provider"
+    ai_model = "fake-model"
+    ai_rate_limit_per_minute = 1
 
 
 def test_run_ai_jobs_executes_candidate_review_job_and_marks_success() -> None:
@@ -163,7 +244,97 @@ def test_run_ai_jobs_does_not_change_candidate_review_state() -> None:
     assert repository.failed == []
 
 
-def _job() -> AIGenerationJobRecord:
+def test_execute_ai_job_claims_specific_job_and_marks_success() -> None:
+    repository = FakeSingleJobRepository(_job())
+
+    def generate(**kwargs: object) -> CandidateReviewSuggestionResult:
+        return CandidateReviewSuggestionResult(
+            ai_run_id=AI_RUN_ID,
+            suggestion=_suggestion(),
+        )
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, object()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+        generate_candidate_review_suggestion_fn=generate,
+    )
+
+    assert result.status == "succeeded"
+    assert repository.claimed_job_id == JOB_ID
+    assert repository.worker_id == "worker-1"
+    assert repository.succeeded == [(JOB_ID, "ai_candidate_review_suggestion", SUGGESTION_ID)]
+    assert "started" in repository.events
+    assert "succeeded" in repository.events
+
+
+def test_execute_ai_job_skips_when_claim_returns_none() -> None:
+    repository = FakeSingleJobRepository(None)
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, object()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+    )
+
+    assert result.status == "skipped"
+    assert repository.succeeded == []
+    assert repository.failed == []
+
+
+def test_execute_ai_job_schedules_retry_for_provider_timeout() -> None:
+    repository = FakeSingleJobRepository(_job(attempt_count=1, max_attempts=3))
+
+    def generate(**kwargs: object) -> CandidateReviewSuggestionResult:
+        raise RuntimeError("provider_timeout: request timed out")
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, object()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+        generate_candidate_review_suggestion_fn=generate,
+    )
+
+    assert result.status == "retry_scheduled"
+    assert repository.scheduled_retries == [
+        (JOB_ID, "provider_timeout", "provider_timeout: request timed out", 10)
+    ]
+    assert repository.failed == []
+    assert "retry_scheduled" in repository.events
+
+
+def test_execute_ai_job_rate_limit_schedules_retry_without_provider_call() -> None:
+    repository = FakeSingleJobRepository(_job(attempt_count=1, max_attempts=3))
+    calls: list[str] = []
+
+    def generate(**kwargs: object) -> CandidateReviewSuggestionResult:
+        calls.append("called")
+        raise AssertionError("provider should not be called when rate limited")
+
+    result = job_runner.execute_ai_job(
+        session=cast(Session, object()),
+        settings=cast(Settings, FakeSettings()),
+        job_id=JOB_ID,
+        worker_id="worker-1",
+        repository=repository,
+        generate_candidate_review_suggestion_fn=generate,
+        rate_limiter=DenyRateLimiter(),
+    )
+
+    assert result.status == "retry_scheduled"
+    assert calls == []
+    assert repository.scheduled_retries == [
+        (JOB_ID, "provider_rate_limited", "provider rate limit reached", 10)
+    ]
+
+
+def _job(*, attempt_count: int = 0, max_attempts: int = 3) -> AIGenerationJobRecord:
     now = datetime(2026, 6, 18, tzinfo=UTC)
     return AIGenerationJobRecord(
         id=JOB_ID,
@@ -180,6 +351,16 @@ def _job() -> AIGenerationJobRecord:
         error_message=None,
         started_at=now,
         finished_at=None,
+        queue_backend="database",
+        queue_name=None,
+        queue_job_id=None,
+        enqueued_at=None,
+        attempt_count=attempt_count,
+        max_attempts=max_attempts,
+        next_run_at=None,
+        cancel_requested_at=None,
+        worker_id=None,
+        heartbeat_at=None,
         created_at=now,
         updated_at=now,
     )

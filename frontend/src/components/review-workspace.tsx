@@ -71,7 +71,11 @@ export function ReviewWorkspace() {
           error={ai.error}
           isCreating={ai.isCreating}
           jobs={ai.jobs}
+          eventsByJobId={ai.eventsByJobId}
           onCreateJob={ai.createJob}
+          onCancelJob={ai.cancelJob}
+          onRetryJob={ai.retryJob}
+          onLoadEvents={ai.loadEvents}
           onRefreshCandidate={refreshSelectedCandidate}
         />
         <ReviewActionPanel

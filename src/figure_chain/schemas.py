@@ -331,6 +331,14 @@ class AiJobCreateRequest(BaseModel):
     params: dict[str, object] = Field(default_factory=dict)
 
 
+class AiJobCancelRequest(BaseModel):
+    cancelled_by: str = Field(min_length=1)
+
+
+class AiJobRetryRequest(BaseModel):
+    created_by: str = Field(min_length=1)
+
+
 class AiJobResponse(BaseModel):
     id: UUID
     job_type: str
@@ -344,6 +352,16 @@ class AiJobResponse(BaseModel):
     result_ref_id: UUID | None
     error_code: str | None
     error_message: str | None
+    queue_backend: str
+    queue_name: str | None
+    queue_job_id: str | None
+    enqueued_at: datetime | None
+    attempt_count: int
+    max_attempts: int
+    next_run_at: datetime | None
+    cancel_requested_at: datetime | None
+    worker_id: str | None
+    heartbeat_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None
     created_at: datetime
@@ -354,6 +372,32 @@ class AiJobListResponse(BaseModel):
     items: list[AiJobResponse]
     count: int
     limit: int
+
+
+class AiJobEventResponse(BaseModel):
+    id: UUID
+    job_id: UUID
+    event_type: str
+    actor: str
+    message: str | None
+    metadata: dict[str, object]
+    created_at: datetime
+
+
+class AiJobEventListResponse(BaseModel):
+    items: list[AiJobEventResponse]
+    count: int
+
+
+class AiJobHealthResponse(BaseModel):
+    status_counts: dict[str, int]
+    queued_count: int
+    running_count: int
+    succeeded_count: int
+    failed_count: int
+    cancelled_count: int
+    stale_running_count: int
+    oldest_queued_at: datetime | None
 
 
 class EncounterPersonResponse(BaseModel):

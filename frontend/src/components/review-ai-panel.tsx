@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorCallout } from "@/components/error-callout";
 import type { DisplayableError } from "@/lib/api-errors";
 import type {
+  AiJobEvent,
   AiJobResponse,
   ReviewAiJobSummary,
   ReviewCandidateDetail,
@@ -18,7 +19,17 @@ type ReviewAiPanelProps = {
   error: DisplayableError | null;
   isCreating: boolean;
   jobs: AiJobResponse[];
+  eventsByJobId: Record<string, AiJobEvent[]>;
   onCreateJob: (options: { createdBy: string }) => Promise<AiJobResponse | null>;
+  onCancelJob: (
+    jobId: string,
+    options: { cancelledBy: string },
+  ) => Promise<AiJobResponse | null>;
+  onRetryJob: (
+    jobId: string,
+    options: { createdBy: string },
+  ) => Promise<AiJobResponse | null>;
+  onLoadEvents: (jobId: string) => Promise<AiJobEvent[]>;
   onRefreshCandidate: () => void;
 };
 
@@ -36,6 +47,10 @@ function jobCreatedAt(job: JobLike): string | null {
   return job.created_at;
 }
 
+function isAiJobResponse(job: JobLike): job is AiJobResponse {
+  return "queue_backend" in job;
+}
+
 function isActiveWorkerStatus(status: string): boolean {
   return status === "queued" || status === "running";
 }
@@ -50,7 +65,11 @@ export function ReviewAiPanel({
   error,
   isCreating,
   jobs,
+  eventsByJobId,
   onCreateJob,
+  onCancelJob,
+  onRetryJob,
+  onLoadEvents,
   onRefreshCandidate,
 }: ReviewAiPanelProps) {
   const [createdBy, setCreatedBy] = useState("");
@@ -151,7 +170,7 @@ export function ReviewAiPanel({
           ) : (
             <ul className="mt-2 divide-y divide-stone-200 text-sm">
               {history.map((job) => (
-                <li className="grid gap-1 py-2" key={jobId(job)}>
+                <li className="grid gap-2 py-2" key={jobId(job)}>
                   <p className="font-medium text-stone-950">
                     {jobPurpose(job)} / {job.status}
                   </p>
@@ -160,6 +179,69 @@ export function ReviewAiPanel({
                     created {jobCreatedAt(job) ?? "unknown"} / finished{" "}
                     {job.finished_at ?? "pending"}
                   </p>
+                  {isAiJobResponse(job) ? (
+                    <>
+                      <p className="text-stone-600">
+                        queue {job.queue_backend} / attempt {job.attempt_count}/
+                        {job.max_attempts}
+                      </p>
+                      {job.worker_id ? (
+                        <p className="break-all text-stone-600">worker {job.worker_id}</p>
+                      ) : null}
+                      {job.next_run_at ? (
+                        <p className="text-stone-600">next retry {job.next_run_at}</p>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        {isActiveWorkerStatus(job.status) ? (
+                          <button
+                            className="inline-flex min-h-9 items-center rounded border border-stone-300 px-3 py-1.5 text-sm text-stone-800 hover:bg-stone-50"
+                            type="button"
+                            onClick={() =>
+                              void onCancelJob(job.id, {
+                                cancelledBy: createdBy.trim() || "local",
+                              })
+                            }
+                          >
+                            Cancel
+                          </button>
+                        ) : null}
+                        {isFailedWorkerStatus(job.status) ? (
+                          <button
+                            className="inline-flex min-h-9 items-center rounded border border-stone-300 px-3 py-1.5 text-sm text-stone-800 hover:bg-stone-50"
+                            type="button"
+                            onClick={() =>
+                              void onRetryJob(job.id, {
+                                createdBy: createdBy.trim() || "local",
+                              })
+                            }
+                          >
+                            Retry
+                          </button>
+                        ) : null}
+                        <button
+                          className="inline-flex min-h-9 items-center rounded border border-stone-300 px-3 py-1.5 text-sm text-stone-800 hover:bg-stone-50"
+                          type="button"
+                          onClick={() => void onLoadEvents(job.id)}
+                        >
+                          Events
+                        </button>
+                      </div>
+                      {eventsByJobId[job.id]?.length ? (
+                        <ul className="grid gap-1 rounded border border-stone-200 bg-stone-50 p-2 text-stone-700">
+                          {eventsByJobId[job.id].map((event) => (
+                            <li className="grid gap-0.5" key={event.id}>
+                              <p className="font-medium text-stone-800">
+                                {event.event_type} / {event.actor}
+                              </p>
+                              {event.message ? (
+                                <p className="break-words text-stone-600">{event.message}</p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  ) : null}
                 </li>
               ))}
             </ul>

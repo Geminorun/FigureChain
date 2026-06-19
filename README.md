@@ -36,6 +36,32 @@ Neo4j Browser 地址是 `http://localhost:7474/`，Python driver 使用
 docker compose stop neo4j
 ```
 
+## 本地 Redis
+
+Redis 用于 AI job 的 RQ 队列分发。PostgreSQL 仍然保存 job 状态、AI run、
+prompt version 和审计事件；Redis 不保存业务事实。
+
+本地启动：
+
+```powershell
+docker compose up -d redis
+```
+
+`.env` 可增加：
+
+```text
+REDIS_URL=redis://localhost:6379/0
+FIGURE_AI_QUEUE_BACKEND=database
+FIGURE_AI_QUEUE_NAME=figure-ai
+FIGURE_AI_JOB_TIMEOUT_SECONDS=120
+FIGURE_AI_JOB_MAX_RETRIES=2
+FIGURE_AI_JOB_RETRY_BASE_SECONDS=10
+FIGURE_AI_RATE_LIMIT_PER_MINUTE=20
+```
+
+第一阶段默认仍使用 `FIGURE_AI_QUEUE_BACKEND=database`，避免本地测试依赖 Redis。
+切到 RQ 前需要确认 worker 已启动。
+
 ## 常用命令
 
 ```bash

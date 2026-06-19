@@ -6,10 +6,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from figure_chain.dependencies import get_ai_jobs_service
-from figure_chain.schemas import AiJobCreateRequest, AiJobListResponse, AiJobResponse
+from figure_chain.schemas import (
+    AiJobCancelRequest,
+    AiJobCreateRequest,
+    AiJobEventListResponse,
+    AiJobHealthResponse,
+    AiJobListResponse,
+    AiJobResponse,
+    AiJobRetryRequest,
+)
 from figure_chain.services.ai_jobs import AIJobsService
 
 router = APIRouter(prefix="/api/v1/ai/jobs", tags=["ai-jobs"])
+health_router = APIRouter(prefix="/api/v1/ai", tags=["ai-jobs"])
 
 
 @router.post("", response_model=AiJobResponse)
@@ -28,6 +37,32 @@ def get_ai_job(
     return service.get_job(job_id)
 
 
+@router.get("/{job_id}/events", response_model=AiJobEventListResponse)
+def list_ai_job_events(
+    job_id: UUID,
+    service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
+) -> AiJobEventListResponse:
+    return service.list_job_events(job_id)
+
+
+@router.post("/{job_id}/cancel", response_model=AiJobResponse)
+def cancel_ai_job(
+    job_id: UUID,
+    request: AiJobCancelRequest,
+    service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
+) -> AiJobResponse:
+    return service.cancel_job(job_id, cancelled_by=request.cancelled_by)
+
+
+@router.post("/{job_id}/retry", response_model=AiJobResponse)
+def retry_ai_job(
+    job_id: UUID,
+    request: AiJobRetryRequest,
+    service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
+) -> AiJobResponse:
+    return service.retry_job(job_id, created_by=request.created_by)
+
+
 @router.get("", response_model=AiJobListResponse)
 def list_ai_jobs(
     service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
@@ -42,3 +77,11 @@ def list_ai_jobs(
         target_id=target_id,
         limit=limit,
     )
+
+
+@health_router.get("/health", response_model=AiJobHealthResponse)
+def get_ai_job_health(
+    service: Annotated[AIJobsService, Depends(get_ai_jobs_service)],
+    stale_after_seconds: int = Query(default=300, ge=1, le=86400),
+) -> AiJobHealthResponse:
+    return service.get_queue_health(stale_after_seconds=stale_after_seconds)

@@ -23,6 +23,7 @@ def api_router() -> APIRouter:
     router.include_router(chains.router)
     router.include_router(ai.router)
     router.include_router(ai_jobs.router)
+    router.include_router(ai_jobs.health_router)
     router.include_router(review.router)
     router.include_router(sharing.router)
     router.include_router(sources.router)

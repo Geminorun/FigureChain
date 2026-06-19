@@ -252,10 +252,54 @@ export type AiJobResponse = {
   result_ref_id: string | null;
   error_code: string | null;
   error_message: string | null;
+  queue_backend: string;
+  queue_name: string | null;
+  queue_job_id: string | null;
+  enqueued_at: string | null;
+  attempt_count: number;
+  max_attempts: number;
+  next_run_at: string | null;
+  cancel_requested_at: string | null;
+  worker_id: string | null;
+  heartbeat_at: string | null;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AiJobCancelRequest = {
+  cancelled_by: string;
+};
+
+export type AiJobRetryRequest = {
+  created_by: string;
+};
+
+export type AiJobEvent = {
+  id: string;
+  job_id: string;
+  event_type: string;
+  actor: string;
+  message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type AiJobEventListResponse = {
+  items: AiJobEvent[];
+  count: number;
+};
+
+export type AiJobHealthResponse = {
+  status_counts: Record<string, number>;
+  queued_count: number;
+  running_count: number;
+  succeeded_count: number;
+  failed_count: number;
+  cancelled_count: number;
+  stale_running_count: number;
+  oldest_queued_at: string | null;
 };
 
 export type AiJobListResponse = {

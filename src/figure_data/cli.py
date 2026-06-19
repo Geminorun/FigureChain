@@ -6,6 +6,8 @@ from uuid import UUID
 
 import typer
 from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
+from redis import Redis
+from rq import Queue, Worker
 
 from figure_data.ai.candidate_formatting import (
     format_candidate_suggestion_detail,
@@ -42,10 +44,19 @@ from figure_data.ai.evaluation_scoring import (
 )
 from figure_data.ai.evaluation_types import EvaluationReport
 from figure_data.ai.formatting import format_ai_run_detail
+from figure_data.ai.job_repository import (
+    cancel_queued_job,
+    get_job,
+    list_requeueable_jobs,
+    mark_enqueued,
+    record_job_event,
+    request_running_job_cancel,
+)
 from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
 from figure_data.ai.no_path_service import generate_no_path_exploration
+from figure_data.ai.queue import create_ai_job_queue
 from figure_data.ai.repository import get_ai_run
 from figure_data.ai.retrieval_formatting import (
     format_build_rag_index_result,
@@ -602,6 +613,95 @@ def run_ai_jobs_command(
         _echo_cli_line(
             f"failed_job\t{failure.job_id}\t{failure.error_code}\t{failure.error_message}"
         )
+
+
+@app.command("requeue-ai-jobs")
+def requeue_ai_jobs_command(
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 50,
+) -> None:
+    """List queued AI jobs that can be enqueued by the RQ backend."""
+    settings = load_settings()
+    if settings.ai_queue_backend != "rq":
+        _echo_cli_line("ai_jobs_requeue\tbackend=database\trequeued=0")
+        return
+    queue = create_ai_job_queue(settings)
+    factory = create_session_factory(settings)
+    with session_scope(factory) as session:
+        jobs = list_requeueable_jobs(session, limit=limit)
+        for job in jobs:
+            enqueued = queue.enqueue(
+                job.id,
+                queue_name=settings.ai_queue_name,
+                timeout_seconds=settings.ai_job_timeout_seconds,
+            )
+            if enqueued.queue_job_id is not None:
+                mark_enqueued(
+                    session,
+                    job.id,
+                    queue_backend=enqueued.queue_backend,
+                    queue_name=enqueued.queue_name,
+                    queue_job_id=enqueued.queue_job_id,
+                )
+                record_job_event(
+                    session,
+                    job_id=job.id,
+                    event_type="requeued",
+                    actor="cli",
+                    metadata={
+                        "queue_name": enqueued.queue_name,
+                        "dedupe_job_id": f"figurechain-ai-job:{job.id}",
+                    },
+                )
+    _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")
+
+
+@app.command("cancel-ai-job")
+def cancel_ai_job_command(
+    job_id: Annotated[UUID, typer.Option("--job-id")],
+    cancelled_by: Annotated[str, typer.Option("--cancelled-by")],
+) -> None:
+    """Request cancellation for an AI generation job."""
+    settings = load_settings()
+    factory = create_session_factory(settings)
+    with session_scope(factory) as session:
+        job = get_job(session, job_id)
+        if job is None:
+            typer.echo(f"AI job not found: {job_id}", err=True)
+            raise typer.Exit(code=1)
+        if job.status == "queued":
+            record = cancel_queued_job(session, job_id, cancelled_by=cancelled_by)
+        elif job.status == "running":
+            record = request_running_job_cancel(session, job_id, cancelled_by=cancelled_by)
+        else:
+            record = job
+        record_job_event(
+            session,
+            job_id=job_id,
+            event_type="cancel_requested",
+            actor=cancelled_by,
+            metadata={"previous_status": job.status, "new_status": record.status},
+        )
+    _echo_cli_line(f"ai_job_cancel\t{job_id}\tstatus={record.status}")
+
+
+@app.command("run-ai-worker")
+def run_ai_worker_command(
+    queue_name: Annotated[str | None, typer.Option("--queue")] = None,
+) -> None:
+    """Run an RQ worker for AI generation jobs."""
+    settings = load_settings()
+    if settings.ai_queue_backend != "rq":
+        typer.echo("FIGURE_AI_QUEUE_BACKEND must be 'rq' to run RQ worker", err=True)
+        raise typer.Exit(code=1)
+    if settings.redis_url is None:
+        typer.echo("REDIS_URL is required to run RQ worker", err=True)
+        raise typer.Exit(code=1)
+
+    resolved_queue_name = queue_name or settings.ai_queue_name
+    redis_connection = Redis.from_url(settings.redis_url)
+    queue = Queue(name=resolved_queue_name, connection=redis_connection)
+    worker = Worker([queue], connection=redis_connection)
+    worker.work()
 
 
 @app.command("generate-chain-explanation")

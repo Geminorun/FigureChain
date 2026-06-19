@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from pytest import MonkeyPatch
 
 from figure_data.config import Settings, load_settings
@@ -125,3 +126,32 @@ def test_settings_reads_embedding_environment(monkeypatch: MonkeyPatch) -> None:
     assert settings.embedding_model == "fake-hash-embedding-v2"
     assert settings.embedding_dimensions == 8
     assert settings.embedding_batch_size == 4
+
+
+def test_queue_settings_default_to_database_backend() -> None:
+    settings = Settings(DATABASE_URL="postgresql://user:pass@localhost/db")
+
+    assert settings.redis_url is None
+    assert settings.ai_queue_backend == "database"
+    assert settings.ai_queue_name == "figure-ai"
+    assert settings.ai_job_timeout_seconds == 120
+    assert settings.ai_job_max_retries == 2
+    assert settings.ai_job_retry_base_seconds == 10
+    assert settings.ai_rate_limit_per_minute == 20
+
+
+def test_queue_settings_normalize_blank_redis_url() -> None:
+    settings = Settings(
+        DATABASE_URL="postgresql://user:pass@localhost/db",
+        REDIS_URL="  ",
+    )
+
+    assert settings.redis_url is None
+
+
+def test_queue_backend_rejects_unknown_value() -> None:
+    with pytest.raises(ValueError):
+        Settings(
+            DATABASE_URL="postgresql://user:pass@localhost/db",
+            FIGURE_AI_QUEUE_BACKEND="celery",
+        )
