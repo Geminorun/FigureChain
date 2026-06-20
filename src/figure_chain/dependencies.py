@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from figure_chain.access import OperationContext, OperationRole, require_any_role
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.services.admin import AdminService
+from figure_chain.services.admin_ai_jobs import AdminAIJobsService
 from figure_chain.services.admin_graph import AdminGraphService
 from figure_chain.services.admin_resources import AdminResourcesService
 from figure_chain.services.ai import AIService
@@ -142,6 +143,27 @@ def get_ai_jobs_service(
     queue = None if settings is None else create_ai_job_queue(settings)
     return AIJobsService(
         pg_session,
+        queue=queue,
+        queue_name=getattr(settings, "ai_queue_name", "figure-ai"),
+        job_timeout_seconds=getattr(settings, "ai_job_timeout_seconds", 120),
+    )
+
+
+def get_admin_ai_jobs_service(
+    request: Request,
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> AdminAIJobsService:
+    settings = getattr(request.app.state, "settings", None)
+    queue = None if settings is None else create_ai_job_queue(settings)
+    ai_jobs_service = AIJobsService(
+        pg_session,
+        queue=queue,
+        queue_name=getattr(settings, "ai_queue_name", "figure-ai"),
+        job_timeout_seconds=getattr(settings, "ai_job_timeout_seconds", 120),
+    )
+    return AdminAIJobsService(
+        pg_session,
+        ai_jobs_service=ai_jobs_service,
         queue=queue,
         queue_name=getattr(settings, "ai_queue_name", "figure-ai"),
         job_timeout_seconds=getattr(settings, "ai_job_timeout_seconds", 120),

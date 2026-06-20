@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from figure_chain.routers import (
     admin,
+    admin_ai_jobs,
     admin_graph,
     admin_resources,
     ai,
@@ -25,6 +26,7 @@ def api_router() -> APIRouter:
     router.include_router(admin.router)
     router.include_router(admin_resources.router)
     router.include_router(admin_graph.router)
+    router.include_router(admin_ai_jobs.router)
     router.include_router(people.router)
     router.include_router(encounters.router)
     router.include_router(chains.router)
