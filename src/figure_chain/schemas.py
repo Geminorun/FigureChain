@@ -583,6 +583,35 @@ class ReviewActionResponse(BaseModel):
     message: str | None
 
 
+class AdminReviewActionResponse(BaseModel):
+    operation_id: UUID
+    operation_type: str
+    status: str
+    action: ReviewActionResponse
+    preview: str
+
+
+class AdminEncounterRetractRequest(BaseModel):
+    reviewed_by: str = Field(min_length=1)
+    note: str = Field(min_length=1)
+    force: bool = False
+
+
+class AdminEncounterRetractResultResponse(BaseModel):
+    encounter_id: UUID
+    status: str
+    path_eligible: bool
+    linked_candidates_updated: int
+
+
+class AdminEncounterRetractResponse(BaseModel):
+    operation_id: UUID
+    operation_type: str
+    status: str
+    result: AdminEncounterRetractResultResponse
+    preview: str
+
+
 class ReviewAiSuggestionSummary(BaseModel):
     suggestion_id: UUID | None
     ai_run_id: UUID | None
