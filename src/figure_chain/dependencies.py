@@ -15,6 +15,7 @@ from figure_chain.services.admin import AdminService
 from figure_chain.services.admin_ai_jobs import AdminAIJobsService
 from figure_chain.services.admin_graph import AdminGraphService
 from figure_chain.services.admin_resources import AdminResourcesService
+from figure_chain.services.admin_review import AdminReviewService
 from figure_chain.services.ai import AIService
 from figure_chain.services.ai_jobs import AIJobsService
 from figure_chain.services.chains import ChainService
@@ -195,6 +196,12 @@ def get_admin_graph_service(
         neo4j_session=neo4j_session,
         background_tasks=background_tasks,
     )
+
+
+def get_admin_review_service(
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> AdminReviewService:
+    return AdminReviewService(pg_session)
 
 
 def get_review_service(

@@ -45,6 +45,12 @@ def test_create_app_registers_api_prefix_routes_after_startup() -> None:
     assert "/api/v1/admin/ai/jobs/{job_id}/events" in route_paths
     assert "/api/v1/admin/ai/jobs/{job_id}/cancel" in route_paths
     assert "/api/v1/admin/ai/jobs/{job_id}/retry" in route_paths
+    assert "/api/v1/admin/review/candidates" in route_paths
+    assert "/api/v1/admin/review/candidates/{kind}/{candidate_id}" in route_paths
+    assert "/api/v1/admin/review/candidates/{kind}/{candidate_id}/promote" in route_paths
+    assert "/api/v1/admin/review/candidates/{kind}/{candidate_id}/reject" in route_paths
+    assert "/api/v1/admin/review/candidates/{kind}/{candidate_id}/needs-review" in route_paths
+    assert "/api/v1/admin/review/encounters/{encounter_id}/retract" in route_paths
     assert "/api/v1/review/candidates" in route_paths
     assert "/api/v1/review/candidates/{kind}/{candidate_id}" in route_paths
 

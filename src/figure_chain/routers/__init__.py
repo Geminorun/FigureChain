@@ -7,6 +7,7 @@ from figure_chain.routers import (
     admin_ai_jobs,
     admin_graph,
     admin_resources,
+    admin_review,
     ai,
     ai_jobs,
     chains,
@@ -27,6 +28,7 @@ def api_router() -> APIRouter:
     router.include_router(admin_resources.router)
     router.include_router(admin_graph.router)
     router.include_router(admin_ai_jobs.router)
+    router.include_router(admin_review.router)
     router.include_router(people.router)
     router.include_router(encounters.router)
     router.include_router(chains.router)
