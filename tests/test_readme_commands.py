@@ -109,3 +109,11 @@ def test_readme_documents_stage5e_runtime_commands() -> None:
     assert "uv run --no-sync figure-data validate-encounters" in readme
     assert "uv run --no-sync figure-data sync-graph --rebuild" in readme
     assert "uv run --no-sync figure-data validate-graph" in readme
+
+
+def test_readme_documents_admin_console_entry() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "/admin" in readme
+    assert "admin_operations" in readme
+    assert "本地系统控制台" in readme

@@ -438,6 +438,26 @@ npm run dev
 http://127.0.0.1:3000
 ```
 
+## 本地系统控制台
+
+本地系统控制台入口：
+
+```text
+http://127.0.0.1:3000/admin
+```
+
+第一版后台用于本地单人维护，不是公网管理面板。它会逐步承载资源查询器、图同步、
+AI 任务、候选审核、运行诊断和 `admin_operations` 操作历史。操作历史用于审计本地
+维护动作，不替代 PostgreSQL 中的人物、encounter、AI run 或图同步批次事实记录。
+
+启动方式：
+
+```powershell
+uv run --no-sync figure-data run-api --reload
+cd frontend
+pnpm dev
+```
+
 前端验证：
 
 ```powershell
