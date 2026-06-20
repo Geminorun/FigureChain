@@ -473,6 +473,18 @@ http://127.0.0.1:3000/admin/graph
 `sync-graph --rebuild`、`sync-graph --incremental` 和 `validate-graph`。这些动作通过
 后端 service 执行，不执行浏览器提交的 shell 字符串。
 
+### AI job 控制台
+
+AI job 控制台入口：
+
+```text
+http://127.0.0.1:3000/admin/jobs
+```
+
+该页面可以查看 AI job、事件、队列健康和 worker heartbeat，并执行 cancel、retry 和
+requeue。浏览器不会直接连接 Redis/RQ；所有动作通过 FastAPI service 执行并记录到
+`admin_operations`。
+
 启动方式：
 
 ```powershell
