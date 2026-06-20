@@ -34,6 +34,10 @@ def test_create_app_registers_api_prefix_routes_after_startup() -> None:
     assert "/api/v1/admin/operations/{operation_id}" in route_paths
     assert "/api/v1/admin/resources" in route_paths
     assert "/api/v1/admin/resources/query" in route_paths
+    assert "/api/v1/admin/graph/status" in route_paths
+    assert "/api/v1/admin/graph/validate-encounters" in route_paths
+    assert "/api/v1/admin/graph/sync" in route_paths
+    assert "/api/v1/admin/graph/validate-graph" in route_paths
     assert "/api/v1/review/candidates" in route_paths
     assert "/api/v1/review/candidates/{kind}/{candidate_id}" in route_paths
 

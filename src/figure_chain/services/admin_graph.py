@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
@@ -48,7 +48,7 @@ STALE_RUNNING_OPERATION_MINUTES = 30
 
 
 class BackgroundTaskScheduler(Protocol):
-    def add_task(self, func: object, *args: object, **kwargs: object) -> None: ...
+    def add_task(self, func: Callable[..., Any], *args: object, **kwargs: object) -> None: ...
 
 
 class AdminGraphService:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Annotated, cast
 
-from fastapi import Depends, Request
+from fastapi import BackgroundTasks, Depends, Request
 from neo4j import Driver as Neo4jDriver
 from redis import Redis
 from sqlalchemy import text
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from figure_chain.access import OperationContext, OperationRole, require_any_role
 from figure_chain.errors import ApplicationError, ErrorCode
 from figure_chain.services.admin import AdminService
+from figure_chain.services.admin_graph import AdminGraphService
 from figure_chain.services.admin_resources import AdminResourcesService
 from figure_chain.services.ai import AIService
 from figure_chain.services.ai_jobs import AIJobsService
@@ -157,6 +158,21 @@ def get_admin_resources_service(
     pg_session: Annotated[Session, Depends(get_pg_session)],
 ) -> AdminResourcesService:
     return AdminResourcesService(pg_session)
+
+
+def get_admin_graph_service(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+    neo4j_session: Annotated[object | None, Depends(get_neo4j_session)],
+) -> AdminGraphService:
+    factory = cast(sessionmaker[Session], request.app.state.pg_session_factory)
+    return AdminGraphService(
+        pg_session,
+        session_factory=factory,
+        neo4j_session=neo4j_session,
+        background_tasks=background_tasks,
+    )
 
 
 def get_review_service(
