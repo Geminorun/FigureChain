@@ -1,4 +1,5 @@
 from figure_data.db.models import (
+    admin,
     ai,
     ai_candidate,
     ai_chain,
@@ -17,6 +18,7 @@ from figure_data.db.models import (
 )
 
 __all__ = [
+    "admin",
     "ai",
     "ai_candidate",
     "ai_chain",
