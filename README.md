@@ -485,6 +485,17 @@ http://127.0.0.1:3000/admin/jobs
 requeue。浏览器不会直接连接 Redis/RQ；所有动作通过 FastAPI service 执行并记录到
 `admin_operations`。
 
+### 审核工作台
+
+后台审核工作台入口：
+
+```text
+http://127.0.0.1:3000/admin/review
+```
+
+候选提升、拒绝、标记待复核和 Encounter 撤回都会记录到 `admin_operations`。旧
+`/review` 入口会跳转到 `/admin/review`。
+
 启动方式：
 
 ```powershell
