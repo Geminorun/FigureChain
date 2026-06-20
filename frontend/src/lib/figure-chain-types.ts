@@ -308,6 +308,22 @@ export type AiJobListResponse = {
   limit: number;
 };
 
+export type AdminAIJobListResponse = {
+  items: AiJobResponse[];
+  count: number;
+  limit: number;
+  offset: number;
+};
+
+export type AdminAIJobActionResponse = {
+  operation_id: string;
+  operation_type: string;
+  status: string;
+  job: AiJobResponse | null;
+  result_summary: Record<string, unknown>;
+  preview: string;
+};
+
 export type ShortestChainResponse = {
   status: "found" | "no_path";
   source_person_id: string;
