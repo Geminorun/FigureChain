@@ -80,6 +80,16 @@ class AIJobQueueHealthRecord:
     oldest_queued_at: datetime | None
 
 
+@dataclass(frozen=True)
+class AIJobListFilters:
+    status: str | None = None
+    target_kind: str | None = None
+    target_id: int | None = None
+    queue_backend: str | None = None
+    limit: int = 50
+    offset: int = 0
+
+
 def create_job(session: Session, job: NewAIGenerationJob) -> UUID:
     value = session.execute(
         text(
@@ -165,6 +175,38 @@ def list_jobs_for_target(
                 "target_kind": target_kind,
                 "target_id": target_id,
                 "limit": limit,
+            },
+        )
+        .mappings()
+        .all()
+    )
+    return [_record_from_row(cast(Mapping[str, Any], row)) for row in rows]
+
+
+def list_jobs(session: Session, filters: AIJobListFilters) -> list[AIGenerationJobRecord]:
+    limit = min(max(filters.limit, 1), 100)
+    offset = max(filters.offset, 0)
+    rows = (
+        session.execute(
+            text(
+                f"""
+                select {_select_columns()}
+                from figure_data.ai_generation_jobs
+                where (:status is null or status = :status)
+                  and (:target_kind is null or target_kind = :target_kind)
+                  and (:target_id is null or target_id = :target_id)
+                  and (:queue_backend is null or queue_backend = :queue_backend)
+                order by created_at desc, id
+                limit :limit offset :offset
+                """
+            ),
+            {
+                "status": filters.status,
+                "target_kind": filters.target_kind,
+                "target_id": filters.target_id,
+                "queue_backend": filters.queue_backend,
+                "limit": limit,
+                "offset": offset,
             },
         )
         .mappings()

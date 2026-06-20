@@ -400,6 +400,30 @@ class AiJobHealthResponse(BaseModel):
     oldest_queued_at: datetime | None
 
 
+class AdminAIJobListResponse(BaseModel):
+    items: list[AiJobResponse]
+    count: int
+    limit: int
+    offset: int
+
+
+class AdminAIJobActionRequest(BaseModel):
+    actor: str = Field(default="local", min_length=1, max_length=128)
+
+
+class AdminAIJobsRequeueRequest(AdminAIJobActionRequest):
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class AdminAIJobActionResponse(BaseModel):
+    operation_id: UUID
+    operation_type: str
+    status: str
+    job: AiJobResponse | None = None
+    result_summary: dict[str, object] = Field(default_factory=dict)
+    preview: str
+
+
 class EncounterPersonResponse(BaseModel):
     person_id: str
     cbdb_id: int | None
