@@ -686,3 +686,44 @@ class AdminResourceQueryResponse(BaseModel):
     limit: int
     offset: int
     preview: str
+
+
+class AdminGraphBatchSummaryResponse(BaseModel):
+    id: str
+    mode: str
+    status: str
+    triggered_by: str
+    source_watermark: datetime | None
+    encounters_seen: int
+    relationships_written: int
+    relationships_deleted: int
+    persons_written: int
+    validation_status: str
+    validation_summary: dict[str, object]
+    error_code: str | None
+    error_message: str | None
+    started_at: datetime
+    finished_at: datetime | None
+
+
+class AdminGraphStatusResponse(BaseModel):
+    latest_success: AdminGraphBatchSummaryResponse | None
+    latest_failed: AdminGraphBatchSummaryResponse | None
+    active_encounter_count: int
+    path_eligible_encounter_count: int
+    stale_running_operations: list[AdminOperationDetailResponse]
+
+
+class AdminGraphOperationRequest(BaseModel):
+    actor: str = Field(default="local", min_length=1, max_length=128)
+
+
+class AdminGraphSyncRequest(AdminGraphOperationRequest):
+    mode: Literal["rebuild", "incremental"]
+
+
+class AdminGraphOperationResponse(BaseModel):
+    operation_id: UUID
+    operation_type: str
+    status: str
+    preview: str
