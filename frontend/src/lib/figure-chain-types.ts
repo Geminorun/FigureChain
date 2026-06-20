@@ -568,3 +568,26 @@ export type ReadyResponse = {
   status: "ready" | "not_ready";
   dependencies: Record<string, DependencyStatus>;
 };
+
+export type AdminOperationDetail = {
+  operation_id: string;
+  operation_type: string;
+  actor: string;
+  status: string;
+  request_payload: Record<string, unknown>;
+  result_summary: Record<string, unknown>;
+  error_message: string | null;
+  related_resource_type: string | null;
+  related_resource_id: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminOperationListResponse = {
+  items: AdminOperationDetail[];
+  limit: number;
+  offset: number;
+  count: number;
+};
