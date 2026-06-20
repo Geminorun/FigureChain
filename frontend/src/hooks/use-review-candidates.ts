@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { resolveReviewApiBasePath, type ReviewApiOptions } from "@/hooks/review-api-options";
 import { parseErrorResponse, type DisplayableError } from "@/lib/api-errors";
 import type { ReviewCandidateListResponse } from "@/lib/figure-chain-types";
 
@@ -52,6 +53,7 @@ function buildCandidateQuery(filters: ReviewCandidateFilters): string {
 
 export function useReviewCandidates(
   filters: ReviewCandidateFilters = {},
+  options: ReviewApiOptions = {},
 ): UseReviewCandidatesResult {
   const {
     kind,
@@ -67,17 +69,18 @@ export function useReviewCandidates(
     data: null,
     error: null,
   });
+  const apiBasePath = resolveReviewApiBasePath(options);
   const queryString = useMemo(
     () => buildCandidateQuery({ kind, status, minConfidence, personId, limit, offset }),
     [kind, status, minConfidence, personId, limit, offset],
   );
-  const requestKey = `${queryString}:${refreshToken}`;
+  const requestKey = `${apiBasePath}:${queryString}:${refreshToken}`;
 
   useEffect(() => {
     const controller = new AbortController();
     const path = queryString
-      ? `/api/figure-chain/review/candidates?${queryString}`
-      : "/api/figure-chain/review/candidates";
+      ? `${apiBasePath}/candidates?${queryString}`
+      : `${apiBasePath}/candidates`;
 
     fetch(path, { signal: controller.signal })
       .then(async (response) => {
@@ -103,7 +106,7 @@ export function useReviewCandidates(
       });
 
     return () => controller.abort();
-  }, [queryString, requestKey]);
+  }, [apiBasePath, queryString, requestKey]);
 
   const refresh = useCallback(() => {
     setRefreshToken((value) => value + 1);

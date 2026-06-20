@@ -2,6 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useAiJob } from "@/hooks/use-ai-job";
+import { useAdminReviewActions } from "@/hooks/use-admin-review-actions";
+import { useReviewActions } from "@/hooks/use-review-actions";
 import { useReviewCandidateDetail } from "@/hooks/use-review-candidate-detail";
 import { useReviewCandidates } from "@/hooks/use-review-candidates";
 
@@ -150,6 +152,27 @@ describe("review workspace hooks", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("loads review candidates from a configured admin base path", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ items: [candidateSummary], count: 1, limit: 20, offset: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useReviewCandidates(
+        { kind: "relationship", limit: 20 },
+        { apiBasePath: "/api/figure-chain/admin/review" },
+      ),
+    );
+
+    await flushPromises();
+    expect(result.current.error).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/figure-chain/admin/review/candidates?kind=relationship&limit=20",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
   it("surfaces review candidate load errors", async () => {
     vi.stubGlobal(
       "fetch",
@@ -182,6 +205,110 @@ describe("review workspace hooks", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.detail?.candidate_id).toBe(960664);
+  });
+
+  it("loads review candidate details from a configured admin base path", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(candidateDetail));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useReviewCandidateDetail("relationship", 960664, {
+        apiBasePath: "/api/figure-chain/admin/review",
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/figure-chain/admin/review/candidates/relationship/960664",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("posts review actions to a configured admin base path", async () => {
+    const actionResponse = {
+      operation_id: "operation-1",
+      operation_type: "promote_candidate",
+      status: "succeeded",
+      action: {
+        kind: "relationship",
+        candidate_id: 960664,
+        status: "promoted",
+        reviewed_by: "local",
+        encounter: { encounter_id: "encounter-1", status: "active" },
+        message: null,
+      },
+      preview: "已提升候选 960664",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(actionResponse));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useReviewActions(
+        { kind: "relationship", candidateId: 960664 },
+        { apiBasePath: "/api/figure-chain/admin/review" },
+      ),
+    );
+
+    await act(async () => {
+      const response = await result.current.promote({
+        reviewed_by: "local",
+        evidence_summary: "明确同席",
+      });
+      expect(response).toEqual(actionResponse);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/figure-chain/admin/review/candidates/relationship/960664/promote",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          reviewed_by: "local",
+          evidence_summary: "明确同席",
+        }),
+      }),
+    );
+  });
+
+  it("retracts encounters through the admin review hook", async () => {
+    const retractResponse = {
+      operation_id: "operation-2",
+      operation_type: "retract_encounter",
+      status: "succeeded",
+      result: {
+        encounter_id: "encounter-1",
+        status: "retracted",
+        path_eligible: false,
+        linked_candidates_updated: 1,
+      },
+      preview: "已撤回 encounter-1",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(retractResponse));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useAdminReviewActions({ kind: "relationship", candidateId: 960664 }),
+    );
+
+    await act(async () => {
+      const response = await result.current.retractEncounter("encounter/1", {
+        reviewed_by: "local",
+        note: "证据不足",
+        force: false,
+      });
+      expect(response).toEqual(retractResponse);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/figure-chain/admin/review/encounters/encounter%2F1/retract",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          reviewed_by: "local",
+          note: "证据不足",
+          force: false,
+        }),
+      }),
+    );
   });
 
   it("creates AI jobs, polls active jobs, and stops after terminal status", async () => {

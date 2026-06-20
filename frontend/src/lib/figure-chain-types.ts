@@ -596,6 +596,12 @@ export type AdminEncounterRetractResponse = {
   preview: string;
 };
 
+export type AdminEncounterRetractRequest = {
+  reviewed_by: string;
+  note: string;
+  force?: boolean;
+};
+
 export type DependencyStatus = {
   status: "ok" | "error";
   message?: string | null;

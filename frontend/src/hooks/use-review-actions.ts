@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 
+import { resolveReviewApiBasePath, type ReviewApiOptions } from "@/hooks/review-api-options";
 import { parseErrorResponse, type DisplayableError } from "@/lib/api-errors";
 import type { ReviewActionRequest, ReviewActionResponse } from "@/lib/figure-chain-types";
 
@@ -10,23 +11,27 @@ type ReviewActionTarget = {
   candidateId: number;
 } | null;
 
-export type UseReviewActionsResult = {
+export type UseReviewActionsResult<TActionResponse = ReviewActionResponse> = {
   error: DisplayableError | null;
   isSubmitting: boolean;
-  markNeedsReview: (request: ReviewActionRequest) => Promise<ReviewActionResponse | null>;
-  promote: (request: ReviewActionRequest) => Promise<ReviewActionResponse | null>;
-  reject: (request: ReviewActionRequest) => Promise<ReviewActionResponse | null>;
+  markNeedsReview: (request: ReviewActionRequest) => Promise<TActionResponse | null>;
+  promote: (request: ReviewActionRequest) => Promise<TActionResponse | null>;
+  reject: (request: ReviewActionRequest) => Promise<TActionResponse | null>;
 };
 
-export function useReviewActions(target: ReviewActionTarget): UseReviewActionsResult {
+export function useReviewActions<TActionResponse = ReviewActionResponse>(
+  target: ReviewActionTarget,
+  options: ReviewApiOptions = {},
+): UseReviewActionsResult<TActionResponse> {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<DisplayableError | null>(null);
+  const apiBasePath = resolveReviewApiBasePath(options);
 
   const postAction = useCallback(
     async (
       action: "promote" | "reject" | "needs-review",
       request: ReviewActionRequest,
-    ): Promise<ReviewActionResponse | null> => {
+    ): Promise<TActionResponse | null> => {
       if (target === null) {
         return null;
       }
@@ -34,7 +39,7 @@ export function useReviewActions(target: ReviewActionTarget): UseReviewActionsRe
       setError(null);
       try {
         const response = await fetch(
-          `/api/figure-chain/review/candidates/${encodeURIComponent(target.kind)}/${encodeURIComponent(String(target.candidateId))}/${action}`,
+          `${apiBasePath}/candidates/${encodeURIComponent(target.kind)}/${encodeURIComponent(String(target.candidateId))}/${action}`,
           {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -45,7 +50,7 @@ export function useReviewActions(target: ReviewActionTarget): UseReviewActionsRe
         if (!response.ok) {
           throw parseErrorResponse(body);
         }
-        return body as ReviewActionResponse;
+        return body as TActionResponse;
       } catch (caught: unknown) {
         const parsed = parseErrorResponse(caught);
         setError(parsed);
@@ -54,7 +59,7 @@ export function useReviewActions(target: ReviewActionTarget): UseReviewActionsRe
         setIsSubmitting(false);
       }
     },
-    [target],
+    [apiBasePath, target],
   );
 
   return {

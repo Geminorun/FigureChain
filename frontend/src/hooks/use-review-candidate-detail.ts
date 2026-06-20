@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { resolveReviewApiBasePath, type ReviewApiOptions } from "@/hooks/review-api-options";
 import { parseErrorResponse, type DisplayableError } from "@/lib/api-errors";
 import type { ReviewCandidateDetail } from "@/lib/figure-chain-types";
 
@@ -21,6 +22,7 @@ export type UseReviewCandidateDetailResult = {
 export function useReviewCandidateDetail(
   kind: string | null,
   candidateId: number | string | null,
+  options: ReviewApiOptions = {},
 ): UseReviewCandidateDetailResult {
   const [refreshToken, setRefreshToken] = useState(0);
   const [state, setState] = useState<ReviewCandidateDetailState>({
@@ -28,10 +30,11 @@ export function useReviewCandidateDetail(
     detail: null,
     error: null,
   });
+  const apiBasePath = resolveReviewApiBasePath(options);
   const requestKey =
     !kind || candidateId === null
       ? null
-      : `${kind}:${String(candidateId)}:${refreshToken}`;
+      : `${apiBasePath}:${kind}:${String(candidateId)}:${refreshToken}`;
 
   useEffect(() => {
     if (requestKey === null || !kind || candidateId === null) {
@@ -41,7 +44,7 @@ export function useReviewCandidateDetail(
     const controller = new AbortController();
 
     fetch(
-      `/api/figure-chain/review/candidates/${encodeURIComponent(kind)}/${encodeURIComponent(String(candidateId))}`,
+      `${apiBasePath}/candidates/${encodeURIComponent(kind)}/${encodeURIComponent(String(candidateId))}`,
       { signal: controller.signal },
     )
       .then(async (response) => {
@@ -67,7 +70,7 @@ export function useReviewCandidateDetail(
       });
 
     return () => controller.abort();
-  }, [candidateId, kind, requestKey]);
+  }, [apiBasePath, candidateId, kind, requestKey]);
 
   const refresh = useCallback(() => {
     setRefreshToken((value) => value + 1);
