@@ -450,6 +450,17 @@ http://127.0.0.1:3000/admin
 AI 任务、候选审核、运行诊断和 `admin_operations` 操作历史。操作历史用于审计本地
 维护动作，不替代 PostgreSQL 中的人物、encounter、AI run 或图同步批次事实记录。
 
+### 资源查询器
+
+后台资源查询器入口：
+
+```text
+http://127.0.0.1:3000/admin/data
+```
+
+资源查询器只允许查询后端白名单资源，不接受任意 SQL。第一批资源包括候选关系、
+Encounter、证据、人物、来源、AI job、graph projection batch 和后台操作历史。
+
 启动方式：
 
 ```powershell
