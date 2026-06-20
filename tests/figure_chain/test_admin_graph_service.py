@@ -23,11 +23,22 @@ NOW = datetime(2026, 6, 20, 12, 0, tzinfo=UTC)
 
 
 class FakeBackgroundTasks:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str] | None = None) -> None:
         self.calls: list[tuple[object, tuple[object, ...], dict[str, object]]] = []
+        self._events = events
 
     def add_task(self, func: object, *args: object, **kwargs: object) -> None:
+        if self._events is not None:
+            self._events.append("add_task")
         self.calls.append((func, args, kwargs))
+
+
+class CommitTrackingSession:
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    def commit(self) -> None:
+        self.events.append("commit")
 
 
 def batch(batch_id: str, status: str) -> GraphProjectionBatchRecord:
@@ -99,15 +110,16 @@ def test_graph_status_includes_latest_batches_and_stale_operations() -> None:
 
 
 def test_validate_encounters_creates_operation_and_background_task() -> None:
-    background_tasks = FakeBackgroundTasks()
     created: list[AdminOperationCreate] = []
+    session = CommitTrackingSession()
+    background_tasks = FakeBackgroundTasks(session.events)
 
     def create_operation(session: object, operation: AdminOperationCreate) -> AdminOperationRecord:
         created.append(operation)
         return operation_record(operation_type=operation.operation_type)
 
     service = AdminGraphService(
-        cast(Session, object()),
+        cast(Session, session),
         session_factory=cast(sessionmaker[Session], object()),
         neo4j_session=object(),
         background_tasks=background_tasks,
@@ -124,6 +136,7 @@ def test_validate_encounters_creates_operation_and_background_task() -> None:
     assert response.operation_id == OPERATION_ID
     assert response.preview == "figure-data validate-encounters"
     assert len(background_tasks.calls) == 1
+    assert session.events == ["commit", "add_task"]
 
 
 def test_sync_graph_rebuild_creates_operation_with_cli_preview() -> None:

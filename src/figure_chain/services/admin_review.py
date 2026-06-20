@@ -164,6 +164,7 @@ class AdminReviewService:
             related_resource_type="encounter",
             related_resource_id=str(encounter_id),
         )
+        _commit_if_supported(self._session)
         preview = (
             f"figure-data retract-encounter --encounter-id {encounter_id} "
             f"--reviewed-by {reviewed_by}"
@@ -198,7 +199,9 @@ class AdminReviewService:
                 preview=preview,
             )
         except Exception as exc:
+            _rollback_if_supported(self._session)
             self._finish_failed_operation(operation.id, exc)
+            _commit_if_supported(self._session)
             raise
 
     def _candidate_action(
@@ -219,6 +222,7 @@ class AdminReviewService:
             related_resource_type="candidate",
             related_resource_id=f"{kind}:{candidate_id}",
         )
+        _commit_if_supported(self._session)
         try:
             result = action()
             summary = {
@@ -245,7 +249,9 @@ class AdminReviewService:
                 preview=preview,
             )
         except Exception as exc:
+            _rollback_if_supported(self._session)
             self._finish_failed_operation(operation.id, exc)
+            _commit_if_supported(self._session)
             raise
 
     def _create_operation(
@@ -291,3 +297,15 @@ class AdminReviewService:
                 error_message=redact_sensitive_text(str(exc)),
             ),
         )
+
+
+def _commit_if_supported(session: Session) -> None:
+    commit = getattr(session, "commit", None)
+    if callable(commit):
+        commit()
+
+
+def _rollback_if_supported(session: Session) -> None:
+    rollback = getattr(session, "rollback", None)
+    if callable(rollback):
+        rollback()

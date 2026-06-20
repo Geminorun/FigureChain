@@ -86,6 +86,17 @@ class FakeReviewService:
         return _action(kind=kind, candidate_id=candidate_id, status="needs_review")
 
 
+class TransactionTrackingSession:
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    def commit(self) -> None:
+        self.events.append("commit")
+
+    def rollback(self) -> None:
+        self.events.append("rollback")
+
+
 def test_admin_review_service_lists_candidates_through_review_service() -> None:
     review_service = FakeReviewService()
     service = _service(review_service=review_service)
@@ -209,10 +220,12 @@ def test_admin_review_service_records_retract_operation() -> None:
 def test_admin_review_service_marks_operation_failed_when_action_fails() -> None:
     created: list[AdminOperationCreate] = []
     finished: list[AdminOperationUpdate] = []
+    session = TransactionTrackingSession()
     service = _service(
         review_service=FakeReviewService(fail_action=True),
         created=created,
         finished=finished,
+        session=session,
     )
 
     with pytest.raises(ApplicationError):
@@ -225,6 +238,7 @@ def test_admin_review_service_marks_operation_failed_when_action_fails() -> None
     assert created[0].operation_type == "promote_candidate"
     assert finished[0].status == "failed"
     assert finished[0].error_message == "promotion failed"
+    assert session.events == ["commit", "rollback", "commit"]
 
 
 def _service(
@@ -233,6 +247,7 @@ def _service(
     created: list[AdminOperationCreate] | None = None,
     finished: list[AdminOperationUpdate] | None = None,
     retract_encounter_fn: Any | None = None,
+    session: object | None = None,
 ) -> AdminReviewService:
     created = created if created is not None else []
     finished = finished if finished is not None else []
@@ -256,7 +271,7 @@ def _service(
         return _operation("finished", status=update.status, result_summary=update.result_summary)
 
     return AdminReviewService(
-        cast(Session, object()),
+        cast(Session, session or object()),
         review_service=review_service,
         create_operation_fn=create_operation,
         mark_operation_finished_fn=mark_finished,

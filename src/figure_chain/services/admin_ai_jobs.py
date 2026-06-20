@@ -121,6 +121,7 @@ class AdminAIJobsService:
             request_payload={"job_id": str(job_id), "actor": request.actor},
             related_resource_id=str(job_id),
         )
+        _commit_if_supported(self._session)
         preview = f"figure-data cancel-ai-job --job-id {job_id} --cancelled-by {request.actor}"
         try:
             job = self._ai_jobs_service.cancel_job(job_id, cancelled_by=request.actor)
@@ -135,7 +136,9 @@ class AdminAIJobsService:
                 preview=preview,
             )
         except Exception as exc:
+            _rollback_if_supported(self._session)
             self._finish_failed_operation(operation.id, exc)
+            _commit_if_supported(self._session)
             raise _application_error(exc) from exc
 
     def retry_job(
@@ -149,6 +152,7 @@ class AdminAIJobsService:
             request_payload={"job_id": str(job_id), "actor": request.actor},
             related_resource_id=str(job_id),
         )
+        _commit_if_supported(self._session)
         preview = f"figure-data retry-ai-job --job-id {job_id} --created-by {request.actor}"
         try:
             job = self._ai_jobs_service.retry_job(job_id, created_by=request.actor)
@@ -167,7 +171,9 @@ class AdminAIJobsService:
                 preview=preview,
             )
         except Exception as exc:
+            _rollback_if_supported(self._session)
             self._finish_failed_operation(operation.id, exc)
+            _commit_if_supported(self._session)
             raise _application_error(exc) from exc
 
     def requeue_jobs(self, request: AdminAIJobsRequeueRequest) -> AdminAIJobActionResponse:
@@ -178,6 +184,7 @@ class AdminAIJobsService:
             related_resource_type="ai_generation_jobs",
             related_resource_id=None,
         )
+        _commit_if_supported(self._session)
         preview = f"figure-data requeue-ai-jobs --limit {request.limit}"
         try:
             if self._queue is None:
@@ -204,7 +211,9 @@ class AdminAIJobsService:
                 preview=preview,
             )
         except Exception as exc:
+            _rollback_if_supported(self._session)
             self._finish_failed_operation(operation.id, exc)
+            _commit_if_supported(self._session)
             raise _application_error(exc) from exc
 
     def _create_operation(
@@ -299,3 +308,15 @@ def _application_error(exc: Exception) -> ApplicationError:
         message="admin AI job action failed",
         details={"error": redact_sensitive_text(str(exc))},
     )
+
+
+def _commit_if_supported(session: Session) -> None:
+    commit = getattr(session, "commit", None)
+    if callable(commit):
+        commit()
+
+
+def _rollback_if_supported(session: Session) -> None:
+    rollback = getattr(session, "rollback", None)
+    if callable(rollback):
+        rollback()

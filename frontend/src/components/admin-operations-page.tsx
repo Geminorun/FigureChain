@@ -1,14 +1,17 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { ErrorCallout } from "@/components/error-callout";
 import {
+  useAdminOperationDetail,
   type AdminOperationFilters,
   useAdminOperations,
 } from "@/hooks/use-admin-operations";
+import type { AdminOperationDetail } from "@/lib/figure-chain-types";
 
 const DEFAULT_FILTERS: AdminOperationFilters = {
   limit: 50,
@@ -41,9 +44,12 @@ function formatDateTime(value: string | null): string {
 }
 
 export function AdminOperationsPage() {
+  const searchParams = useSearchParams();
+  const operationId = searchParams.get("operation_id");
   const [filters] = useState<AdminOperationFilters>(DEFAULT_FILTERS);
   const stableFilters = useMemo(() => filters, [filters]);
   const { data, error, isLoading, refresh } = useAdminOperations(stableFilters);
+  const detail = useAdminOperationDetail(operationId);
 
   return (
     <section className="space-y-4">
@@ -69,6 +75,15 @@ export function AdminOperationsPage() {
       </div>
 
       {error ? <ErrorCallout error={error} /> : null}
+      {detail.error ? <ErrorCallout error={detail.error} /> : null}
+
+      {operationId ? (
+        <OperationDetailCard
+          isLoading={detail.isLoading}
+          operation={detail.data}
+          operationId={operationId}
+        />
+      ) : null}
 
       {isLoading && !data ? (
         <p className="rounded border border-stone-200 bg-white p-4 text-sm text-stone-600">
@@ -135,5 +150,58 @@ export function AdminOperationsPage() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function OperationDetailCard({
+  isLoading,
+  operation,
+  operationId,
+}: {
+  isLoading: boolean;
+  operation: AdminOperationDetail | null;
+  operationId: string;
+}) {
+  return (
+    <section className="rounded border border-amber-200 bg-amber-50 p-4 text-sm">
+      <p className="font-medium text-amber-900">当前定位操作</p>
+      {isLoading ? (
+        <p className="mt-2 text-amber-800">正在加载 {operationId}...</p>
+      ) : null}
+      {!isLoading && operation === null ? (
+        <p className="mt-2 text-amber-800">未能加载 {operationId}</p>
+      ) : null}
+      {!isLoading && operation ? (
+        <div className="mt-3 grid gap-2 text-stone-800 md:grid-cols-2">
+          <DetailLine label="operation_id" value={operation.operation_id} />
+          <DetailLine label="operation_type" value={operation.operation_type} />
+          <DetailLine label="status" value={operation.status} />
+          <DetailLine label="actor" value={operation.actor} />
+          <DetailLine
+            label="related"
+            value={formatRelatedResource(
+              operation.related_resource_type,
+              operation.related_resource_id,
+            )}
+          />
+          <DetailLine label="updated_at" value={formatDateTime(operation.updated_at)} />
+          <div className="md:col-span-2">
+            <p className="text-xs font-medium uppercase text-stone-500">结果</p>
+            <code className="mt-1 block whitespace-pre-wrap break-words rounded bg-white/70 p-2 text-xs text-stone-800">
+              {operation.error_message ?? formatJson(operation.result_summary)}
+            </code>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DetailLine({ label, value }: { label: string; value: string }) {
+  return (
+    <p>
+      <span className="text-xs font-medium uppercase text-stone-500">{label}</span>
+      <span className="mt-1 block break-words text-stone-900">{value}</span>
+    </p>
   );
 }

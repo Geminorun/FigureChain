@@ -4,8 +4,10 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy.orm import Session
 
+from figure_chain.errors import ApplicationError
 from figure_chain.schemas import (
     AdminAIJobActionRequest,
     AdminAIJobsRequeueRequest,
@@ -30,7 +32,8 @@ OPERATION_ID = UUID("00000000-0000-0000-0000-000000000901")
 
 
 class FakeAIJobsService:
-    def __init__(self) -> None:
+    def __init__(self, *, fail_cancel: bool = False) -> None:
+        self.fail_cancel = fail_cancel
         self.cancelled: list[tuple[UUID, str]] = []
         self.retried: list[tuple[UUID, str]] = []
         self.events = AiJobEventListResponse(
@@ -65,6 +68,8 @@ class FakeAIJobsService:
         return self.events
 
     def cancel_job(self, job_id: UUID, *, cancelled_by: str) -> AiJobResponse:
+        if self.fail_cancel:
+            raise RuntimeError("cancel failed")
         self.cancelled.append((job_id, cancelled_by))
         return _job_response(id=job_id, status="cancelled")
 
@@ -139,6 +144,26 @@ def test_admin_ai_jobs_service_records_cancel_operation() -> None:
     )
 
 
+def test_admin_ai_jobs_service_persists_failed_cancel_operation() -> None:
+    created: list[AdminOperationCreate] = []
+    finished: list[AdminOperationUpdate] = []
+    session = TransactionTrackingSession()
+    service = _service(
+        fake_ai_jobs=FakeAIJobsService(fail_cancel=True),
+        created=created,
+        finished=finished,
+        session=session,
+    )
+
+    with pytest.raises(ApplicationError):
+        service.cancel_job(JOB_ID, AdminAIJobActionRequest(actor="operator"))
+
+    assert created[0].operation_type == "cancel_ai_job"
+    assert finished[0].status == "failed"
+    assert finished[0].error_message == "cancel failed"
+    assert session.events == ["commit", "rollback", "commit"]
+
+
 def test_admin_ai_jobs_service_records_retry_operation() -> None:
     fake_ai_jobs = FakeAIJobsService()
     created: list[AdminOperationCreate] = []
@@ -200,6 +225,7 @@ def _service(
     created: list[AdminOperationCreate],
     finished: list[AdminOperationUpdate],
     requeue_fn: Any | None = None,
+    session: object | None = None,
 ) -> AdminAIJobsService:
     def create_operation(
         session: Session,
@@ -217,13 +243,24 @@ def _service(
         return _operation("finished", status=update.status, result_summary=update.result_summary)
 
     return AdminAIJobsService(
-        cast(Session, object()),
+        cast(Session, session or object()),
         ai_jobs_service=fake_ai_jobs or FakeAIJobsService(),
         queue=cast(AIJobQueue, object()),
         create_operation_fn=create_operation,
         mark_operation_finished_fn=mark_finished,
         requeue_fn=requeue_fn,
     )
+
+
+class TransactionTrackingSession:
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    def commit(self) -> None:
+        self.events.append("commit")
+
+    def rollback(self) -> None:
+        self.events.append("rollback")
 
 
 def _job_response(*, id: UUID, status: str = "queued") -> AiJobResponse:

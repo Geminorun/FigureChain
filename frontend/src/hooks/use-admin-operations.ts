@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { parseErrorResponse, type DisplayableError } from "@/lib/api-errors";
-import type { AdminOperationListResponse } from "@/lib/figure-chain-types";
+import type {
+  AdminOperationDetail,
+  AdminOperationListResponse,
+} from "@/lib/figure-chain-types";
 
 export type AdminOperationFilters = {
   status?: string;
@@ -83,6 +86,85 @@ export function useAdminOperations(filters: AdminOperationFilters) {
       cancelled = true;
     };
   }, [filters, requestKey]);
+
+  return { data, error, isLoading, refresh };
+}
+
+export function useAdminOperationDetail(operationId: string | null) {
+  const [data, setData] = useState<AdminOperationDetail | null>(null);
+  const [error, setError] = useState<DisplayableError | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!operationId) {
+      setData(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/figure-chain/admin/operations/${encodeURIComponent(operationId)}`,
+      );
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        throw body;
+      }
+      setData(body as AdminOperationDetail);
+    } catch (caught) {
+      setError(parseErrorResponse(caught));
+      setData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [operationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOperation() {
+      if (!operationId) {
+        setData(null);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          `/api/figure-chain/admin/operations/${encodeURIComponent(operationId)}`,
+        );
+        const body: unknown = await response.json();
+        if (!response.ok) {
+          throw body;
+        }
+        if (!cancelled) {
+          setData(body as AdminOperationDetail);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setError(parseErrorResponse(caught));
+          setData(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadOperation();
+    return () => {
+      cancelled = true;
+    };
+  }, [operationId]);
+
+  const refresh = useCallback(async () => {
+    await load();
+  }, [load]);
 
   return { data, error, isLoading, refresh };
 }

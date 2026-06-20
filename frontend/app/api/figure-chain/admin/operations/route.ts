@@ -1,6 +1,11 @@
 import { buildForwardPath } from "../../_proxy";
 import { forwardToFigureChain } from "@/lib/api-client";
 
+const ADMIN_HEADERS = {
+  "x-figure-role": "operator",
+  "x-figure-actor": "local",
+};
+
 const ADMIN_OPERATION_QUERY_KEYS = [
   "status",
   "operation_type",
@@ -17,5 +22,6 @@ export async function GET(request: Request): Promise<Response> {
       url.searchParams,
       ADMIN_OPERATION_QUERY_KEYS,
     ),
+    { headers: ADMIN_HEADERS },
   );
 }

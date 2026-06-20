@@ -179,6 +179,7 @@ class AdminGraphService:
                 related_resource_type=related_resource_type,
             ),
         )
+        _commit_if_supported(self._session)
         self._background_tasks.add_task(
             run_admin_operation,
             session_factory=self._session_factory,
@@ -314,3 +315,9 @@ def _projection_summary(stats: ProjectionStats | IncrementalProjectionStats) -> 
         if hasattr(stats, key):
             summary[key] = getattr(stats, key)
     return summary
+
+
+def _commit_if_supported(session: Session) -> None:
+    commit = getattr(session, "commit", None)
+    if callable(commit):
+        commit()
