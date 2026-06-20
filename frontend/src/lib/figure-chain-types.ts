@@ -575,6 +575,27 @@ export type ReviewActionResponse = {
   message: string | null;
 };
 
+export type AdminReviewActionResponse = {
+  operation_id: string;
+  operation_type: string;
+  status: string;
+  action: ReviewActionResponse;
+  preview: string;
+};
+
+export type AdminEncounterRetractResponse = {
+  operation_id: string;
+  operation_type: string;
+  status: string;
+  result: {
+    encounter_id: string;
+    status: string;
+    path_eligible: boolean;
+    linked_candidates_updated: number;
+  };
+  preview: string;
+};
+
 export type DependencyStatus = {
   status: "ok" | "error";
   message?: string | null;
