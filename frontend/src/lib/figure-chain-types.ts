@@ -641,3 +641,36 @@ export type AdminResourceQueryResponse = {
   offset: number;
   preview: string;
 };
+
+export type AdminGraphBatchSummary = {
+  id: string;
+  mode: string;
+  status: string;
+  triggered_by: string;
+  source_watermark: string | null;
+  encounters_seen: number;
+  relationships_written: number;
+  relationships_deleted: number;
+  persons_written: number;
+  validation_status: string;
+  validation_summary: Record<string, unknown>;
+  error_code: string | null;
+  error_message: string | null;
+  started_at: string;
+  finished_at: string | null;
+};
+
+export type AdminGraphStatusResponse = {
+  latest_success: AdminGraphBatchSummary | null;
+  latest_failed: AdminGraphBatchSummary | null;
+  active_encounter_count: number;
+  path_eligible_encounter_count: number;
+  stale_running_operations: AdminOperationDetail[];
+};
+
+export type AdminGraphOperationResponse = {
+  operation_id: string;
+  operation_type: string;
+  status: string;
+  preview: string;
+};
