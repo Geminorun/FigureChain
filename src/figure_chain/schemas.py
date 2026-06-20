@@ -636,3 +636,53 @@ class AdminOperationListResponse(BaseModel):
     limit: int
     offset: int
     count: int
+
+
+class AdminResourceColumnResponse(BaseModel):
+    key: str
+    label: str
+    type: str
+    operators: list[str]
+    selectable: bool
+    filterable: bool
+    sortable: bool
+    default_selected: bool
+    link: str | None
+
+
+class AdminResourceResponse(BaseModel):
+    name: str
+    label: str
+    primary_key: str
+    default_order_by: str
+    default_order_direction: str
+    columns: list[AdminResourceColumnResponse]
+
+
+class AdminResourceListResponse(BaseModel):
+    resources: list[AdminResourceResponse]
+
+
+class AdminResourceFilterRequest(BaseModel):
+    field: str
+    operator: str
+    value: object | None = None
+
+
+class AdminResourceQueryRequest(BaseModel):
+    resource: str
+    select: list[str] = Field(default_factory=list)
+    filters: list[AdminResourceFilterRequest] = Field(default_factory=list)
+    order_by: str | None = None
+    order_direction: Literal["asc", "desc"] = "asc"
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+
+
+class AdminResourceQueryResponse(BaseModel):
+    resource: str
+    columns: list[AdminResourceColumnResponse]
+    rows: list[dict[str, object]]
+    limit: int
+    offset: int
+    preview: str
