@@ -461,6 +461,18 @@ http://127.0.0.1:3000/admin/data
 资源查询器只允许查询后端白名单资源，不接受任意 SQL。第一批资源包括候选关系、
 Encounter、证据、人物、来源、AI job、graph projection batch 和后台操作历史。
 
+### 图同步控制台
+
+图同步控制台入口：
+
+```text
+http://127.0.0.1:3000/admin/graph
+```
+
+该页面可以查看最新 graph projection batch、执行 `validate-encounters`、
+`sync-graph --rebuild`、`sync-graph --incremental` 和 `validate-graph`。这些动作通过
+后端 service 执行，不执行浏览器提交的 shell 字符串。
+
 启动方式：
 
 ```powershell
