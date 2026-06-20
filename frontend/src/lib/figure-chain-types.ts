@@ -591,3 +591,53 @@ export type AdminOperationListResponse = {
   offset: number;
   count: number;
 };
+
+export type AdminResourceColumn = {
+  key: string;
+  label: string;
+  type: string;
+  operators: string[];
+  selectable: boolean;
+  filterable: boolean;
+  sortable: boolean;
+  default_selected: boolean;
+  link: string | null;
+};
+
+export type AdminResource = {
+  name: string;
+  label: string;
+  primary_key: string;
+  default_order_by: string;
+  default_order_direction: "asc" | "desc";
+  columns: AdminResourceColumn[];
+};
+
+export type AdminResourceListResponse = {
+  resources: AdminResource[];
+};
+
+export type AdminResourceFilterRequest = {
+  field: string;
+  operator: string;
+  value: unknown;
+};
+
+export type AdminResourceQueryRequest = {
+  resource: string;
+  select: string[];
+  filters: AdminResourceFilterRequest[];
+  order_by: string | null;
+  order_direction: "asc" | "desc";
+  limit: number;
+  offset: number;
+};
+
+export type AdminResourceQueryResponse = {
+  resource: string;
+  columns: AdminResourceColumn[];
+  rows: Record<string, unknown>[];
+  limit: number;
+  offset: number;
+  preview: string;
+};
