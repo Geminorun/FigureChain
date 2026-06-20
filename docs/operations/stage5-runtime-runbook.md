@@ -12,6 +12,8 @@
 
 4. Apply migrations and run validation commands.
 
+5. Start local services in separate terminals.
+
 ## 数据库迁移
 
 ```powershell
@@ -31,6 +33,27 @@ uv run --no-sync figure-data validate-graph
 ```powershell
 uv run --no-sync figure-data sync-graph --incremental
 uv run --no-sync figure-data validate-graph
+```
+
+## 本地服务启动
+
+后端 API：
+
+```powershell
+uv run --no-sync figure-data run-api
+```
+
+RQ worker（仅当 `.env` 设置 `FIGURE_AI_QUEUE_BACKEND=rq` 时需要）：
+
+```powershell
+uv run --no-sync figure-data run-worker
+```
+
+前端：
+
+```powershell
+cd frontend
+npm run dev
 ```
 
 ## 图校验失败处理

@@ -51,6 +51,13 @@ def test_run_ai_worker_help() -> None:
     assert "--queue" in result.stdout
 
 
+def test_run_worker_alias_help() -> None:
+    result = runner.invoke(app, ["run-worker", "--help"])
+
+    assert result.exit_code == 0
+    assert "--queue" in result.stdout
+
+
 def test_cancel_ai_job_help() -> None:
     result = runner.invoke(app, ["cancel-ai-job", "--help"])
 

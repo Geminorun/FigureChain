@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 import typer
+import uvicorn
 from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 from redis import Redis
 from rq import Queue, Worker
@@ -818,6 +819,23 @@ def cancel_ai_job_command(
     _echo_cli_line(f"ai_job_cancel\t{job_id}\tstatus={record.status}")
 
 
+@app.command("run-api")
+def run_api_command(
+    host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", min=1, max=65535)] = 8000,
+    reload: Annotated[bool, typer.Option("--reload")] = False,
+) -> None:
+    """Run the FigureChain FastAPI application."""
+    uvicorn.run(
+        "figure_chain.app:create_app",
+        factory=True,
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
+@app.command("run-worker")
 @app.command("run-ai-worker")
 def run_ai_worker_command(
     queue_name: Annotated[str | None, typer.Option("--queue")] = None,

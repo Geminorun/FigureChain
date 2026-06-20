@@ -29,6 +29,7 @@ def test_readme_mentions_graph_commands() -> None:
 def test_readme_documents_fastapi_commands() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
+    assert "uv run --no-sync figure-data run-api" in readme
     assert "uvicorn figure_chain.app:create_app --factory" in readme
     assert "GET /health/live" in readme
     assert "POST /api/v1/chains/shortest" in readme
@@ -102,6 +103,8 @@ def test_readme_documents_stage5e_runtime_commands() -> None:
 
     assert "docker compose up -d neo4j redis" in readme
     assert "uv run --no-sync alembic upgrade head" in readme
+    assert "uv run --no-sync figure-data run-api" in readme
+    assert "uv run --no-sync figure-data run-worker" in readme
     assert "uv run --no-sync figure-data doctor" in readme
     assert "uv run --no-sync figure-data validate-encounters" in readme
     assert "uv run --no-sync figure-data sync-graph --rebuild" in readme
