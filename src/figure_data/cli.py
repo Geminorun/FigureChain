@@ -49,8 +49,6 @@ from figure_data.ai.formatting import format_ai_run_detail
 from figure_data.ai.job_repository import (
     cancel_queued_job,
     get_job,
-    list_requeueable_jobs,
-    mark_enqueued,
     record_job_event,
     request_running_job_cancel,
 )
@@ -58,13 +56,14 @@ from figure_data.ai.job_runner import run_ai_jobs
 from figure_data.ai.no_path_context import InvalidNoPathContextError
 from figure_data.ai.no_path_formatting import format_no_path_exploration_result
 from figure_data.ai.no_path_service import generate_no_path_exploration
-from figure_data.ai.queue import create_ai_job_queue, rq_job_id
+from figure_data.ai.queue import create_ai_job_queue
 from figure_data.ai.real_provider_evaluation import (
     load_stage5d_evaluation_fixture,
     run_stage5d_evaluation,
 )
 from figure_data.ai.real_provider_reporting import write_stage5d_evaluation_report
 from figure_data.ai.repository import get_ai_run
+from figure_data.ai.requeue import requeue_ai_jobs
 from figure_data.ai.retrieval_formatting import (
     format_build_rag_index_result,
     format_search_rag_evidence_result,
@@ -757,37 +756,27 @@ def requeue_ai_jobs_command(
     """List queued AI jobs that can be enqueued by the RQ backend."""
     settings = load_settings()
     if settings.ai_queue_backend != "rq":
-        _echo_cli_line("ai_jobs_requeue\tbackend=database\trequeued=0")
+        _echo_cli_line("ai_jobs_requeue\tbackend=database\tscanned=0\tenqueued=0\tfailed=0\tjob_ids=")
         return
     queue = create_ai_job_queue(settings)
     factory = create_session_factory(settings)
     with session_scope(factory) as session:
-        jobs = list_requeueable_jobs(session, limit=limit)
-        for job in jobs:
-            enqueued = queue.enqueue(
-                job.id,
-                queue_name=settings.ai_queue_name,
-                timeout_seconds=settings.ai_job_timeout_seconds,
-            )
-            if enqueued.queue_job_id is not None:
-                mark_enqueued(
-                    session,
-                    job.id,
-                    queue_backend=enqueued.queue_backend,
-                    queue_name=enqueued.queue_name,
-                    queue_job_id=enqueued.queue_job_id,
-                )
-                record_job_event(
-                    session,
-                    job_id=job.id,
-                    event_type="requeued",
-                    actor="cli",
-                    metadata={
-                        "queue_name": enqueued.queue_name,
-                        "dedupe_job_id": rq_job_id(job.id),
-                    },
-                )
-    _echo_cli_line(f"ai_jobs_requeue\tbackend=rq\trequeued={len(jobs)}")
+        result = requeue_ai_jobs(
+            session=session,
+            queue=queue,
+            actor="cli",
+            limit=limit,
+            queue_name=settings.ai_queue_name,
+            timeout_seconds=settings.ai_job_timeout_seconds,
+        )
+    job_ids = ",".join(str(job_id) for job_id in result.job_ids)
+    _echo_cli_line(
+        "ai_jobs_requeue\tbackend=rq\t"
+        f"scanned={result.scanned}\t"
+        f"enqueued={result.enqueued}\t"
+        f"failed={result.failed}\t"
+        f"job_ids={job_ids}"
+    )
 
 
 @app.command("cancel-ai-job")

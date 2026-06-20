@@ -7,6 +7,7 @@ SENSITIVE_KEYS = {"authorization", "api_key", "apikey", "token", "password", "se
 SECRET_PATTERNS = (
     re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
     re.compile(r"\bsk-[A-Za-z0-9][A-Za-z0-9._\-]{2,}\b"),
+    re.compile(r"\b(token|password|secret|api_key|apikey)=\S+", re.IGNORECASE),
     re.compile(r"redis://[^\s]+", re.IGNORECASE),
     re.compile(r"(?:bolt|neo4j)(?:\+s|\+ssc)?://[^\s]+", re.IGNORECASE),
     re.compile(r"postgresql(?:\+psycopg)?://[^\s]+", re.IGNORECASE),
@@ -16,7 +17,10 @@ SECRET_PATTERNS = (
 def redact_sensitive_text(value: str) -> str:
     redacted = value
     for pattern in SECRET_PATTERNS:
-        redacted = pattern.sub("[REDACTED]", redacted)
+        if pattern.groups:
+            redacted = pattern.sub(lambda match: f"{match.group(1)}=[REDACTED]", redacted)
+        else:
+            redacted = pattern.sub("[REDACTED]", redacted)
     return redacted
 
 
