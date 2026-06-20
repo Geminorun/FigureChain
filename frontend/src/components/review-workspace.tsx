@@ -12,6 +12,8 @@ import {
   type ReviewCandidateSelection,
 } from "@/components/review-candidate-list";
 import { useAiJob } from "@/hooks/use-ai-job";
+import { ADMIN_REVIEW_API_BASE_PATH, DEFAULT_REVIEW_API_BASE_PATH } from "@/hooks/review-api-options";
+import { useAdminReviewActions } from "@/hooks/use-admin-review-actions";
 import { useReviewActions } from "@/hooks/use-review-actions";
 import { useReviewCandidateDetail } from "@/hooks/use-review-candidate-detail";
 import { useReviewCandidates } from "@/hooks/use-review-candidates";
@@ -22,15 +24,26 @@ const DEFAULT_FILTERS: ReviewCandidateListFilters = {
   offset: 0,
 };
 
-export function ReviewWorkspace() {
+type ReviewWorkspaceProps = {
+  reviewApiBasePath?: string;
+  mode?: "review" | "admin";
+};
+
+export function ReviewWorkspace({
+  reviewApiBasePath = DEFAULT_REVIEW_API_BASE_PATH,
+  mode = "review",
+}: ReviewWorkspaceProps) {
   const [filters, setFilters] = useState<ReviewCandidateListFilters>(DEFAULT_FILTERS);
   const [selection, setSelection] = useState<ReviewCandidateSelection | null>(null);
-  const candidates = useReviewCandidates(filters);
+  const candidates = useReviewCandidates(filters, { apiBasePath: reviewApiBasePath });
   const candidateDetail = useReviewCandidateDetail(
     selection?.kind ?? null,
     selection?.candidateId ?? null,
+    { apiBasePath: reviewApiBasePath },
   );
-  const actions = useReviewActions(selection);
+  const reviewActions = useReviewActions(selection, { apiBasePath: reviewApiBasePath });
+  const adminActions = useAdminReviewActions(selection);
+  const actions = mode === "admin" ? adminActions : reviewActions;
   const ai = useAiJob({
     targetType: "candidate",
     targetKind: selection?.kind ?? "",
@@ -81,13 +94,18 @@ export function ReviewWorkspace() {
         <ReviewActionPanel
           detail={candidateDetail.detail}
           error={actions.error}
+          isRetracting={mode === "admin" ? adminActions.isRetracting : false}
           isSubmitting={actions.isSubmitting}
           onActionComplete={refreshSelectedCandidate}
           onMarkNeedsReview={actions.markNeedsReview}
           onPromote={actions.promote}
           onReject={actions.reject}
+          onRetractEncounter={mode === "admin" ? adminActions.retractEncounter : undefined}
+          retractError={mode === "admin" ? adminActions.retractError : null}
         />
       </div>
     </div>
   );
 }
+
+export { ADMIN_REVIEW_API_BASE_PATH };

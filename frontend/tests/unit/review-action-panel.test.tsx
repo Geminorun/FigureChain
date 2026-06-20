@@ -168,4 +168,47 @@ describe("ReviewActionPanel", () => {
       note: "需要补证。",
     });
   });
+
+  it("submits linked encounter retractions and displays operation previews", async () => {
+    const onRetractEncounter = vi.fn().mockResolvedValue({
+      operation_id: "operation-1",
+      operation_type: "retract_encounter",
+      status: "succeeded",
+      result: {
+        encounter_id: "encounter-1",
+        status: "retracted",
+        path_eligible: false,
+        linked_candidates_updated: 1,
+      },
+      preview: "已撤回 encounter-1",
+    });
+
+    renderUi(
+      <ReviewActionPanel
+        detail={{
+          ...makeDetail(),
+          linked_encounter: { encounter_id: "encounter-1", status: "active" },
+        }}
+        error={null}
+        isSubmitting={false}
+        onActionComplete={vi.fn()}
+        onMarkNeedsReview={vi.fn()}
+        onPromote={vi.fn()}
+        onReject={vi.fn()}
+        onRetractEncounter={onRetractEncounter}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText("reviewed_by"), "lyl");
+    await userEvent.type(screen.getByLabelText("撤回原因"), "证据不足。");
+    await userEvent.click(screen.getByRole("button", { name: "撤回 Encounter" }));
+
+    expect(onRetractEncounter).toHaveBeenCalledWith("encounter-1", {
+      reviewed_by: "lyl",
+      note: "证据不足。",
+      force: false,
+    });
+    expect(await screen.findByText(/操作已记录：operation-1/)).toBeInTheDocument();
+    expect(screen.getByText("已撤回 encounter-1")).toBeInTheDocument();
+  });
 });

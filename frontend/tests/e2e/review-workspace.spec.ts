@@ -115,13 +115,13 @@ const queuedAiJob = {
 test("reviews a candidate through the workspace smoke path", async ({ page }) => {
   let promoteRequests = 0;
 
-  await page.route("**/api/figure-chain/review/candidates?**", async (route) => {
+  await page.route("**/api/figure-chain/admin/review/candidates?**", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ items: [candidateSummary], limit: 20, offset: 0, count: 1 }),
     });
   });
-  await page.route("**/api/figure-chain/review/candidates/relationship/960664", async (route) => {
+  await page.route("**/api/figure-chain/admin/review/candidates/relationship/960664", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify(candidateDetail),
@@ -140,26 +140,32 @@ test("reviews a candidate through the workspace smoke path", async ({ page }) =>
     });
   });
   await page.route(
-    "**/api/figure-chain/review/candidates/relationship/960664/promote",
+    "**/api/figure-chain/admin/review/candidates/relationship/960664/promote",
     async (route) => {
       promoteRequests += 1;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          kind: "relationship",
-          candidate_id: 960664,
+          operation_id: "operation-1",
+          operation_type: "promote_candidate",
           status: "promoted",
-          reviewed_by: "lyl",
-          encounter: null,
-          message: null,
+          action: {
+            kind: "relationship",
+            candidate_id: 960664,
+            status: "promoted",
+            reviewed_by: "lyl",
+            encounter: null,
+            message: null,
+          },
+          preview: "已提升候选 960664",
         }),
       });
     },
   );
 
-  await page.goto("/review");
+  await page.goto("/admin/review");
 
-  await expect(page.getByRole("heading", { name: "候选审核工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "后台审核工作台" })).toBeVisible();
   await expect(page.getByRole("button", { name: /relationship 960664/ })).toBeVisible();
 
   await page.getByRole("button", { name: /relationship 960664/ }).click();

@@ -6,6 +6,12 @@ import ReviewPage from "../../app/review/page";
 import { ReviewWorkspace } from "@/components/review-workspace";
 import { renderUi } from "@/test/render";
 
+const redirectMock = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
+}));
+
 const candidateSummary = {
   kind: "relationship",
   candidate_id: 960664,
@@ -153,15 +159,8 @@ describe("ReviewWorkspace", () => {
   });
 
   it("renders the review page", () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({ items: [], limit: 20, offset: 0, count: 0 }),
-      ),
-    );
+    ReviewPage();
 
-    renderUi(<ReviewPage />);
-
-    expect(screen.getByRole("heading", { name: "候选审核工作台" })).toBeInTheDocument();
+    expect(redirectMock).toHaveBeenCalledWith("/admin/review");
   });
 });

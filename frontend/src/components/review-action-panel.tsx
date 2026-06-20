@@ -8,24 +8,35 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorCallout } from "@/components/error-callout";
 import { parseErrorResponse, type DisplayableError } from "@/lib/api-errors";
 import type {
+  AdminEncounterRetractRequest,
+  AdminEncounterRetractResponse,
+  AdminReviewActionResponse,
   ReviewActionRequest,
   ReviewActionResponse,
   ReviewCandidateDetail,
 } from "@/lib/figure-chain-types";
 
+type ReviewActionPanelResponse = ReviewActionResponse | AdminReviewActionResponse;
+
 type ReviewActionPanelProps = {
   detail: ReviewCandidateDetail | null;
   error: DisplayableError | null;
+  isRetracting?: boolean;
   isSubmitting: boolean;
-  onActionComplete: (response: ReviewActionResponse) => void;
-  onMarkNeedsReview: (request: ReviewActionRequest) => Promise<ReviewActionResponse | null>;
-  onPromote: (request: ReviewActionRequest) => Promise<ReviewActionResponse | null>;
-  onReject: (request: ReviewActionRequest) => Promise<ReviewActionResponse | null>;
+  onActionComplete: (response: ReviewActionPanelResponse | AdminEncounterRetractResponse) => void;
+  onMarkNeedsReview: (request: ReviewActionRequest) => Promise<ReviewActionPanelResponse | null>;
+  onPromote: (request: ReviewActionRequest) => Promise<ReviewActionPanelResponse | null>;
+  onReject: (request: ReviewActionRequest) => Promise<ReviewActionPanelResponse | null>;
+  onRetractEncounter?: (
+    encounterId: string,
+    request: AdminEncounterRetractRequest,
+  ) => Promise<AdminEncounterRetractResponse | null>;
+  retractError?: DisplayableError | null;
 };
 
 async function runAction(
-  action: () => Promise<ReviewActionResponse | null>,
-  onActionComplete: (response: ReviewActionResponse) => void,
+  action: () => Promise<ReviewActionPanelResponse | AdminEncounterRetractResponse | null>,
+  onActionComplete: (response: ReviewActionPanelResponse | AdminEncounterRetractResponse) => void,
   onError: (error: DisplayableError) => void,
 ) {
   try {
@@ -41,11 +52,14 @@ async function runAction(
 export function ReviewActionPanel({
   detail,
   error,
+  isRetracting = false,
   isSubmitting,
   onActionComplete,
   onMarkNeedsReview,
   onPromote,
   onReject,
+  onRetractEncounter,
+  retractError = null,
 }: ReviewActionPanelProps) {
   const [reviewedBy, setReviewedBy] = useState("");
   const [evidenceSummary, setEvidenceSummary] = useState("");
@@ -53,19 +67,39 @@ export function ReviewActionPanel({
   const [allowNonDefault, setAllowNonDefault] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [reviewNote, setReviewNote] = useState("");
+  const [retractNote, setRetractNote] = useState("");
+  const [forceRetract, setForceRetract] = useState(false);
+  const [lastOperation, setLastOperation] = useState<{
+    operationId: string;
+    preview: string;
+  } | null>(null);
   const [localError, setLocalError] = useState<DisplayableError | null>(null);
   const reviewerReady = reviewedBy.trim().length > 0;
+  const busy = isSubmitting || isRetracting;
   const promoteReady =
     detail !== null &&
     reviewerReady &&
     evidenceSummary.trim().length > 0 &&
     (detail.promotion_readiness.default_promotable || allowNonDefault) &&
-    !isSubmitting;
-  const rejectReady = detail !== null && reviewerReady && rejectReason.trim().length > 0 && !isSubmitting;
-  const needsReviewReady = detail !== null && reviewerReady && !isSubmitting;
+    !busy;
+  const rejectReady = detail !== null && reviewerReady && rejectReason.trim().length > 0 && !busy;
+  const needsReviewReady = detail !== null && reviewerReady && !busy;
+  const retractReady =
+    detail?.linked_encounter !== null &&
+    detail?.linked_encounter !== undefined &&
+    onRetractEncounter !== undefined &&
+    reviewerReady &&
+    retractNote.trim().length > 0 &&
+    !busy;
 
-  function complete(response: ReviewActionResponse) {
+  function complete(response: ReviewActionPanelResponse | AdminEncounterRetractResponse) {
     setLocalError(null);
+    if ("operation_id" in response) {
+      setLastOperation({
+        operationId: response.operation_id,
+        preview: response.preview,
+      });
+    }
     onActionComplete(response);
   }
 
@@ -119,12 +153,37 @@ export function ReviewActionPanel({
     );
   }
 
+  async function handleRetract(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const encounterId = detail?.linked_encounter?.encounter_id;
+    if (!retractReady || !encounterId || !onRetractEncounter) {
+      return;
+    }
+    await runAction(
+      () =>
+        onRetractEncounter(encounterId, {
+          reviewed_by: reviewedBy.trim(),
+          note: retractNote.trim(),
+          force: forceRetract,
+        }),
+      complete,
+      setLocalError,
+    );
+  }
+
   return (
     <section className="rounded border border-stone-200 bg-white p-4 shadow-sm">
       <h2 className="text-base font-semibold text-stone-950">审核动作</h2>
       <div className="mt-4 space-y-4">
         {error ? <ErrorCallout error={error} /> : null}
+        {retractError ? <ErrorCallout error={retractError} /> : null}
         {localError ? <ErrorCallout error={localError} /> : null}
+        {lastOperation ? (
+          <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+            <p className="font-medium">操作已记录：{lastOperation.operationId}</p>
+            <p className="mt-1">{lastOperation.preview}</p>
+          </div>
+        ) : null}
         {detail === null ? (
           <EmptyState title="尚未选择候选" description="选择候选后可执行审核动作。" />
         ) : null}
@@ -218,6 +277,39 @@ export function ReviewActionPanel({
             标记待复核
           </button>
         </form>
+
+        {detail?.linked_encounter && onRetractEncounter ? (
+          <form className="space-y-3 border-t border-stone-200 pt-4" onSubmit={handleRetract}>
+            <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-950">
+              当前候选已关联 Encounter：{detail.linked_encounter.encounter_id}
+            </div>
+            <label className="block text-sm font-medium text-stone-800">
+              撤回原因
+              <textarea
+                className="mt-1 min-h-20 w-full resize-y rounded border border-stone-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+                value={retractNote}
+                onChange={(event) => setRetractNote(event.target.value)}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-stone-800">
+              <input
+                checked={forceRetract}
+                className="h-4 w-4"
+                type="checkbox"
+                onChange={(event) => setForceRetract(event.target.checked)}
+              />
+              强制撤回
+            </label>
+            <button
+              className="inline-flex min-h-10 items-center gap-2 rounded border border-red-400 px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:border-stone-300 disabled:text-stone-400"
+              disabled={!retractReady}
+              type="submit"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+              撤回 Encounter
+            </button>
+          </form>
+        ) : null}
       </div>
     </section>
   );
