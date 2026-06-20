@@ -30,6 +30,8 @@ def test_create_app_registers_api_prefix_routes_after_startup() -> None:
     assert "/health/live" in route_paths
     assert "/api/v1/ai/jobs" in route_paths
     assert "/api/v1/ai/jobs/{job_id}" in route_paths
+    assert "/api/v1/admin/operations" in route_paths
+    assert "/api/v1/admin/operations/{operation_id}" in route_paths
     assert "/api/v1/review/candidates" in route_paths
     assert "/api/v1/review/candidates/{kind}/{candidate_id}" in route_paths
 

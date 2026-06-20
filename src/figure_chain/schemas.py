@@ -613,3 +613,26 @@ class SystemDiagnosticsResponse(BaseModel):
     status: str
     dependencies: dict[str, SystemDependencyStatusResponse]
     config: dict[str, object]
+
+
+class AdminOperationDetailResponse(BaseModel):
+    operation_id: UUID
+    operation_type: str
+    actor: str
+    status: str
+    request_payload: dict[str, object]
+    result_summary: dict[str, object]
+    error_message: str | None
+    related_resource_type: str | None
+    related_resource_id: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminOperationListResponse(BaseModel):
+    items: list[AdminOperationDetailResponse]
+    limit: int
+    offset: int
+    count: int

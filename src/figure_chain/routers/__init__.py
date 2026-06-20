@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from figure_chain.routers import (
+    admin,
     ai,
     ai_jobs,
     chains,
@@ -19,6 +20,7 @@ from figure_chain.routers import (
 def api_router() -> APIRouter:
     router = APIRouter()
     router.include_router(health.router)
+    router.include_router(admin.router)
     router.include_router(people.router)
     router.include_router(encounters.router)
     router.include_router(chains.router)

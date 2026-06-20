@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from figure_chain.access import OperationContext, OperationRole, require_any_role
 from figure_chain.errors import ApplicationError, ErrorCode
+from figure_chain.services.admin import AdminService
 from figure_chain.services.ai import AIService
 from figure_chain.services.ai_jobs import AIJobsService
 from figure_chain.services.chains import ChainService
@@ -143,6 +144,12 @@ def get_ai_jobs_service(
         queue_name=getattr(settings, "ai_queue_name", "figure-ai"),
         job_timeout_seconds=getattr(settings, "ai_job_timeout_seconds", 120),
     )
+
+
+def get_admin_service(
+    pg_session: Annotated[Session, Depends(get_pg_session)],
+) -> AdminService:
+    return AdminService(pg_session)
 
 
 def get_review_service(
