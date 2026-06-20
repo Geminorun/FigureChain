@@ -2,7 +2,12 @@ import { FileSearch } from "lucide-react";
 import Link from "next/link";
 
 import type { ChainPath as ChainPathType } from "@/lib/figure-chain-types";
-import { formatLifeYears, formatMaybeText } from "@/lib/formatters";
+import {
+  formatCertaintyLevel,
+  formatEncounterKind,
+  formatLifeYears,
+  formatMaybeText,
+} from "@/lib/formatters";
 
 type ChainPathProps = {
   path: ChainPathType;
@@ -39,11 +44,12 @@ export function ChainPath({ path, onSelectEncounter }: ChainPathProps) {
                     <div className="space-y-1 text-sm text-stone-800">
                       <p className="font-medium">{edge.evidence_summary}</p>
                       <p>
-                        {edge.encounter_kind} · {edge.certainty_level}
+                        {formatEncounterKind(edge.encounter_kind)} ·{" "}
+                        {formatCertaintyLevel(edge.certainty_level)}
                       </p>
                       <p>页码：{formatMaybeText(edge.pages)}</p>
                       <p className="text-xs text-stone-500">
-                        encounter_id:{" "}
+                        接触记录 ID：{" "}
                         <Link
                           className="font-mono text-stone-700 underline-offset-4 hover:underline"
                           href={`/encounters/${edge.encounter_id}`}

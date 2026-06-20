@@ -23,14 +23,14 @@ export function parseErrorResponse(value: unknown): DisplayableError {
   if (isDisplayableError(value)) {
     return {
       code: value.code,
-      message: value.message,
+      message: messageForParsedError(value.code, value.message),
       details: value.details ?? {},
     };
   }
   if (isErrorResponse(value)) {
     return {
       code: value.error.code,
-      message: value.error.message,
+      message: messageForParsedError(value.error.code, value.error.message),
       details: value.error.details ?? {},
     };
   }
@@ -39,6 +39,11 @@ export function parseErrorResponse(value: unknown): DisplayableError {
     message: "请求失败",
     details: {},
   };
+}
+
+function messageForParsedError(code: string, fallback: string): string {
+  const message = errorMessageForCode(code);
+  return message === "请求失败" ? fallback : message;
 }
 
 export function errorMessageForCode(code: string): string {

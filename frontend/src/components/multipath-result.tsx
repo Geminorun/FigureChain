@@ -61,7 +61,7 @@ export function MultiPathResult({
     return (
       <EmptyState
         title="暂未找到路径"
-        description="可以放宽过滤条件、调高 max_depth，或等待更多真实 encounter 数据。"
+        description="可以放宽过滤条件、调高最大路径深度，或等待更多真实接触记录数据。"
       />
     );
   }
@@ -79,7 +79,7 @@ export function MultiPathResult({
         </h2>
         {result.returned_paths >= result.max_paths ? (
           <p className="text-sm text-amber-800">
-            结果已达到 max_paths 上限，可收紧过滤或调高上限。
+            结果已达到最大路径数上限，可收紧过滤或调高上限。
           </p>
         ) : null}
       </div>
@@ -99,7 +99,7 @@ export function MultiPathResult({
             <span className="font-medium">{path.path_id}</span>
             <span className="text-stone-600">
               {" "}
-              / length {path.length} / score {path.quality_score.toFixed(2)}
+              / 长度 {path.length} / 评分 {path.quality_score.toFixed(2)}
             </span>
           </button>
         ))}

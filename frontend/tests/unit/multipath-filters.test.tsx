@@ -10,6 +10,31 @@ import {
 import { renderUi } from "@/test/render";
 
 describe("MultiPathFiltersPanel", () => {
+  it("renders user-facing filter labels in Chinese", () => {
+    renderUi(
+      <MultiPathFiltersPanel
+        value={{
+          maxPaths: 5,
+          extraDepth: 0,
+          minCertaintyLevel: "high",
+          encounterKinds: [],
+          excludePersonIds: [],
+          excludeEncounterIds: [],
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("最大路径数")).toBeInTheDocument();
+    expect(screen.getByLabelText("额外深度")).toBeInTheDocument();
+    expect(screen.getByLabelText("最低可信度")).toBeInTheDocument();
+    expect(screen.getByText("关系类型")).toBeInTheDocument();
+    expect(screen.getByLabelText("排除人物 ID")).toBeInTheDocument();
+    expect(screen.getByLabelText("排除接触记录 ID")).toBeInTheDocument();
+    expect(screen.queryByText("max_paths")).not.toBeInTheDocument();
+    expect(screen.queryByText("direct_interaction")).not.toBeInTheDocument();
+  });
+
   it("edits max paths and certainty filter", async () => {
     const onChange = vi.fn();
 
@@ -27,12 +52,9 @@ describe("MultiPathFiltersPanel", () => {
       />,
     );
 
-    await userEvent.clear(screen.getByLabelText("max_paths"));
-    await userEvent.type(screen.getByLabelText("max_paths"), "8");
-    await userEvent.selectOptions(
-      screen.getByLabelText("min_certainty_level"),
-      "medium",
-    );
+    await userEvent.clear(screen.getByLabelText("最大路径数"));
+    await userEvent.type(screen.getByLabelText("最大路径数"), "8");
+    await userEvent.selectOptions(screen.getByLabelText("最低可信度"), "medium");
 
     expect(onChange).toHaveBeenCalled();
   });
@@ -62,11 +84,11 @@ describe("MultiPathFiltersPanel", () => {
     renderUi(<StatefulPanel />);
 
     await userEvent.type(
-      screen.getByLabelText("exclude_person_ids"),
+      screen.getByLabelText("排除人物 ID"),
       "38966b03-8aa7-5143-8021-2d266889b6c5",
     );
     await userEvent.type(
-      screen.getByLabelText("exclude_encounter_ids"),
+      screen.getByLabelText("排除接触记录 ID"),
       "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f",
     );
 
@@ -99,7 +121,7 @@ describe("MultiPathFiltersPanel", () => {
 
     const firstId = "38966b03-8aa7-5143-8021-2d266889b6c5";
     const secondId = "46cfdf66-08c4-5876-964b-4a95d098afe9";
-    const textarea = screen.getByLabelText("exclude_person_ids");
+    const textarea = screen.getByLabelText("排除人物 ID");
 
     await userEvent.type(textarea, `${firstId}{enter}${secondId}`);
 

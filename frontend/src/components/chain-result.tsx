@@ -50,7 +50,7 @@ export function ChainResult({
     return (
       <EmptyState
         title="暂未找到路径"
-        description="可以调整 max_depth 后重试，或等待后续扩展更多真实 encounter 数据。"
+        description="可以调整最大路径深度后重试，或等待后续扩展更多真实接触记录数据。"
       />
     );
   }

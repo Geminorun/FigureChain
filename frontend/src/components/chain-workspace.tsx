@@ -107,7 +107,7 @@ export function ChainWorkspace() {
           <DependencyStatusBanner ready={ready} />
           {healthError ? (
             <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-              FigureChain API readiness 暂不可用。
+              FigureChain API 就绪状态暂不可用。
             </div>
           ) : null}
         </div>
@@ -138,8 +138,9 @@ export function ChainWorkspace() {
 
           <div className="mt-5 grid gap-3 border-t border-stone-200 pt-4 sm:grid-cols-[1fr_auto] sm:items-end">
             <label className="block text-sm font-medium text-stone-800">
-              max_depth
+              最大路径深度
               <input
+                aria-label="最大路径深度"
                 className="mt-1 min-h-11 w-full rounded border border-stone-300 px-3 py-2 text-base focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
                 max={20}
                 min={1}

@@ -75,6 +75,10 @@ describe("MultiPathResult", () => {
     );
 
     expect(screen.getByText("找到 1 条路径")).toBeInTheDocument();
+    expect(screen.getByText(/长度 1 \/ 评分 1.00/)).toBeInTheDocument();
+    expect(screen.getByText("直接接触 · 高可信度")).toBeInTheDocument();
+    expect(screen.getByText(/接触记录 ID/)).toBeInTheDocument();
+    expect(screen.queryByText("direct_interaction")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /path-1/ }));
     await userEvent.click(screen.getByRole("button", { name: /查看证据/ }));
 

@@ -22,7 +22,7 @@ export function getChainValidationMessage(
     return "起点和终点不能是同一人";
   }
   if (!Number.isInteger(maxDepth) || maxDepth < 1 || maxDepth > 20) {
-    return "max_depth 必须在 1 到 20 之间";
+    return "最大路径深度必须在 1 到 20 之间";
   }
   return null;
 }

@@ -17,7 +17,7 @@ describe("validation", () => {
   it("rejects invalid max depth", () => {
     expect(canSubmitChain(xuJi, { ...xuJi, person_id: "other" }, 21, false)).toBe(false);
     expect(getChainValidationMessage(xuJi, { ...xuJi, person_id: "other" }, 0)).toBe(
-      "max_depth 必须在 1 到 20 之间",
+      "最大路径深度必须在 1 到 20 之间",
     );
   });
 

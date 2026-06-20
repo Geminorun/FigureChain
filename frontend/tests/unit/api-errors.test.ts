@@ -14,7 +14,7 @@ describe("api-errors", () => {
       }),
     ).toEqual({
       code: "dependency_unavailable",
-      message: "Neo4j is unavailable",
+      message: "依赖服务不可用，请稍后重试",
       details: {},
     });
   });
@@ -36,7 +36,7 @@ describe("api-errors", () => {
       }),
     ).toEqual({
       code: "graph_not_synced",
-      message: "endpoint person is not projected to Neo4j",
+      message: "图投影尚未同步，请先同步 Neo4j 图数据",
       details: {},
     });
   });

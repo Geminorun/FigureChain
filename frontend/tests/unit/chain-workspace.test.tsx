@@ -37,11 +37,12 @@ describe("ChainWorkspace", () => {
       expect(screen.getByText("部分依赖不可用")).toBeInTheDocument();
     });
     expect(screen.getByText("neo4j: bolt down")).toBeInTheDocument();
-    expect(screen.getByLabelText("max_paths")).toBeInTheDocument();
-    expect(screen.getByLabelText("extra_depth")).toBeInTheDocument();
-    expect(screen.getByLabelText("min_certainty_level")).toBeInTheDocument();
+    expect(screen.getByLabelText("最大路径深度")).toBeInTheDocument();
+    expect(screen.getByLabelText("最大路径数")).toBeInTheDocument();
+    expect(screen.getByLabelText("额外深度")).toBeInTheDocument();
+    expect(screen.getByLabelText("最低可信度")).toBeInTheDocument();
     expect(
-      screen.queryByText("FigureChain API readiness 暂不可用。"),
+      screen.queryByText("FigureChain API 就绪状态暂不可用。"),
     ).not.toBeInTheDocument();
   });
 
@@ -112,11 +113,11 @@ describe("ChainWorkspace", () => {
     await screen.findByRole("button", { name: /选择 韓琦/ });
     await userEvent.click(screen.getByRole("button", { name: /选择 韓琦/ }));
     await userEvent.type(
-      screen.getByLabelText("exclude_person_ids"),
+      screen.getByLabelText("排除人物 ID"),
       "38966b03-8aa7-5143-8021-2d266889b6c5",
     );
     await userEvent.type(
-      screen.getByLabelText("exclude_encounter_ids"),
+      screen.getByLabelText("排除接触记录 ID"),
       "e4f22ec2-22f7-4cda-bcc1-73aa83d0685f",
     );
     await userEvent.click(screen.getByRole("button", { name: "查询人物链" }));

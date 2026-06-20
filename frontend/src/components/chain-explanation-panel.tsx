@@ -47,7 +47,7 @@ export function ChainExplanationPanel({
           >
             <p>{edge.explanation}</p>
             <p className="mt-1 text-xs text-stone-500">
-              encounter_id: {edge.encounter_id}
+              接触记录 ID：{edge.encounter_id}
             </p>
           </div>
         ))}

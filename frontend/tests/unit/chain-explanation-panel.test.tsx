@@ -41,6 +41,7 @@ describe("ChainExplanationPanel", () => {
     expect(screen.getByText("AI 解释")).toBeInTheDocument();
     expect(screen.getByText("这条人物链由一条已审核 encounter 组成。")).toBeInTheDocument();
     expect(screen.getByText("许几谒见韩琦。")).toBeInTheDocument();
+    expect(screen.getByText(/接触记录 ID/)).toBeInTheDocument();
   });
 
   it("renders unavailable message without hiding the result area", () => {

@@ -17,11 +17,20 @@ type MultiPathFiltersPanelProps = {
 };
 
 const ENCOUNTER_KIND_OPTIONS = [
-  "direct_interaction",
-  "family_contact",
-  "manual_contact",
-  "co_presence",
+  { value: "direct_interaction", label: "直接接触" },
+  { value: "family_contact", label: "家族接触" },
+  { value: "manual_contact", label: "人工确认接触" },
+  { value: "co_presence", label: "同场出现" },
 ];
+
+const CERTAINTY_LEVEL_OPTIONS = [
+  { value: "high", label: "高" },
+  { value: "medium", label: "中" },
+  { value: "low", label: "低" },
+] satisfies Array<{
+  value: MultiPathFilterState["minCertaintyLevel"];
+  label: string;
+}>;
 
 function parseIdList(value: string): string[] {
   return Array.from(
@@ -62,9 +71,9 @@ export function MultiPathFiltersPanel({
         多路径过滤
       </legend>
       <label className="block text-sm font-medium text-stone-800">
-        max_paths
+        最大路径数
         <input
-          aria-label="max_paths"
+          aria-label="最大路径数"
           className="mt-1 min-h-10 w-full rounded border border-stone-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
           max={20}
           min={1}
@@ -74,9 +83,9 @@ export function MultiPathFiltersPanel({
         />
       </label>
       <label className="block text-sm font-medium text-stone-800">
-        extra_depth
+        额外深度
         <input
-          aria-label="extra_depth"
+          aria-label="额外深度"
           className="mt-1 min-h-10 w-full rounded border border-stone-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
           max={2}
           min={0}
@@ -88,9 +97,9 @@ export function MultiPathFiltersPanel({
         />
       </label>
       <label className="block text-sm font-medium text-stone-800">
-        min_certainty_level
+        最低可信度
         <select
-          aria-label="min_certainty_level"
+          aria-label="最低可信度"
           className="mt-1 min-h-10 w-full rounded border border-stone-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
           value={value.minCertaintyLevel}
           onChange={(event) =>
@@ -100,33 +109,35 @@ export function MultiPathFiltersPanel({
             })
           }
         >
-          <option value="high">high</option>
-          <option value="medium">medium</option>
-          <option value="low">low</option>
+          {CERTAINTY_LEVEL_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </label>
       <div className="sm:col-span-3">
-        <p className="text-sm font-medium text-stone-800">encounter_kinds</p>
+        <p className="text-sm font-medium text-stone-800">关系类型</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {ENCOUNTER_KIND_OPTIONS.map((kind) => (
             <label
               className="inline-flex items-center gap-2 text-sm text-stone-700"
-              key={kind}
+              key={kind.value}
             >
               <input
-                checked={value.encounterKinds.includes(kind)}
+                checked={value.encounterKinds.includes(kind.value)}
                 type="checkbox"
-                onChange={() => toggleKind(kind)}
+                onChange={() => toggleKind(kind.value)}
               />
-              {kind}
+              {kind.label}
             </label>
           ))}
         </div>
       </div>
       <label className="block text-sm font-medium text-stone-800 sm:col-span-3">
-        exclude_person_ids
+        排除人物 ID
         <textarea
-          aria-label="exclude_person_ids"
+          aria-label="排除人物 ID"
           className="mt-1 min-h-20 w-full resize-y rounded border border-stone-300 px-3 py-2 font-mono text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
           value={personIdsText}
           onChange={(event) => {
@@ -137,9 +148,9 @@ export function MultiPathFiltersPanel({
         />
       </label>
       <label className="block text-sm font-medium text-stone-800 sm:col-span-3">
-        exclude_encounter_ids
+        排除接触记录 ID
         <textarea
-          aria-label="exclude_encounter_ids"
+          aria-label="排除接触记录 ID"
           className="mt-1 min-h-20 w-full resize-y rounded border border-stone-300 px-3 py-2 font-mono text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
           value={encounterIdsText}
           onChange={(event) => {
