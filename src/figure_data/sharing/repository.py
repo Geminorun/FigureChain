@@ -26,7 +26,7 @@ def create_share_snapshot(
     snapshot: NewChainShareSnapshot,
 ) -> ChainShareSnapshotRecord:
     created_at = datetime.now(UTC)
-    share_slug = _generate_share_slug(datetime.now().astimezone())
+    share_slug = _generate_share_slug(created_at.astimezone())
     row = (
         session.execute(
             text(

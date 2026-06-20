@@ -113,7 +113,7 @@ def test_create_share_snapshot_generates_slug_and_serializes_payloads() -> None:
     )
 
     assert record.id == session.snapshot_id
-    assert record.share_slug.startswith("20260619-")
+    assert record.share_slug.startswith(f"{session.params[0]['created_at']:%Y%m%d}-")
     assert record.chain_hash == "known-chain-hash"
     assert "insert into figure_data.chain_share_snapshots" in session.statements[0]
     assert session.params[0]["share_slug"] == record.share_slug
